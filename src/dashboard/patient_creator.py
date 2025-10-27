@@ -7,10 +7,13 @@ import random
 from pathlib import Path
 import sys
 
-# Add src to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Add paths for module resolution
+dashboard_dir = Path(__file__).parent
+src_dir = dashboard_dir.parent
+sys.path.insert(0, str(dashboard_dir))
+sys.path.insert(0, str(src_dir))
 
-from dashboard.utils.mock_patient import generate_avatar, get_patient_initials, save_avatar_to_bytes
+from utils.mock_patient import generate_avatar, get_patient_initials, save_avatar_to_bytes
 from utils.dynamic_clinical_generator import DynamicClinicalGenerator
 
 

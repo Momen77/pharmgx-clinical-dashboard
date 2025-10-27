@@ -7,13 +7,20 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-# Add src to path
-sys.path.append(str(Path(__file__).parent.parent.parent))
+# Add current directory and parent to path for imports
+dashboard_dir = Path(__file__).parent
+src_dir = dashboard_dir.parent
+project_root = src_dir.parent
 
-from dashboard.utils.styling import inject_css
-from dashboard.patient_creator import PatientCreator
-from dashboard.gene_panel_selector import GenePanelSelector
-from dashboard.alert_classifier import AlertClassifier
+# Add paths for module resolution
+sys.path.insert(0, str(dashboard_dir))
+sys.path.insert(0, str(src_dir))
+
+# Import dashboard modules
+from utils.styling import inject_css
+from patient_creator import PatientCreator
+from gene_panel_selector import GenePanelSelector
+from alert_classifier import AlertClassifier
 
 # Import main pipeline
 try:
