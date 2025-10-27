@@ -121,39 +121,41 @@ elif page == "🔬 Run Test":
                 selector.render_test_progress(st.session_state['selected_genes'])
             
             # Actually run the pipeline
-            try:
-                if PGxKGPipeline is None:
-                    st.error("Pipeline not available. Please check imports.")
-                    return
-                
-                with st.spinner("Executing PGx pipeline..."):
-                    pipeline = PGxKGPipeline(config_path="config.yaml")
-                    results = pipeline.run_multi_gene(st.session_state['selected_genes'])
-                    
-                    st.session_state['test_results'] = results
+            if PGxKGPipeline is None:
+                st.error("Pipeline not available. Please check imports.")
+            else:
+                try:
+                    with st.spinner("Executing PGx pipeline..."):
+                        pipeline = PGxKGPipeline(config_path="config.yaml")
+                        results = pipeline.run_multi_gene(st.session_state['selected_genes'])
+                        
+                        st.session_state['test_results'] = results
+                        st.session_state['test_running'] = False
+                        st.session_state['test_complete'] = True
+                        
+                        # Show success screen
+                        st.success("✅ Pharmacogenetic Test Complete!")
+                        
+                        # Summary metrics
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Variants Found", results.get('total_variants', 0))
+                        with col2:
+                            st.metric("Genes Analyzed", len(results.get('genes', [])))
+                        with col3:
+                            critical_count = results.get('comprehensive_outputs', {}).get('critical_conflicts', 0)
+                            st.metric("Critical Alerts", critical_count, delta_color="inverse")
+                        with col4:
+                            st.metric("Affected Drugs", results.get('affected_drugs', 0))
+                        
+                        st.info("📊 View the detailed report in the 'View Report' page")
+                        
+                except Exception as e:
+                    st.error(f"❌ Test failed: {str(e)}")
                     st.session_state['test_running'] = False
-                    st.session_state['test_complete'] = True
-                    
-                    # Show success screen
-                    st.success("✅ Pharmacogenetic Test Complete!")
-                    
-                    # Summary metrics
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Variants Found", results.get('total_variants', 0))
-                    with col2:
-                        st.metric("Genes Analyzed", len(results.get('genes', [])))
-                    with col3:
-                        critical_count = results.get('comprehensive_outputs', {}).get('critical_conflicts', 0)
-                        st.metric("Critical Alerts", critical_count, delta_color="inverse")
-                    with col4:
-                        st.metric("Affected Drugs", results.get('affected_drugs', 0))
-                    
-                    st.info("📊 View the detailed report in the 'View Report' page")
-                    
-            except Exception as e:
-                st.error(f"❌ Test failed: {str(e)}")
-                st.session_state['test_running'] = False
+                
+                finally:
+                    st.session_state['test_running'] = False
 
 elif page == "📊 View Report":
     st.title("📊 Clinical Report")
