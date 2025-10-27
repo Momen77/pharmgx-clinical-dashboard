@@ -13,8 +13,30 @@ src_dir = dashboard_dir.parent
 sys.path.insert(0, str(dashboard_dir))
 sys.path.insert(0, str(src_dir))
 
-from utils.mock_patient import generate_avatar, get_patient_initials, save_avatar_to_bytes
-from utils.dynamic_clinical_generator import DynamicClinicalGenerator
+# Import from dashboard.utils for mock_patient
+try:
+    from dashboard.utils.mock_patient import generate_avatar, get_patient_initials, save_avatar_to_bytes
+except ImportError:
+    # Fallback: try relative import
+    from .utils.mock_patient import generate_avatar, get_patient_initials, save_avatar_to_bytes
+
+# Import from src.utils for dynamic_clinical_generator (this is in the parent utils directory)
+try:
+    from utils.dynamic_clinical_generator import DynamicClinicalGenerator
+except ImportError:
+    # Fallback: direct import
+    import importlib.util
+    utils_path = src_dir / "utils" / "dynamic_clinical_generator.py"
+    if utils_path.exists():
+        spec = importlib.util.spec_from_file_location("dynamic_clinical_generator", utils_path)
+        gen_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gen_module)
+        DynamicClinicalGenerator = gen_module.DynamicClinicalGenerator
+    else:
+        # Define a minimal fallback
+        class DynamicClinicalGenerator:
+            def __init__(self, bioportal_api_key=None):
+                pass
 
 
 class PatientCreator:
