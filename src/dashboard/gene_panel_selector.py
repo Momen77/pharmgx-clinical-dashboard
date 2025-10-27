@@ -118,7 +118,8 @@ class GenePanelSelector:
             cols = st.columns(num_cols)
             for i, gene in enumerate(selected_genes):
                 with cols[i % num_cols]:
-                    st.tag(gene)
+                    # Use badge-style display instead of st.tag() for compatibility
+                    st.markdown(f'<div style="background-color: #1E64C8; color: white; padding: 5px 10px; border-radius: 15px; text-align: center; font-weight: bold;">{gene}</div>', unsafe_allow_html=True)
         else:
             st.info("👆 Select genes above to proceed with testing")
         
