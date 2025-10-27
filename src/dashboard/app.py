@@ -12,12 +12,40 @@ dashboard_dir = Path(__file__).parent
 src_dir = dashboard_dir.parent
 project_root = src_dir.parent
 
-# Add paths for module resolution
-sys.path.insert(0, str(dashboard_dir))
-sys.path.insert(0, str(src_dir))
+# Add paths for module resolution (ensure dashboard directory is first)
+if str(dashboard_dir) not in sys.path:
+    sys.path.insert(0, str(dashboard_dir))
+if str(src_dir) not in sys.path:
+    sys.path.insert(1, str(src_dir))
+if str(project_root) not in sys.path:
+    sys.path.insert(2, str(project_root))
 
-# Import dashboard modules
-from utils.styling import inject_css
+# Import dashboard modules - specifically from dashboard.utils
+try:
+    from dashboard.utils.styling import inject_css
+except ImportError as e:
+    try:
+        # Try relative import within dashboard package
+        from .utils.styling import inject_css
+    except ImportError:
+        try:
+            # Fallback: direct import from file using importlib
+            import importlib.util
+            utils_path = dashboard_dir / "utils" / "styling.py"
+            if utils_path.exists():
+                spec = importlib.util.spec_from_file_location("styling", utils_path)
+                styling_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(styling_module)
+                inject_css = styling_module.inject_css
+            else:
+                st.error(f"Could not find styling.py at {utils_path}")
+                def inject_css():
+                    st.markdown("<!-- Styling module not found -->", unsafe_allow_html=True)
+        except Exception as import_error:
+            st.error(f"Could not load styling module: {import_error}")
+            def inject_css():
+                st.markdown("<!-- Styling module not loaded -->", unsafe_allow_html=True)
+
 from patient_creator import PatientCreator
 from gene_panel_selector import GenePanelSelector
 from alert_classifier import AlertClassifier
