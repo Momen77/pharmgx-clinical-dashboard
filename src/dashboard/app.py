@@ -111,11 +111,29 @@ elif page == "👤 Create Patient":
     # Load config for API keys
     try:
         import yaml
-        with open("config.yaml", 'r') as f:
-            config = yaml.safe_load(f)
-        bioportal_key = config.get('api', {}).get('bioportal_api_key')
-    except:
+        # Try to find config.yaml in multiple locations
+        config_paths = [
+            project_root / "config.yaml",  # Root config.yaml
+            src_dir.parent / "config.yaml",  # Dashboard parent
+            dashboard_dir.parent / "config.yaml",  # Alternative location
+            Path("config.yaml")  # Current directory
+        ]
+        
+        config = None
+        for config_path in config_paths:
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                break
+        
+        if config:
+            bioportal_key = config.get('api', {}).get('bioportal_api_key')
+        else:
+            bioportal_key = None
+            st.warning("⚠️ Could not find config.yaml. API features may be limited.")
+    except Exception as e:
         bioportal_key = None
+        st.warning(f"⚠️ Could not load API keys: {e}")
     
     creator = PatientCreator(bioportal_api_key=bioportal_key)
     creator.render_patient_form()
@@ -161,7 +179,21 @@ elif page == "🔬 Run Test":
             else:
                 try:
                     with st.spinner("Executing PGx pipeline..."):
-                        pipeline = PGxKGPipeline(config_path="config.yaml")
+                        # Try to find config.yaml in multiple locations
+                        config_paths = [
+                            project_root / "config.yaml",
+                            src_dir.parent / "config.yaml",
+                            dashboard_dir.parent / "config.yaml",
+                            Path("config.yaml")
+                        ]
+                        
+                        config_path = "config.yaml"
+                        for cp in config_paths:
+                            if cp.exists():
+                                config_path = str(cp)
+                                break
+                        
+                        pipeline = PGxKGPipeline(config_path=config_path)
                         results = pipeline.run_multi_gene(st.session_state['selected_genes'])
                         
                         st.session_state['test_results'] = results
