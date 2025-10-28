@@ -74,6 +74,10 @@ class Storyboard:
         self._place_text.info(self.caption)
 
     def advance(self, event: PipelineEvent) -> None:
+        # Safety check for event
+        if event is None:
+            return
+            
         # Map stages to scenes
         if event.stage in {"lab_prep"}:
             self.scene = "lab_prep"
@@ -84,7 +88,7 @@ class Storyboard:
         elif event.stage in {"report"}:
             self.scene = "report"
 
-        self.caption = event.message
+        self.caption = event.message if event.message else "Processing..."
         if event.progress is not None:
             self._progress.progress(min(max(event.progress, 0), 1))
 
@@ -101,10 +105,15 @@ def consume_events(event_q: "queue.Queue", storyboard: Storyboard, worker_alive_
     with log:
         while worker_alive_fn() or not event_q.empty():
             try:
-                e: PipelineEvent = event_q.get(timeout=0.1)
+                e = event_q.get(timeout=0.1)
+                if e is None:
+                    continue
                 storyboard.advance(e)
                 st.write(f"[{e.stage}.{e.substage}] {e.message}")
             except queue.Empty:
+                pass
+            except Exception as ex:
+                st.write(f"Event processing error: {ex}")
                 pass
     return None
 
