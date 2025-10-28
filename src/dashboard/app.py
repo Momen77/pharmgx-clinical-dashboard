@@ -444,25 +444,100 @@ elif page == "💾 Export Data":
             st.subheader("Export Options")
             if st.button("📄 Download PDF Report"):
                 st.info("PDF export will be implemented with ReportLab")
-            
-            if st.button("📊 Download JSON-LD"):
-                if 'comprehensive_outputs' in results:
-                    jsonld_path = results['comprehensive_outputs'].get('Comprehensive JSON-LD')
-                    if jsonld_path:
-                        with open(jsonld_path, 'rb') as f:
-                            st.download_button(
-                                "Download JSON-LD",
-                                f.read(),
-                                file_name=f"patient_pgx_{datetime.now().strftime('%Y%m%d')}.jsonld",
-                                mime="application/json"
-                            )
+
+            # Dynamic per-file download buttons
+            outputs = results.get('comprehensive_outputs', {})
+            if outputs:
+                # JSON-LD
+                jsonld_path = outputs.get('Comprehensive JSON-LD')
+                if jsonld_path and Path(jsonld_path).exists():
+                    with open(jsonld_path, 'rb') as f:
+                        st.download_button(
+                            "📊 Download JSON-LD",
+                            f.read(),
+                            file_name=Path(jsonld_path).name,
+                            mime="application/ld+json"
+                        )
+
+                # TTL
+                ttl_path = outputs.get('Comprehensive TTL')
+                if ttl_path and Path(ttl_path).exists():
+                    with open(ttl_path, 'rb') as f:
+                        st.download_button(
+                            "🧾 Download TTL (RDF Turtle)",
+                            f.read(),
+                            file_name=Path(ttl_path).name,
+                            mime="text/turtle"
+                        )
+
+                # HTML Report
+                html_path = outputs.get('Comprehensive HTML Report')
+                if html_path and Path(html_path).exists():
+                    with open(html_path, 'rb') as f:
+                        st.download_button(
+                            "📝 Download HTML Report",
+                            f.read(),
+                            file_name=Path(html_path).name,
+                            mime="text/html"
+                        )
+
+                # Summary JSON
+                summary_path = outputs.get('Summary Report')
+                if summary_path and Path(summary_path).exists():
+                    with open(summary_path, 'rb') as f:
+                        st.download_button(
+                            "📄 Download Summary JSON",
+                            f.read(),
+                            file_name=Path(summary_path).name,
+                            mime="application/json"
+                        )
+
+                # Drug Interaction Matrix
+                matrix_path = outputs.get('Drug Interaction Matrix')
+                if matrix_path and Path(matrix_path).exists():
+                    with open(matrix_path, 'rb') as f:
+                        st.download_button(
+                            "🧪 Download Drug Matrix JSON",
+                            f.read(),
+                            file_name=Path(matrix_path).name,
+                            mime="application/json"
+                        )
+
+                # Conflict Report
+                conflict_path = outputs.get('Conflict Report')
+                if conflict_path and Path(conflict_path).exists():
+                    with open(conflict_path, 'rb') as f:
+                        st.download_button(
+                            "⚠️ Download Conflict Report JSON",
+                            f.read(),
+                            file_name=Path(conflict_path).name,
+                            mime="application/json"
+                        )
+
+                # Zip all
+                import io, zipfile
+                if st.button("📦 Download ALL as ZIP"):
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                        for label, path in outputs.items():
+                            try:
+                                if path and Path(path).exists():
+                                    zipf.write(path, arcname=Path(path).name)
+                            except Exception:
+                                pass
+                    st.download_button(
+                        "📦 Download ZIP",
+                        data=zip_buffer.getvalue(),
+                        file_name=f"pgx_outputs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                        mime="application/zip"
+                    )
         
         with col2:
             st.subheader("Raw Data Files")
-            if 'comprehensive_outputs' in results:
-                for file_type, file_path in results['comprehensive_outputs'].items():
-                    st.text(f"• {file_type}")
-                    st.code(file_path, language=None)
+            outputs = results.get('comprehensive_outputs', {})
+            for file_type, file_path in outputs.items():
+                st.text(f"• {file_type}")
+                st.code(file_path, language=None)
 
 if __name__ == "__main__":
     pass

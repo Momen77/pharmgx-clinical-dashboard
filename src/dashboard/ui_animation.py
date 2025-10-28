@@ -48,6 +48,7 @@ class Storyboard:
         self._place_anim = st.empty()
         self._place_text = st.empty()
         self._progress = st.progress(0)
+        self._render_count = 0  # ensure unique widget keys per render
 
         # Load assets lazily
         self.assets = {
@@ -60,6 +61,13 @@ class Storyboard:
         self._render()
 
     def _render(self) -> None:
+        # Clear previous animation to avoid duplicate widget keys
+        try:
+            self._place_anim.empty()
+        except Exception:
+            pass
+
+        self._render_count += 1
         anim = self.assets.get(self.scene, {})
         if not anim:
             # Fallback to placeholder if scene not found
@@ -68,7 +76,7 @@ class Storyboard:
         if anim:
             try:
                 with self._place_anim.container():
-                    st_lottie(anim, height=240, key=f"anim_{self.scene}")
+                    st_lottie(anim, height=240, key=f"anim_{self.scene}_{self._render_count}")
             except Exception as e:
                 # Fallback to text if Lottie fails
                 with self._place_anim.container():
