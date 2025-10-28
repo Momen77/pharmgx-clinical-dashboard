@@ -187,8 +187,8 @@ elif page == "🔬 Run Test":
             else:
                 try:
                     import queue as _q
-                    from ..utils.background_worker import PipelineWorker
-                    from ..utils.event_bus import PipelineEvent
+                    from utils.background_worker import PipelineWorker
+                    from utils.event_bus import PipelineEvent
 
                     # Resolve config path
                     config_paths = [

@@ -1,4 +1,4 @@
-"""Streamlit UI helpers for the lab→NGS→report storyboard using Lottie."""
+"""Streamlit UI helpers for the lab->NGS->report storyboard using Lottie."""
 from __future__ import annotations
 
 import queue
@@ -8,8 +8,15 @@ from typing import Optional
 import streamlit as st
 from streamlit_lottie import st_lottie
 
-from ..utils.lottie_loader import load_lottie_json
-from ..utils.event_bus import PipelineEvent
+# Fix import paths for direct execution
+import sys
+from pathlib import Path
+dashboard_dir = Path(__file__).parent
+src_dir = dashboard_dir.parent
+sys.path.insert(0, str(src_dir))
+
+from utils.lottie_loader import load_lottie_json
+from utils.event_bus import PipelineEvent
 
 
 class Storyboard:

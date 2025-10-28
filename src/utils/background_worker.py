@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 
 # Local imports
-from .event_bus import emit
+from event_bus import emit
 
 
 class PipelineWorker(threading.Thread):
