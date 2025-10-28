@@ -50,13 +50,15 @@ class Storyboard:
         self._progress = st.progress(0)
         self._render_count = 0  # ensure unique widget keys per render
 
-        # Load assets lazily
-        self.assets = {
-            "lab_prep": load_lottie_json("lab_prep.json"),
-            "ngs": load_lottie_json("ngs.json"),
-            "bioinformatics": load_lottie_json("bioinformatics.json"),
-            "report": load_lottie_json("report.json"),
-        }
+        # Load assets lazily and test loading
+        self.assets = {}
+        for scene_name in ["lab_prep", "ngs", "bioinformatics", "report"]:
+            asset = load_lottie_json(f"{scene_name}.json")
+            self.assets[scene_name] = asset
+            if asset:
+                st.success(f"✅ Loaded {scene_name}.json")
+            else:
+                st.warning(f"⚠️ Failed to load {scene_name}.json")
 
         self._render()
 

@@ -8,32 +8,33 @@ from functools import lru_cache
 
 @lru_cache(maxsize=32)
 def load_lottie_json(relative_path: str) -> dict:
-    """Load a Lottie JSON asset, trying multiple known locations."""
-    base_candidates = [
-        Path(__file__).resolve().parents[2],  # pharmgx-clinical-dashboard/
-        Path(__file__).resolve().parents[3] / "src" / "pharmgx-clinical-dashboard",  # project-root/src/pharmgx-clinical-dashboard
+    """Load a Lottie JSON asset from the correct path."""
+    # Get the current file's directory and navigate to assets
+    current_file = Path(__file__).resolve()
+    
+    # Try multiple possible paths
+    possible_paths = [
+        # From utils/lottie_loader.py -> pharmgx-clinical-dashboard/assets/lottie/
+        current_file.parents[2] / "assets" / "lottie" / relative_path,
+        # Alternative: from utils/ -> src/pharmgx-clinical-dashboard/assets/lottie/
+        current_file.parents[1] / "pharmgx-clinical-dashboard" / "assets" / "lottie" / relative_path,
+        # Direct path from project root
+        Path.cwd() / "src" / "pharmgx-clinical-dashboard" / "assets" / "lottie" / relative_path,
     ]
     
-    # Debug: print paths being checked
-    print(f"DEBUG: Looking for {relative_path}")
-    for base in base_candidates:
-        asset_path = base / "assets" / "lottie" / relative_path
-        print(f"DEBUG: Checking {asset_path} - exists: {asset_path.exists()}")
+    for asset_path in possible_paths:
         if asset_path.exists():
             try:
                 with open(asset_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    # basic validation
-                    if isinstance(data, dict) and data.get("layers") is not None:
-                        print(f"DEBUG: Successfully loaded {relative_path}")
+                    # Validate it's a proper Lottie file
+                    if isinstance(data, dict) and "layers" in data and "v" in data:
                         return data
-                    else:
-                        print(f"DEBUG: Invalid Lottie data in {relative_path}")
             except Exception as e:
-                print(f"DEBUG: Error loading {relative_path}: {e}")
-                pass
+                print(f"Error loading {asset_path}: {e}")
+                continue
     
-    print(f"DEBUG: Failed to load {relative_path}")
+    # If no valid file found, return empty dict
     return {}
 
 
