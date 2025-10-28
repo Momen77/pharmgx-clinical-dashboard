@@ -46,11 +46,87 @@ except ImportError as e:
             def inject_css():
                 st.markdown("<!-- Styling module not loaded -->", unsafe_allow_html=True)
 
-from patient_creator import PatientCreator
-from ui_profile import render_profile_controls, render_manual_enrichment_forms
-from ui_animation import Storyboard, consume_events
-from gene_panel_selector import GenePanelSelector
-from alert_classifier import AlertClassifier
+# Import dashboard modules with robust fallbacks
+try:
+    from patient_creator import PatientCreator
+except ImportError:
+    import importlib.util
+    patient_path = dashboard_dir / "patient_creator.py"
+    if patient_path.exists():
+        spec = importlib.util.spec_from_file_location("patient_creator", patient_path)
+        patient_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(patient_module)
+        PatientCreator = patient_module.PatientCreator
+    else:
+        st.error("Could not find patient_creator.py")
+        PatientCreator = None
+
+try:
+    from ui_profile import render_profile_controls, render_manual_enrichment_forms
+except ImportError:
+    import importlib.util
+    ui_profile_path = dashboard_dir / "ui_profile.py"
+    if ui_profile_path.exists():
+        spec = importlib.util.spec_from_file_location("ui_profile", ui_profile_path)
+        ui_profile_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ui_profile_module)
+        render_profile_controls = ui_profile_module.render_profile_controls
+        render_manual_enrichment_forms = ui_profile_module.render_manual_enrichment_forms
+    else:
+        st.error("Could not find ui_profile.py")
+        def render_profile_controls():
+            return "Manual (dashboard form)", "Auto (by age/lifestyle)"
+        def render_manual_enrichment_forms():
+            return [], [], {}
+
+try:
+    from ui_animation import Storyboard, consume_events
+except ImportError:
+    import importlib.util
+    ui_animation_path = dashboard_dir / "ui_animation.py"
+    if ui_animation_path.exists():
+        spec = importlib.util.spec_from_file_location("ui_animation", ui_animation_path)
+        ui_animation_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ui_animation_module)
+        Storyboard = ui_animation_module.Storyboard
+        consume_events = ui_animation_module.consume_events
+    else:
+        st.error("Could not find ui_animation.py")
+        class Storyboard:
+            def __init__(self):
+                st.info("Animation not available")
+            def advance(self, event):
+                pass
+        def consume_events(event_q, storyboard, worker_alive_fn):
+            return None
+
+try:
+    from gene_panel_selector import GenePanelSelector
+except ImportError:
+    import importlib.util
+    gene_panel_path = dashboard_dir / "gene_panel_selector.py"
+    if gene_panel_path.exists():
+        spec = importlib.util.spec_from_file_location("gene_panel_selector", gene_panel_path)
+        gene_panel_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gene_panel_module)
+        GenePanelSelector = gene_panel_module.GenePanelSelector
+    else:
+        st.error("Could not find gene_panel_selector.py")
+        GenePanelSelector = None
+
+try:
+    from alert_classifier import AlertClassifier
+except ImportError:
+    import importlib.util
+    alert_path = dashboard_dir / "alert_classifier.py"
+    if alert_path.exists():
+        spec = importlib.util.spec_from_file_location("alert_classifier", alert_path)
+        alert_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(alert_module)
+        AlertClassifier = alert_module.AlertClassifier
+    else:
+        st.error("Could not find alert_classifier.py")
+        AlertClassifier = None
 
 # Import main pipeline
 try:
@@ -137,15 +213,21 @@ elif page == "👤 Create Patient":
         bioportal_key = None
         st.warning(f"⚠️ Could not load API keys: {e}")
     
-    creator = PatientCreator(bioportal_api_key=bioportal_key)
-    creator.render_patient_form()
+    if PatientCreator is not None:
+        creator = PatientCreator(bioportal_api_key=bioportal_key)
+        creator.render_patient_form()
+    else:
+        st.error("Patient creator module not available")
 
 elif page == "🧬 Select Genes":
-    selector = GenePanelSelector()
-    selected_genes = selector.render_gene_selector()
-    
-    if selected_genes:
-        st.session_state['selected_genes'] = selected_genes
+    if GenePanelSelector is not None:
+        selector = GenePanelSelector()
+        selected_genes = selector.render_gene_selector()
+        
+        if selected_genes:
+            st.session_state['selected_genes'] = selected_genes
+    else:
+        st.error("Gene panel selector module not available")
 
 elif page == "🔬 Run Test":
     st.title("🔬 Run Pharmacogenetic Test")
@@ -170,13 +252,18 @@ elif page == "🔬 Run Test":
         manual_labs = {}
         if enrich == "Manual (enter now)":
             manual_conditions, manual_meds, manual_labs = render_manual_enrichment_forms()
-        selector = GenePanelSelector()
-        patient_profile = st.session_state.get('patient_profile')
         
-        test_button = selector.render_test_button(
-            st.session_state['selected_genes'],
-            patient_profile
-        )
+        if GenePanelSelector is not None:
+            selector = GenePanelSelector()
+            patient_profile = st.session_state.get('patient_profile')
+            
+            test_button = selector.render_test_button(
+                st.session_state['selected_genes'],
+                patient_profile
+            )
+        else:
+            st.error("Gene panel selector module not available")
+            test_button = False
         
         if test_button:
             st.session_state['test_running'] = True
@@ -250,7 +337,11 @@ elif page == "🔬 Run Test":
                     )
                     worker.start()
 
-                    storyboard = Storyboard()
+                    if Storyboard is not None:
+                        storyboard = Storyboard()
+                    else:
+                        st.error("Animation module not available")
+                        storyboard = None
                     
                     # Cancel button
                     cancel_col, status_col = st.columns([1, 3])
@@ -262,7 +353,13 @@ elif page == "🔬 Run Test":
                     with status_col:
                         st.info("🔄 Pipeline running... Check animation above for progress")
                     
-                    consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
+                    if storyboard is not None:
+                        consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
+                    else:
+                        # Fallback: just show progress without animation
+                        st.info("🔄 Pipeline running... (animation not available)")
+                        while worker.is_alive():
+                            st.empty()  # Keep UI responsive
 
                     # Get result
                     if not result_q.empty():
