@@ -10,8 +10,21 @@ from typing import Any, Dict, List, Optional
 from pathlib import Path
 import sys
 
-# Local imports
-from event_bus import emit
+# Local imports with fallback
+try:
+    from event_bus import emit
+except ImportError:
+    import importlib.util
+    event_path = Path(__file__).parent / "event_bus.py"
+    if event_path.exists():
+        spec = importlib.util.spec_from_file_location("event_bus", event_path)
+        event_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(event_module)
+        emit = event_module.emit
+    else:
+        # Fallback emit function
+        def emit(event_queue, stage, substage, message, level="info", progress=None, payload=None):
+            pass
 
 
 class PipelineWorker(threading.Thread):

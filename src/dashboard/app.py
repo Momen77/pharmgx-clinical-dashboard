@@ -85,7 +85,7 @@ if 'test_running' not in st.session_state:
 
 # Sidebar navigation
 with st.sidebar:
-    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", use_container_width=True)
+    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", width='stretch')
     st.title("Navigation")
     
     page = st.radio(
@@ -187,8 +187,27 @@ elif page == "🔬 Run Test":
             else:
                 try:
                     import queue as _q
-                    from utils.background_worker import PipelineWorker
-                    from utils.event_bus import PipelineEvent
+                    
+                    # Robust import for utils modules
+                    try:
+                        from utils.background_worker import PipelineWorker
+                        from utils.event_bus import PipelineEvent
+                    except ImportError:
+                        import importlib.util
+                        
+                        worker_path = src_dir / "utils" / "background_worker.py"
+                        if worker_path.exists():
+                            spec = importlib.util.spec_from_file_location("background_worker", worker_path)
+                            worker_module = importlib.util.module_from_spec(spec)
+                            spec.loader.exec_module(worker_module)
+                            PipelineWorker = worker_module.PipelineWorker
+                        
+                        event_path = src_dir / "utils" / "event_bus.py"
+                        if event_path.exists():
+                            spec = importlib.util.spec_from_file_location("event_bus", event_path)
+                            event_module = importlib.util.module_from_spec(spec)
+                            spec.loader.exec_module(event_module)
+                            PipelineEvent = event_module.PipelineEvent
 
                     # Resolve config path
                     config_paths = [

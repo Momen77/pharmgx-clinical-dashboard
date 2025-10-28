@@ -8,15 +8,36 @@ from typing import Optional
 import streamlit as st
 from streamlit_lottie import st_lottie
 
-# Fix import paths for direct execution
+# Fix import paths for Streamlit execution
 import sys
 from pathlib import Path
+
+# Add src directory to path for imports
 dashboard_dir = Path(__file__).parent
 src_dir = dashboard_dir.parent
-sys.path.insert(0, str(src_dir))
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
-from utils.lottie_loader import load_lottie_json
-from utils.event_bus import PipelineEvent
+try:
+    from utils.lottie_loader import load_lottie_json
+    from utils.event_bus import PipelineEvent
+except ImportError:
+    # Fallback for different execution contexts
+    import importlib.util
+    
+    lottie_path = src_dir / "utils" / "lottie_loader.py"
+    if lottie_path.exists():
+        spec = importlib.util.spec_from_file_location("lottie_loader", lottie_path)
+        lottie_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lottie_module)
+        load_lottie_json = lottie_module.load_lottie_json
+    
+    event_path = src_dir / "utils" / "event_bus.py"
+    if event_path.exists():
+        spec = importlib.util.spec_from_file_location("event_bus", event_path)
+        event_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(event_module)
+        PipelineEvent = event_module.PipelineEvent
 
 
 class Storyboard:
