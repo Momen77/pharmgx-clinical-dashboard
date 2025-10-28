@@ -73,7 +73,19 @@ class Storyboard:
         anim = self.assets.get(self.scene, {})
         if not anim:
             # Fallback to placeholder if scene not found
-            anim = load_lottie_json("placeholder.json")
+            # Try direct path resolution from this file's location
+            try:
+                ui_dir = Path(__file__).resolve()
+                assets_dir = ui_dir.parents[3] / "assets" / "lottie"
+                candidate = assets_dir / f"{self.scene}.json"
+                if candidate.exists():
+                    import json as _json
+                    with open(candidate, "r", encoding="utf-8") as _f:
+                        anim = _json.load(_f)
+            except Exception:
+                pass
+            if not anim:
+                anim = load_lottie_json("placeholder.json")
             used_name = "placeholder.json"
         else:
             used_name = f"{self.scene}.json"
