@@ -19,6 +19,17 @@ class PipelineEvent:
     message: str
     progress: Optional[float] = None
     payload: Optional[Dict[str, Any]] = None
+    
+    def __post_init__(self):
+        """Ensure all fields are properly initialized."""
+        if self.stage is None:
+            self.stage = "unknown"
+        if self.substage is None:
+            self.substage = "unknown"
+        if self.level is None:
+            self.level = "info"
+        if self.message is None:
+            self.message = "No message"
 
 
 def emit(event_queue, stage: str, substage: str, message: str,
@@ -26,6 +37,18 @@ def emit(event_queue, stage: str, substage: str, message: str,
          payload: Optional[Dict[str, Any]] = None) -> None:
     """Put a PipelineEvent into the provided queue."""
     try:
+        # Safety checks for parameters
+        if event_queue is None:
+            return
+        if stage is None:
+            stage = "unknown"
+        if substage is None:
+            substage = "unknown"
+        if message is None:
+            message = "No message"
+        if level is None:
+            level = "info"
+            
         event_queue.put(
             PipelineEvent(stage=stage, substage=substage, level=level,
                           message=message, progress=progress, payload=payload),

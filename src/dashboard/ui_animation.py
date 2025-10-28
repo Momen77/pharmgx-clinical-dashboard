@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import queue
-from dataclasses import asdict
 from typing import Optional
 
 import streamlit as st

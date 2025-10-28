@@ -51,9 +51,13 @@ class PipelineWorker(threading.Thread):
 
         try:
             from main import PGxKGPipeline  # type: ignore
+            self.PGxKGPipeline = PGxKGPipeline
         except Exception:
-            from src.main import PGxKGPipeline  # type: ignore
-        self.PGxKGPipeline = PGxKGPipeline
+            try:
+                from src.main import PGxKGPipeline  # type: ignore
+                self.PGxKGPipeline = PGxKGPipeline
+            except Exception:
+                self.PGxKGPipeline = None
 
     def run(self) -> None:
         emit(self.event_queue, "lab_prep", "accession", "Sample received and accessioned")
@@ -88,6 +92,9 @@ class PipelineWorker(threading.Thread):
                     "comprehensive_outputs": {}
                 }
             else:
+                if self.PGxKGPipeline is None:
+                    raise Exception("PGxKGPipeline not available - check imports")
+                
                 pipeline = self.PGxKGPipeline(config_path=self.config_path)
                 emit(self.event_queue, "annotation", "uniprot_connect", "Connecting to UniProt API…", progress=0.70)
                 emit(self.event_queue, "annotation", "pharmgkb_connect", "Connecting to PharmGKB…")
