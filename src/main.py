@@ -1,11 +1,12 @@
-"""
-PGx-KG Main Pipeline
+"""PGx-KG Main Pipeline - Enhanced for Dashboard Integration
 Orchestrates all 5 phases to build pharmacogenomics knowledge graphs
+Now includes proper patient profile handling and comprehensive output generation
 """
 import argparse
 import sys
 import json
 import random
+import uuid
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -22,18 +23,40 @@ from phase4_rdf.graph_builder import RDFGraphBuilder
 from phase5_export.json_exporter import JSONLDExporter
 from phase5_export.html_reporter import HTMLReporter
 
-
-class PGxKGPipeline:
-    """Main pipeline orchestrator"""
+# Try to import EventBus for dashboard integration
+try:
+    from utils.event_bus import PipelineEvent, EventBus
+except ImportError:
+    # Fallback for when EventBus is not available
+    class PipelineEvent:
+        def __init__(self, stage, substage, message, progress=None):
+            self.stage = stage
+            self.substage = substage
+            self.message = message
+            self.progress = progress
     
-    def __init__(self, config_path: str = "config.yaml"):
-        """
-        Initialize pipeline
+    class EventBus:
+        def __init__(self):
+            self.subscribers = []
         
-        Args:
-            config_path: Path to configuration file
-        """
+        def subscribe(self, callback):
+            self.subscribers.append(callback)
+        
+        def emit(self, event):
+            for callback in self.subscribers:
+                try:
+                    callback(event)
+                except Exception as e:
+                    print(f"Event callback error: {e}")
+
+
+class PGxPipeline:
+    """Enhanced Pipeline for Dashboard Integration"""
+    
+    def __init__(self, config_path: str = "config.yaml", event_bus=None):
+        """Initialize pipeline with optional event bus for dashboard integration"""
         self.config = Config(config_path)
+        self.event_bus = event_bus or EventBus()
         
         # Initialize phase modules
         self.phase1 = VariantDiscoverer()
@@ -59,49 +82,91 @@ class PGxKGPipeline:
             bioportal_api_key=self.config.bioportal_api_key
         )
     
-    def run(self, gene_symbol: str, protein_id: str = None):
-        """
-        Run complete pipeline for a gene
-        
-        Args:
-            gene_symbol: Gene symbol (e.g., CYP2D6)
-            protein_id: Optional UniProt ID (will be fetched if not provided)
-        """
+    def run_single_gene(self, gene_symbol: str, protein_id: str = None, patient_profile: dict = None):
+        """Run pipeline for a single gene with optional patient profile"""
+        return self.run(gene_symbol, protein_id, patient_profile)
+    
+    def run(self, gene_symbol: str, protein_id: str = None, patient_profile: dict = None):
+        """Run complete pipeline for a gene with patient profile support"""
         start_time = datetime.now()
+        
+        self.event_bus.emit(PipelineEvent(
+            stage="lab_prep",
+            substage="start",
+            message=f"Starting analysis for {gene_symbol}...",
+            progress=0.0
+        ))
         
         print(f"\n{'='*70}")
         print(f"PGx-KG: Pharmacogenomics Knowledge Graph Builder")
         print(f"{'='*70}")
         print(f"Gene: {gene_symbol}")
         print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if patient_profile:
+            print(f"Patient Profile: {patient_profile.get('patient_id', 'Dashboard Patient')}")
         print(f"{'='*70}\n")
         
         try:
             # Phase 1: Variant Discovery
+            self.event_bus.emit(PipelineEvent(
+                stage="lab_prep",
+                substage="variant_discovery",
+                message="Discovering variants...",
+                progress=0.1
+            ))
+            
             print("PHASE 1: Variant Discovery")
             print("-" * 70)
             phase1_result = self.phase1.run_pipeline(gene_symbol, protein_id)
             protein_id = phase1_result["protein_id"]
             
             # Phase 2: Clinical Validation
+            self.event_bus.emit(PipelineEvent(
+                stage="ngs",
+                substage="clinical_validation",
+                message="Validating clinical significance...",
+                progress=0.3
+            ))
+            
             print(f"\n{'='*70}")
             print("PHASE 2: Clinical Validation")
             print("-" * 70)
             self.phase2.run_pipeline(gene_symbol)
             
             # Phase 3: Drug & Disease Context
+            self.event_bus.emit(PipelineEvent(
+                stage="annotation",
+                substage="drug_disease_context",
+                message="Adding drug and disease context...",
+                progress=0.5
+            ))
+            
             print(f"\n{'='*70}")
             print("PHASE 3: Drug & Disease Context")
             print("-" * 70)
             self.phase3.run_pipeline(gene_symbol)
             
             # Phase 4: RDF Graph Assembly
+            self.event_bus.emit(PipelineEvent(
+                stage="enrichment",
+                substage="rdf_assembly",
+                message="Assembling RDF knowledge graph...",
+                progress=0.7
+            ))
+            
             print(f"\n{'='*70}")
             print("PHASE 4: RDF Knowledge Graph Assembly")
             print("-" * 70)
             rdf_output = self.phase4.run_pipeline(gene_symbol)
             
             # Phase 5: Export & Visualization
+            self.event_bus.emit(PipelineEvent(
+                stage="report",
+                substage="export",
+                message="Generating outputs...",
+                progress=0.9
+            ))
+            
             print(f"\n{'='*70}")
             print("PHASE 5: Export & Visualization")
             print("-" * 70)
@@ -111,6 +176,13 @@ class PGxKGPipeline:
             # Summary
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
+            
+            self.event_bus.emit(PipelineEvent(
+                stage="report",
+                substage="complete",
+                message="Single gene analysis complete!",
+                progress=1.0
+            ))
             
             print(f"\n{'='*70}")
             print("PIPELINE COMPLETE!")
@@ -130,6 +202,7 @@ class PGxKGPipeline:
                 "gene": gene_symbol,
                 "protein_id": protein_id,
                 "duration": duration,
+                "variants_processed": phase1_result['total_variants'],
                 "outputs": {
                     "rdf": rdf_output,
                     "jsonld": jsonld_output,
@@ -138,6 +211,13 @@ class PGxKGPipeline:
             }
             
         except Exception as e:
+            self.event_bus.emit(PipelineEvent(
+                stage="error",
+                substage="pipeline",
+                message=f"Pipeline error: {str(e)}",
+                progress=0.0
+            ))
+            
             print(f"\n{'='*70}")
             print(f"PIPELINE FAILED")
             print(f"{'='*70}")
@@ -154,23 +234,23 @@ class PGxKGPipeline:
             }
     
     def run_multi_gene(self, gene_symbols: list, patient_profile: dict = None) -> dict:
-        """
-        Run pipeline for multiple genes to create comprehensive patient profile
-        
-        Args:
-            gene_symbols: List of gene symbols (e.g., ['CYP2D6', 'CYP2C19', 'CYP3A4'])
-            patient_profile: Optional patient profile from dashboard (if None, generates one)
-            
-        Returns:
-            Dictionary with results for all genes
-        """
+        """Enhanced multi-gene analysis with proper patient profile integration"""
         start_time = datetime.now()
+        
+        self.event_bus.emit(PipelineEvent(
+            stage="lab_prep",
+            substage="init",
+            message=f"Starting multi-gene analysis for {len(gene_symbols)} genes...",
+            progress=0.0
+        ))
         
         print(f"\n{'='*70}")
         print(f"PGx-KG: Multi-Gene Pharmacogenomics Knowledge Graph Builder")
         print(f"{'='*70}")
         print(f"Genes: {', '.join(gene_symbols)}")
         print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if patient_profile:
+            print(f"Using patient profile: {patient_profile.get('patient_id', 'Dashboard Patient')}")
         print(f"{'='*70}\n")
         
         results = {}
@@ -178,9 +258,9 @@ class PGxKGPipeline:
         all_drugs = set()
         all_diseases = set()
         
-        # Use patient profile from dashboard if provided, otherwise generate one
+        # Determine patient ID
         if patient_profile:
-            patient_id = patient_profile.get("demographics", {}).get("mrn", f"dashboard_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            patient_id = patient_profile.get("patient_id") or f"dashboard_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             print(f"Using patient profile from dashboard: {patient_id}")
         else:
             patient_id = f"comprehensive_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -189,6 +269,15 @@ class PGxKGPipeline:
         try:
             # Process each gene individually
             for i, gene_symbol in enumerate(gene_symbols, 1):
+                progress = 0.1 + (0.6 * i / len(gene_symbols))  # 10-70% for gene processing
+                
+                self.event_bus.emit(PipelineEvent(
+                    stage="ngs" if i <= len(gene_symbols)/2 else "annotation",
+                    substage="processing",
+                    message=f"Processing gene {gene_symbol} ({i}/{len(gene_symbols)})...",
+                    progress=progress
+                ))
+                
                 print(f"\n{'='*70}")
                 print(f"PROCESSING GENE {i}/{len(gene_symbols)}: {gene_symbol}")
                 print(f"{'='*70}")
@@ -210,6 +299,13 @@ class PGxKGPipeline:
                     print(f"WARNING: Failed to process {gene_symbol}: {gene_result.get('error', 'Unknown error')}")
             
             # Create comprehensive patient profile
+            self.event_bus.emit(PipelineEvent(
+                stage="enrichment",
+                substage="profile_generation",
+                message="Creating comprehensive patient profile...",
+                progress=0.75
+            ))
+            
             print(f"\n{'='*70}")
             print("CREATING COMPREHENSIVE PATIENT PROFILE")
             print(f"{'='*70}")
@@ -219,6 +315,13 @@ class PGxKGPipeline:
             )
             
             # Link patient profile to variants and detect conflicts
+            self.event_bus.emit(PipelineEvent(
+                stage="enrichment",
+                substage="variant_linking",
+                message="Linking patient profile to variants...",
+                progress=0.85
+            ))
+            
             print(f"\n{'='*70}")
             print("LINKING PATIENT PROFILE TO VARIANTS")
             print(f"{'='*70}")
@@ -230,14 +333,26 @@ class PGxKGPipeline:
             # Add linking results to comprehensive profile
             comprehensive_profile["variant_linking"] = linking_results
             
-            # Generate comprehensive outputs
-            comprehensive_outputs = self._generate_comprehensive_outputs(
-                patient_id, comprehensive_profile, results
-            )
+            # Generate all output formats
+            self.event_bus.emit(PipelineEvent(
+                stage="report",
+                substage="export",
+                message="Generating all output formats...",
+                progress=0.95
+            ))
+            
+            outputs = self._generate_all_outputs(comprehensive_profile, results)
             
             # Summary
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
+            
+            self.event_bus.emit(PipelineEvent(
+                stage="report",
+                substage="complete",
+                message="Multi-gene analysis complete!",
+                progress=1.0
+            ))
             
             print(f"\n{'='*70}")
             print("MULTI-GENE PIPELINE COMPLETE!")
@@ -268,7 +383,7 @@ class PGxKGPipeline:
             
             print(f"\nDuration: {duration:.1f} seconds")
             print(f"\nComprehensive outputs:")
-            for output_type, path in comprehensive_outputs.items():
+            for output_type, path in outputs.items():
                 print(f"  {output_type}: {path}")
             print(f"{'='*70}\n")
             
@@ -281,10 +396,18 @@ class PGxKGPipeline:
                 "associated_diseases": len(all_diseases),
                 "duration": duration,
                 "gene_results": results,
-                "comprehensive_outputs": comprehensive_outputs
+                "comprehensive_profile": comprehensive_profile,
+                "outputs": outputs
             }
             
         except Exception as e:
+            self.event_bus.emit(PipelineEvent(
+                stage="error",
+                substage="pipeline",
+                message=f"Multi-gene pipeline error: {str(e)}",
+                progress=0.0
+            ))
+            
             print(f"\n{'='*70}")
             print(f"MULTI-GENE PIPELINE FAILED")
             print(f"{'='*70}")
@@ -504,9 +627,12 @@ class PGxKGPipeline:
     def _create_comprehensive_profile(self, patient_id: str, genes: list, variants: list, drugs: set, diseases: set, dashboard_profile: dict = None) -> dict:
         """Create comprehensive patient profile with enhanced clinical information"""
         # Use dashboard profile if provided, otherwise generate clinical information
-        if dashboard_profile:
+        if dashboard_profile and "clinical_information" in dashboard_profile:
             print("Using patient profile from dashboard")
-            clinical_info = dashboard_profile
+            clinical_info = dashboard_profile["clinical_information"]
+            # Extract patient ID from dashboard profile if available
+            if "demographics" in dashboard_profile and "mrn" in dashboard_profile["demographics"]:
+                patient_id = dashboard_profile["demographics"]["mrn"]
         else:
             print("Generating clinical information")
             clinical_info = self._generate_clinical_information(patient_id)
@@ -530,6 +656,7 @@ class PGxKGPipeline:
             "@id": f"http://ugent.be/person/{patient_id}",
             "@type": ["foaf:Person", "schema:Person", "schema:Patient"],
             "identifier": patient_id,
+            "patient_id": patient_id,
             "name": f"Comprehensive Pharmacogenomics Patient Profile",
             "description": f"Multi-gene pharmacogenomics profile covering {len(genes)} genes with {len(variants)} variants",
             "dateCreated": datetime.now().isoformat(),
@@ -658,319 +785,9 @@ class PGxKGPipeline:
                 "schema:unitText": "centimeters"
             },
             "age": age,
+            "mrn": f"MRN_{str(uuid.uuid4())[:8].upper()}",
             "note": "Randomly generated demographics for virtual patient"
         }
-    
-    def _generate_current_conditions(self) -> list:
-        """Generate current medical conditions using SNOMED CT - randomly selects conditions"""
-        # Comprehensive conditions database with SNOMED CT codes
-        conditions_db = [
-            {
-                "@id": "http://snomed.info/id/44054006",
-                "@type": "sdisco:Condition",
-                "snomed:code": "44054006",
-                "rdfs:label": "Diabetes mellitus type 2 (disorder)",
-                "skos:prefLabel": "Diabetes mellitus type 2 (disorder)",
-                "skos:altLabel": ["Type 2 diabetes mellitus", "Diabetes mellitus type 2"],
-                "skos:definition": "A type of diabetes mellitus that is characterized by insulin resistance or desensitization and increased blood glucose levels.",
-                "probability": 0.15
-            },
-            {
-                "@id": "http://snomed.info/id/254837009",
-                "@type": "sdisco:Condition",
-                "snomed:code": "254837009",
-                "rdfs:label": "Hypertension (disorder)",
-                "skos:prefLabel": "Hypertension (disorder)",
-                "skos:altLabel": ["High blood pressure"],
-                "skos:definition": "Persistent high arterial blood pressure",
-                "probability": 0.25
-            },
-            {
-                "@id": "http://snomed.info/id/372244006",
-                "@type": "sdisco:Condition",
-                "snomed:code": "372244006",
-                "rdfs:label": "Asthma (disorder)",
-                "skos:prefLabel": "Asthma (disorder)",
-                "skos:altLabel": ["Asthma"],
-                "skos:definition": "Chronic inflammatory disease of the airways",
-                "probability": 0.12
-            },
-            {
-                "@id": "http://snomed.info/id/38341003",
-                "@type": "sdisco:Condition",
-                "snomed:code": "38341003",
-                "rdfs:label": "Hypertensive disorder (disorder)",
-                "skos:prefLabel": "Hypertensive disorder (disorder)",
-                "skos:altLabel": ["Hypertension"],
-                "skos:definition": "High blood pressure condition",
-                "probability": 0.18
-            },
-            {
-                "@id": "http://snomed.info/id/73211009",
-                "@type": "sdisco:Condition",
-                "snomed:code": "73211009",
-                "rdfs:label": "Diabetes mellitus (disorder)",
-                "skos:prefLabel": "Diabetes mellitus (disorder)",
-                "skos:altLabel": ["Diabetes"],
-                "skos:definition": "Chronic metabolic disorder characterized by hyperglycemia",
-                "probability": 0.10
-            },
-            {
-                "@id": "http://snomed.info/id/26889001",
-                "@type": "sdisco:Condition",
-                "snomed:code": "26889001",
-                "rdfs:label": "Chronic obstructive pulmonary disease (disorder)",
-                "skos:prefLabel": "COPD (disorder)",
-                "skos:altLabel": ["COPD", "Chronic obstructive pulmonary disease"],
-                "skos:definition": "Chronic progressive lung disease characterized by airflow limitation",
-                "probability": 0.08
-            },
-            {
-                "@id": "http://snomed.info/id/10742861000119102",
-                "@type": "sdisco:Condition",
-                "snomed:code": "10742861000119102",
-                "rdfs:label": "Dyslipidemia (disorder)",
-                "skos:prefLabel": "Dyslipidemia (disorder)",
-                "skos:altLabel": ["High cholesterol", "Hyperlipidemia"],
-                "skos:definition": "Abnormal amount of lipids in the blood",
-                "probability": 0.20
-            },
-            {
-                "@id": "http://snomed.info/id/49436004",
-                "@type": "sdisco:Condition",
-                "snomed:code": "49436004",
-                "rdfs:label": "Atrial fibrillation (disorder)",
-                "skos:prefLabel": "Atrial fibrillation (disorder)",
-                "skos:altLabel": ["AFib", "Atrial fibrillation"],
-                "skos:definition": "Irregular heart rhythm",
-                "probability": 0.08
-            },
-            {
-                "@id": "http://snomed.info/id/363418016",
-                "@type": "sdisco:Condition",
-                "snomed:code": "363418016",
-                "rdfs:label": "Depression (disorder)",
-                "skos:prefLabel": "Depression (disorder)",
-                "skos:altLabel": ["Major depressive disorder", "MDD"],
-                "skos:definition": "Mood disorder characterized by persistent sadness",
-                "probability": 0.12
-            },
-            {
-                "@id": "http://snomed.info/id/35489007",
-                "@type": "sdisco:Condition",
-                "snomed:code": "35489007",
-                "rdfs:label": "Chronic kidney disease (disorder)",
-                "skos:prefLabel": "Chronic kidney disease (disorder)",
-                "skos:altLabel": ["CKD", "Chronic kidney disease"],
-                "skos:definition": "Progressive loss of kidney function over time",
-                "probability": 0.08
-            },
-            {
-                "@id": "http://snomed.info/id/363478007",
-                "@type": "sdisco:Condition",
-                "snomed:code": "363478007",
-                "rdfs:label": "Anxiety disorder (disorder)",
-                "skos:prefLabel": "Anxiety disorder (disorder)",
-                "skos:altLabel": ["Anxiety", "Generalized anxiety disorder"],
-                "skos:definition": "Mental health disorder characterized by excessive worry",
-                "probability": 0.10
-            },
-            {
-                "@id": "http://snomed.info/id/363346000",
-                "@type": "sdisco:Condition",
-                "snomed:code": "363346000",
-                "rdfs:label": "Breast cancer (disorder)",
-                "skos:prefLabel": "Breast cancer (disorder)",
-                "skos:altLabel": ["Breast cancer", "Carcinoma of breast"],
-                "skos:definition": "Malignant neoplasm of breast tissue",
-                "probability": 0.05
-            },
-            {
-                "@id": "http://snomed.info/id/266430006",
-                "@type": "sdisco:Condition",
-                "snomed:code": "266430006",
-                "rdfs:label": "Gastroesophageal reflux disease (disorder)",
-                "skos:prefLabel": "GERD (disorder)",
-                "skos:altLabel": ["GERD", "Gastroesophageal reflux"],
-                "skos:definition": "Chronic digestive disease where stomach acid flows back into esophagus",
-                "probability": 0.15
-            },
-            {
-                "@id": "http://snomed.info/id/161891005",
-                "@type": "sdisco:Condition",
-                "snomed:code": "161891005",
-                "rdfs:label": "Osteoarthritis (disorder)",
-                "skos:prefLabel": "Osteoarthritis (disorder)",
-                "skos:altLabel": ["OA", "Osteoarthritis"],
-                "skos:definition": "Degenerative joint disease",
-                "probability": 0.12
-            },
-            {
-                "@id": "http://snomed.info/id/4855003",
-                "@type": "sdisco:Condition",
-                "snomed:code": "4855003",
-                "rdfs:label": "Hypothyroidism (disorder)",
-                "skos:prefLabel": "Hypothyroidism (disorder)",
-                "skos:altLabel": ["Underactive thyroid", "Hypothyroidism"],
-                "skos:definition": "Underactive thyroid gland",
-                "probability": 0.10
-            }
-        ]
-        
-        # Select conditions based on probability
-        selected_conditions = []
-        current_date = datetime.now()
-        
-        for condition in conditions_db:
-            if random.random() < condition.get("probability", 0.0):
-                # Generate random diagnosis date (1-10 years ago)
-                years_ago = random.randint(1, 10)
-                diagnosis_date = (current_date - timedelta(days=years_ago * 365)).strftime("%Y-%m-%d")
-                
-                condition_copy = condition.copy()
-                condition_copy.pop("probability")  # Remove probability from output
-                condition_copy["diagnosis_date"] = diagnosis_date
-                condition_copy["status"] = random.choice(["active", "controlled", "remission"])
-                selected_conditions.append(condition_copy)
-        
-        return selected_conditions
-    
-    def _get_condition_drug_mapping(self) -> dict:
-        """Returns mapping of SNOMED CT condition codes to their associated medications"""
-        return {
-            "44054006": [  # Diabetes mellitus type 2
-                {"drugbank_id": "DB00619", "name": "Metformin", "doses": [500, 850, 1000], "unit": "mg", "frequency": "Twice daily", "protocol": "First-line treatment for type 2 diabetes"},
-                {"drugbank_id": "DB00030", "name": "Insulin glargine", "doses": [10, 20, 30], "unit": "units", "frequency": "Once daily", "protocol": "Long-acting insulin for type 2 diabetes"},
-                {"drugbank_id": "DB01261", "name": "Glipizide", "doses": [5, 10], "unit": "mg", "frequency": "Twice daily", "protocol": "Sulfonylurea for type 2 diabetes"}
-            ],
-            "254837009": [  # Hypertension
-                {"drugbank_id": "DB01175", "name": "Lisinopril", "doses": [5, 10, 20], "unit": "mg", "frequency": "Once daily", "protocol": "ACE inhibitor - first-line for hypertension"},
-                {"drugbank_id": "DB00472", "name": "Amlodipine", "doses": [5, 10], "unit": "mg", "frequency": "Once daily", "protocol": "Calcium channel blocker for hypertension"},
-                {"drugbank_id": "DB00366", "name": "Losartan", "doses": [25, 50, 100], "unit": "mg", "frequency": "Once daily", "protocol": "ARB for hypertension"}
-            ],
-            "38341003": [  # Hypertensive disorder
-                {"drugbank_id": "DB00321", "name": "Hydrochlorothiazide", "doses": [12.5, 25], "unit": "mg", "frequency": "Once daily", "protocol": "Thiazide diuretic for hypertension"},
-                {"drugbank_id": "DB00678", "name": "Metoprolol", "doses": [25, 50, 100], "unit": "mg", "frequency": "Twice daily", "protocol": "Beta-blocker for hypertension"}
-            ],
-            "372244006": [  # Asthma
-                {"drugbank_id": "DB14761", "name": "Albuterol", "doses": [90, 180], "unit": "mcg", "frequency": "As needed", "protocol": "Short-acting beta-agonist for acute asthma"},
-                {"drugbank_id": "DB01264", "name": "Fluticasone", "doses": [110, 220], "unit": "mcg", "frequency": "Twice daily", "protocol": "Inhaled corticosteroid for asthma control"},
-                {"drugbank_id": "DB01167", "name": "Montelukast", "doses": [10], "unit": "mg", "frequency": "Once daily", "protocol": "Leukotriene receptor antagonist for asthma"}
-            ],
-            "26889001": [  # COPD
-                {"drugbank_id": "DB14761", "name": "Albuterol", "doses": [90, 180], "unit": "mcg", "frequency": "As needed", "protocol": "Bronchodilator for COPD"},
-                {"drugbank_id": "DB01193", "name": "Tiotropium", "doses": [18], "unit": "mcg", "frequency": "Once daily", "protocol": "Long-acting anticholinergic for COPD"}
-            ],
-            "10742861000119102": [  # Dyslipidemia
-                {"drugbank_id": "DB00655", "name": "Atorvastatin", "doses": [10, 20, 40, 80], "unit": "mg", "frequency": "Once daily", "protocol": "Statin therapy for hyperlipidemia"},
-                {"drugbank_id": "DB00641", "name": "Simvastatin", "doses": [10, 20, 40], "unit": "mg", "frequency": "Once daily", "protocol": "Statin for cholesterol management"}
-            ],
-            "49436004": [  # Atrial fibrillation
-                {"drugbank_id": "DB00366", "name": "Warfarin", "doses": [2.5, 5, 7.5], "unit": "mg", "frequency": "Once daily", "protocol": "Anticoagulant for stroke prevention in AFib"},
-                {"drugbank_id": "DB01274", "name": "Apixaban", "doses": [2.5, 5], "unit": "mg", "frequency": "Twice daily", "protocol": "DOAC for stroke prevention in AFib"}
-            ],
-            "363418016": [  # Depression
-                {"drugbank_id": "DB00264", "name": "Sertraline", "doses": [50, 100, 200], "unit": "mg", "frequency": "Once daily", "protocol": "SSRI - first-line for depression"},
-                {"drugbank_id": "DB00715", "name": "Citalopram", "doses": [20, 40], "unit": "mg", "frequency": "Once daily", "protocol": "SSRI for depression"},
-                {"drugbank_id": "DB00261", "name": "Escitalopram", "doses": [10, 20], "unit": "mg", "frequency": "Once daily", "protocol": "SSRI for depression"}
-            ],
-            "35489007": [  # Chronic kidney disease
-                {"drugbank_id": "DB01175", "name": "Lisinopril", "doses": [5, 10, 20], "unit": "mg", "frequency": "Once daily", "protocol": "ACE inhibitor for CKD - slows progression"},
-                {"drugbank_id": "DB00366", "name": "Losartan", "doses": [25, 50, 100], "unit": "mg", "frequency": "Once daily", "protocol": "ARB for CKD protection"}
-            ],
-            "363478007": [  # Anxiety disorder
-                {"drugbank_id": "DB00856", "name": "Alprazolam", "doses": [0.25, 0.5, 1], "unit": "mg", "frequency": "Three times daily", "protocol": "Benzodiazepine for anxiety"},
-                {"drugbank_id": "DB00264", "name": "Sertraline", "doses": [50, 100], "unit": "mg", "frequency": "Once daily", "protocol": "SSRI for anxiety disorders"}
-            ],
-            "363346000": [  # Breast cancer
-                {"drugbank_id": "DB01001", "name": "Tamoxifen", "doses": [20], "unit": "mg", "frequency": "Once daily", "protocol": "Hormone therapy for breast cancer", "pgx_note": "Metabolized by CYP2D6"},
-                {"drugbank_id": "DB01273", "name": "Anastrozole", "doses": [1], "unit": "mg", "frequency": "Once daily", "protocol": "Aromatase inhibitor for breast cancer"},
-                {"drugbank_id": "DB00392", "name": "Letrozole", "doses": [2.5], "unit": "mg", "frequency": "Once daily", "protocol": "Aromatase inhibitor for breast cancer"}
-            ],
-            "266430006": [  # GERD
-                {"drugbank_id": "DB00738", "name": "Omeprazole", "doses": [20, 40], "unit": "mg", "frequency": "Once daily", "protocol": "PPI for GERD"},
-                {"drugbank_id": "DB01120", "name": "Pantoprazole", "doses": [20, 40], "unit": "mg", "frequency": "Once daily", "protocol": "PPI for GERD management"}
-            ],
-            "161891005": [  # Osteoarthritis
-                {"drugbank_id": "DB01229", "name": "Celecoxib", "doses": [100, 200], "unit": "mg", "frequency": "Twice daily", "protocol": "COX-2 inhibitor for osteoarthritis"},
-                {"drugbank_id": "DB00454", "name": "Ibuprofen", "doses": [400, 600, 800], "unit": "mg", "frequency": "Three times daily", "protocol": "NSAID for osteoarthritis pain"}
-            ],
-            "4855003": [  # Hypothyroidism
-                {"drugbank_id": "DB00651", "name": "Levothyroxine", "doses": [25, 50, 75, 100], "unit": "mcg", "frequency": "Once daily", "protocol": "Thyroid hormone replacement"}
-            ]
-        }
-    
-    def _generate_current_medications(self, conditions: list) -> list:
-        """Generate medication list based on patient's conditions - medications are linked to conditions"""
-        if not conditions:
-            return []  # No conditions = no medications
-        
-        drug_mapping = self._get_condition_drug_mapping()
-        selected_medications = []
-        current_date = datetime.now()
-        seen_drug_ids = set()  # Avoid duplicate medications
-        
-        # For each condition, randomly select 1-2 medications from its medication list
-        for condition in conditions:
-            snomed_code = condition.get("snomed:code")
-            if not snomed_code or snomed_code not in drug_mapping:
-                continue
-            
-            condition_meds = drug_mapping[snomed_code]
-            # Select 1-2 medications for this condition (80% chance of 1 med, 20% chance of 2)
-            num_meds = 1 if random.random() < 0.8 else 2
-            num_meds = min(num_meds, len(condition_meds))
-            
-            selected_for_condition = random.sample(condition_meds, num_meds)
-            
-            for med_info in selected_for_condition:
-                drugbank_id = med_info["drugbank_id"]
-                
-                # Skip if already added (for conditions that share medications)
-                if drugbank_id in seen_drug_ids:
-                    continue
-                
-                seen_drug_ids.add(drugbank_id)
-                
-                # Generate random start date (1 month to 2 years ago, or condition diagnosis date if more recent)
-                condition_date = datetime.strptime(condition.get("diagnosis_date", current_date.strftime("%Y-%m-%d")), "%Y-%m-%d")
-                days_ago = random.randint(30, 730)  # 1 month to 2 years
-                start_date = max(
-                    (current_date - timedelta(days=days_ago)).strftime("%Y-%m-%d"),
-                    condition.get("diagnosis_date", current_date.strftime("%Y-%m-%d"))
-                )
-                
-                # Random dose selection
-                dose_value = random.choice(med_info["doses"])
-                
-                # Build medication object
-                medication = {
-                    "@id": f"https://go.drugbank.com/drugs/{drugbank_id}",
-                    "@type": "sdisco:Medication",
-                    "drugbank:id": drugbank_id,
-                    "rdfs:label": med_info["name"],
-                    "schema:name": med_info["name"],
-                    "schema:dosageForm": "tablet" if med_info["unit"] in ["mg", "mcg"] else "injection" if med_info["unit"] == "units" else "inhaler",
-                    "schema:doseValue": dose_value,
-                    "schema:doseUnit": med_info["unit"],
-                    "schema:frequency": med_info["frequency"],
-                    "start_date": start_date,
-                    "purpose": condition.get("rdfs:label", "Unknown condition"),
-                    "protocol": med_info.get("protocol", ""),
-                    "treats_condition": {
-                        "@id": condition.get("@id"),
-                        "snomed:code": snomed_code,
-                        "rdfs:label": condition.get("rdfs:label")
-                    }
-                }
-                
-                # Add PGx note if present
-                if "pgx_note" in med_info:
-                    medication["note"] = med_info["pgx_note"]
-                
-                selected_medications.append(medication)
-        
-        return selected_medications
     
     def _generate_organ_function(self) -> dict:
         """Generate organ function test results with random but realistic values"""
@@ -1083,69 +900,11 @@ class PGxKGPipeline:
             }
         ]
         
-        # Alcohol consumption
-        alcohol_options = [
-            {
-                "@id": "http://snomed.info/id/228149004",
-                "@type": "sdisco:LifestyleFactor",
-                "snomed:code": "228149004",
-                "rdfs:label": "Drinks alcohol",
-                "skos:prefLabel": "Drinks alcohol",
-                "factor_type": "alcohol",
-                "status": "occasional",
-                "frequency": "2-3 drinks per week",
-                "note": "Minimal CYP2E1 induction",
-                "probability": 0.60  # 60% occasional drinkers
-            },
-            {
-                "@id": "http://snomed.info/id/160244002",
-                "@type": "sdisco:LifestyleFactor",
-                "snomed:code": "160244002",
-                "rdfs:label": "Never drinks alcohol",
-                "skos:prefLabel": "Never drinks alcohol",
-                "factor_type": "alcohol",
-                "status": "never",
-                "note": "No CYP2E1 induction",
-                "probability": 0.40  # 40% non-drinkers
-            }
-        ]
-        
         # Select smoking status
         smoking_choice = random.choices(smoking_options, weights=[s["probability"] for s in smoking_options])[0]
         smoking_copy = smoking_choice.copy()
         smoking_copy.pop("probability")
         factors.append(smoking_copy)
-        
-        # Select alcohol status
-        alcohol_choice = random.choices(alcohol_options, weights=[a["probability"] for a in alcohol_options])[0]
-        alcohol_copy = alcohol_choice.copy()
-        alcohol_copy.pop("probability")
-        factors.append(alcohol_copy)
-        
-        # Grapefruit consumption (10% consume regularly, 20% avoid)
-        if random.random() < 0.20:
-            factors.append({
-                "@id": "http://snomed.info/id/226529007",
-                "@type": "sdisco:LifestyleFactor",
-                "snomed:code": "226529007",
-                "rdfs:label": "Grapefruit",
-                "skos:prefLabel": "Grapefruit",
-                "factor_type": "diet",
-                "status": "avoid",
-                "note": "Avoids grapefruit juice consumption (CYP3A4 inhibitor)"
-            })
-        elif random.random() < 0.10:
-            factors.append({
-                "@id": "http://snomed.info/id/226529007",
-                "@type": "sdisco:LifestyleFactor",
-                "snomed:code": "226529007",
-                "rdfs:label": "Grapefruit",
-                "skos:prefLabel": "Grapefruit",
-                "factor_type": "diet",
-                "status": "regular",
-                "frequency": "Daily grapefruit juice consumption",
-                "note": "WARNING: CYP3A4 inhibition - may affect drug metabolism"
-            })
         
         return factors
     
@@ -1224,48 +983,12 @@ class PGxKGPipeline:
                         "search_type": "gene-level"
                     })
             
-            # Collect top publications from variant-specific sources
-            for pub in variant_pubs:
-                if pub.get("citation_count", 0) > 50:
-                    # Check if this publication has a search_variant field from the Europe PMC client
-                    search_variant = pub.get("search_variant", variant_id)
-                    top_publications.append({
-                        "pmid": pub.get("pmid"),
-                        "title": pub.get("title", "")[:100] + "..." if len(pub.get("title", "")) > 100 else pub.get("title", ""),
-                        "citation_count": pub.get("citation_count", 0),
-                        "gene": gene,
-                        "variant": search_variant,  # Use the actual variant that was searched
-                        "search_type": "variant-specific"
-                    })
-            
             # Count drug publications
             drug_pubs = literature.get("drug_publications", {})
             for drug, pubs in drug_pubs.items():
                 total_drug_pubs += len(pubs)
                 if pubs:
                     drugs_with_literature.add(drug)
-                    
-                # Add drug-specific publications to top list
-                for pub in pubs:
-                    if pub.get("citation_count", 0) > 20:  # Lower threshold for drug studies
-                        # Get the actual variant used in the search
-                        search_terms = pub.get("search_terms", "")
-                        search_variant = variant_id
-                        if "+" in search_terms:
-                            # Extract variant from search_terms like "rs1602591357 + tramadol"
-                            parts = search_terms.split(" + ")
-                            if len(parts) >= 2:
-                                search_variant = parts[0]
-                        
-                        top_publications.append({
-                            "pmid": pub.get("pmid"),
-                            "title": pub.get("title", "")[:100] + "..." if len(pub.get("title", "")) > 100 else pub.get("title", ""),
-                            "citation_count": pub.get("citation_count", 0),
-                            "gene": gene,
-                            "variant": search_variant,  # Use the actual variant from search
-                            "drug": drug,
-                            "search_type": "variant-drug"
-                        })
         
         total_publications = total_gene_pubs + total_variant_pubs + total_drug_pubs
         
@@ -1275,99 +998,136 @@ class PGxKGPipeline:
         return {
             "total_publications": total_publications,
             "gene_publications": total_gene_pubs,
-            "variant_specific_publications": total_variant_pubs,  # NEW
+            "variant_specific_publications": total_variant_pubs,
             "drug_publications": total_drug_pubs,
             "genes_with_literature": len(genes_with_literature),
-            "variants_with_literature": len(variants_with_literature),  # NEW
+            "variants_with_literature": len(variants_with_literature),
             "drugs_with_literature": len(drugs_with_literature),
             "top_publications": top_publications[:10],  # Top 10 most cited
-            "search_specificity": {  # NEW - shows search quality
-                "variant_specific_coverage": f"{len(variants_with_literature)}/{len(variants)} variants",
-                "drug_interaction_coverage": f"{len(drugs_with_literature)} drugs",
-                "high_impact_studies": len([p for p in top_publications if p.get("citation_count", 0) > 100])
-            },
             "coverage": {
                 "genes_covered": list(genes_with_literature),
-                "variants_covered": list(variants_with_literature)[:10],  # NEW
+                "variants_covered": list(variants_with_literature)[:10],
                 "drugs_covered": list(drugs_with_literature)[:10]
             }
         }
     
-    def _generate_comprehensive_outputs(self, patient_id: str, profile: dict, gene_results: dict) -> dict:
-        """Generate comprehensive output files"""
+    def _generate_all_outputs(self, profile: dict, gene_results: dict) -> dict:
+        """Generate all output formats: JSON-LD, TTL, HTML, Summary JSON, etc."""
         from pathlib import Path
         import json
         
         outputs = {}
+        patient_id = profile.get("patient_id", "unknown")
         
         # Create comprehensive output directory
         comp_dir = Path("output/comprehensive")
         comp_dir.mkdir(parents=True, exist_ok=True)
         
-        # 1. Comprehensive JSON-LD
-        jsonld_file = comp_dir / f"{patient_id}_comprehensive.jsonld"
-        with open(jsonld_file, 'w', encoding='utf-8') as f:
-            json.dump(profile, f, indent=2)
-        outputs["Comprehensive JSON-LD"] = str(jsonld_file)
-        
-        # 2. Summary report
-        summary_file = comp_dir / f"{patient_id}_summary.json"
-        summary = {
-            "patient_id": patient_id,
-            "analysis_date": datetime.now().isoformat(),
-            "genes_analyzed": profile["pharmacogenomics_profile"]["genes_analyzed"],
-            "clinical_summary": profile["pharmacogenomics_profile"]["clinical_summary"],
-            "drug_interactions": len(profile["pharmacogenomics_profile"]["affected_drugs"]),
-            "disease_associations": len(profile["pharmacogenomics_profile"]["associated_diseases"]),
-            "gene_results": {gene: {"success": result["success"], "variants": result.get("variants_processed", 0)} for gene, result in gene_results.items()}
-        }
-        
-        # Add variant linking summary if available
-        if "variant_linking" in profile:
-            linking = profile["variant_linking"]
-            summary["variant_linking"] = linking.get("summary", {})
-            summary["conflicts"] = linking.get("conflicts", [])
-            summary["total_conflicts"] = len(linking.get("conflicts", []))
-            summary["critical_conflicts"] = len([c for c in linking.get("conflicts", []) if c.get("severity") == "CRITICAL"])
-        
-        with open(summary_file, 'w', encoding='utf-8') as f:
-            json.dump(summary, f, indent=2)
-        outputs["Summary Report"] = str(summary_file)
-        
-        # 3. Drug interaction matrix
-        drug_matrix_file = comp_dir / f"{patient_id}_drug_matrix.json"
-        drug_matrix = self._create_drug_matrix(profile["variants"])
-        with open(drug_matrix_file, 'w', encoding='utf-8') as f:
-            json.dump(drug_matrix, f, indent=2)
-        outputs["Drug Interaction Matrix"] = str(drug_matrix_file)
-        
-        # 4. Conflict report (if available)
-        if "variant_linking" in profile:
-            conflict_file = comp_dir / f"{patient_id}_conflicts.json"
-            conflict_data = {
-                "conflicts": profile["variant_linking"].get("conflicts", []),
-                "links": profile["variant_linking"].get("links", {}),
-                "summary": profile["variant_linking"].get("summary", {})
-            }
-            with open(conflict_file, 'w', encoding='utf-8') as f:
-                json.dump(conflict_data, f, indent=2)
-            outputs["Conflict Report"] = str(conflict_file)
-        
-        # 5. Generate TTL (Turtle) file
-        ttl_file = comp_dir / f"{patient_id}_comprehensive.ttl"
-        ttl_content = self._generate_ttl_from_profile(profile)
-        with open(ttl_file, 'w', encoding='utf-8') as f:
-            f.write(ttl_content)
-        outputs["Comprehensive TTL"] = str(ttl_file)
-        
-        # 6. Generate HTML report
-        html_file = comp_dir / f"{patient_id}_comprehensive_report.html"
-        html_content = self._generate_html_report(profile, gene_results)
-        with open(html_file, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        outputs["Comprehensive HTML Report"] = str(html_file)
+        try:
+            # 1. Comprehensive JSON-LD
+            jsonld_file = comp_dir / f"{patient_id}_comprehensive.jsonld"
+            with open(jsonld_file, 'w', encoding='utf-8') as f:
+                json.dump(profile, f, indent=2)
+            outputs["JSON-LD"] = str(jsonld_file)
+            
+            # 2. Turtle RDF
+            ttl_file = comp_dir / f"{patient_id}_comprehensive.ttl"
+            ttl_content = self._generate_ttl_from_profile(profile)
+            with open(ttl_file, 'w', encoding='utf-8') as f:
+                f.write(ttl_content)
+            outputs["TTL"] = str(ttl_file)
+            
+            # 3. HTML Report
+            html_file = comp_dir / f"{patient_id}_comprehensive_report.html"
+            html_content = self._generate_html_report(profile, gene_results)
+            with open(html_file, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            outputs["HTML"] = str(html_file)
+            
+            # 4. Summary JSON (simplified for dashboards)
+            summary_file = comp_dir / f"{patient_id}_summary.json"
+            summary = self._generate_summary_json(profile, gene_results)
+            with open(summary_file, 'w', encoding='utf-8') as f:
+                json.dump(summary, f, indent=2)
+            outputs["Summary JSON"] = str(summary_file)
+            
+            # 5. Drug Interaction Matrix JSON
+            drug_matrix_file = comp_dir / f"{patient_id}_drug_matrix.json"
+            drug_matrix = self._create_drug_matrix(profile["variants"])
+            with open(drug_matrix_file, 'w', encoding='utf-8') as f:
+                json.dump(drug_matrix, f, indent=2)
+            outputs["Drug Matrix JSON"] = str(drug_matrix_file)
+            
+            # 6. Clinical Conflict Report JSON
+            if "variant_linking" in profile:
+                conflict_file = comp_dir / f"{patient_id}_conflicts.json"
+                conflict_data = {
+                    "conflicts": profile["variant_linking"].get("conflicts", []),
+                    "links": profile["variant_linking"].get("links", {}),
+                    "summary": profile["variant_linking"].get("summary", {})
+                }
+                with open(conflict_file, 'w', encoding='utf-8') as f:
+                    json.dump(conflict_data, f, indent=2)
+                outputs["Conflict Report JSON"] = str(conflict_file)
+            
+        except Exception as e:
+            print(f"Error generating outputs: {e}")
+            outputs["error"] = str(e)
         
         return outputs
+    
+    def _generate_summary_json(self, profile: dict, gene_results: dict) -> dict:
+        """Generate simplified summary JSON for dashboard display."""
+        return {
+            "patient_id": profile.get("patient_id"),
+            "analysis_date": profile.get("dateCreated"),
+            "summary": {
+                "genes_analyzed": len(gene_results),
+                "total_variants": sum(len(r.get("variants", [])) for r in gene_results.values()),
+                "high_impact_findings": len(profile.get("pharmacogenomics_profile", {}).get("clinical_summary", {}).get("high_impact_genes", [])),
+                "drug_interactions": len(profile.get("pharmacogenomics_profile", {}).get("affected_drugs", []))
+            },
+            "gene_summary": {
+                gene: {
+                    "success": result.get("success", False),
+                    "variants_processed": result.get("variants_processed", 0),
+                    "duration": result.get("duration", 0)
+                }
+                for gene, result in gene_results.items()
+            },
+            "clinical_recommendations": self._generate_clinical_recommendations_summary(profile, gene_results)
+        }
+    
+    def _generate_clinical_recommendations_summary(self, profile: dict, gene_results: dict) -> list:
+        """Generate clinical recommendations summary"""
+        recommendations = []
+        
+        # Analyze variants for high-impact findings
+        for variant in profile.get("variants", []):
+            clinical_sig = variant.get("clinical_significance", "")
+            gene = variant.get("gene")
+            
+            if "pathogenic" in clinical_sig.lower():
+                recommendations.append({
+                    "type": "genetic_risk",
+                    "priority": "high",
+                    "gene": gene,
+                    "variant": variant.get("variant_id"),
+                    "recommendation": f"Monitor for {gene}-related adverse effects"
+                })
+            
+            # Drug-specific recommendations
+            for drug in variant.get("drugs", []):
+                if drug.get("recommendation"):
+                    recommendations.append({
+                        "type": "drug_response",
+                        "priority": "medium",
+                        "gene": gene,
+                        "drug": drug.get("name"),
+                        "recommendation": drug.get("recommendation")[:100]
+                    })
+        
+        return recommendations[:10]  # Limit to top 10
     
     def _create_drug_matrix(self, variants: list) -> dict:
         """Create drug-gene interaction matrix"""
@@ -1392,62 +1152,54 @@ class PGxKGPipeline:
     
     def _generate_ttl_from_profile(self, profile: dict) -> str:
         """Generate TTL (Turtle) content from comprehensive profile"""
-        from rdflib import Graph, URIRef, Literal, Namespace
-        from rdflib.namespace import RDF, RDFS, XSD
-        
-        # Create graph
-        g = Graph()
-        
-        # Define namespaces
-        FOAF = Namespace("http://xmlns.com/foaf/0.1/")
-        SCHEMA = Namespace("http://schema.org/")
-        PGX = Namespace("http://pgx-kg.org/")
-        SNOMED = Namespace("http://snomed.info/id/")
-        
-        # Bind namespaces
-        g.bind("foaf", FOAF)
-        g.bind("schema", SCHEMA)
-        g.bind("pgx", PGX)
-        g.bind("snomed", SNOMED)
-        
-        # Add patient
-        patient_uri = URIRef(profile["@id"])
-        g.add((patient_uri, RDF.type, FOAF.Person))
-        g.add((patient_uri, RDF.type, SCHEMA.Person))
-        g.add((patient_uri, SCHEMA.identifier, Literal(profile["identifier"])))
-        g.add((patient_uri, SCHEMA.name, Literal(profile["name"])))
-        g.add((patient_uri, SCHEMA.description, Literal(profile["description"])))
-        g.add((patient_uri, SCHEMA.dateCreated, Literal(profile["dateCreated"], datatype=XSD.dateTime)))
-        
-        # Add clinical information
-        clinical_info = profile.get("clinical_information", {})
-        if "demographics" in clinical_info:
-            demo = clinical_info["demographics"]
-            if "first_name" in demo:
-                g.add((patient_uri, FOAF.firstName, Literal(demo["first_name"])))
-            if "last_name" in demo:
-                g.add((patient_uri, FOAF.lastName, Literal(demo["last_name"])))
-            if "age" in demo:
-                g.add((patient_uri, SCHEMA.age, Literal(demo["age"], datatype=XSD.integer)))
-        
-        # Add pharmacogenomics profile
-        pgx_profile = profile.get("pharmacogenomics_profile", {})
-        if "genes_analyzed" in pgx_profile:
-            for gene in pgx_profile["genes_analyzed"]:
-                gene_uri = URIRef(f"http://identifiers.org/ncbigene/{gene}")
-                g.add((patient_uri, PGX.hasGene, gene_uri))
-                g.add((gene_uri, RDF.type, PGX.Gene))
-                g.add((gene_uri, SCHEMA.name, Literal(gene)))
-        
-        # Add variants
-        for variant in profile.get("variants", []):
-            variant_uri = URIRef(f"http://identifiers.org/dbsnp/{variant.get('variant_id', 'unknown')}")
-            g.add((variant_uri, RDF.type, PGX.Variant))
-            g.add((variant_uri, SCHEMA.identifier, Literal(variant.get("variant_id", ""))))
-            g.add((variant_uri, PGX.affectsGene, URIRef(f"http://identifiers.org/ncbigene/{variant.get('gene', '')}")))
-            g.add((patient_uri, PGX.hasVariant, variant_uri))
-        
-        return g.serialize(format="turtle")
+        try:
+            from rdflib import Graph, URIRef, Literal, Namespace
+            from rdflib.namespace import RDF, RDFS, XSD
+            
+            # Create graph
+            g = Graph()
+            
+            # Define namespaces
+            FOAF = Namespace("http://xmlns.com/foaf/0.1/")
+            SCHEMA = Namespace("http://schema.org/")
+            PGX = Namespace("http://pgx-kg.org/")
+            SNOMED = Namespace("http://snomed.info/id/")
+            
+            # Bind namespaces
+            g.bind("foaf", FOAF)
+            g.bind("schema", SCHEMA)
+            g.bind("pgx", PGX)
+            g.bind("snomed", SNOMED)
+            
+            # Add patient
+            patient_uri = URIRef(profile["@id"])
+            g.add((patient_uri, RDF.type, FOAF.Person))
+            g.add((patient_uri, RDF.type, SCHEMA.Person))
+            g.add((patient_uri, SCHEMA.identifier, Literal(profile["identifier"])))
+            g.add((patient_uri, SCHEMA.name, Literal(profile["name"])))
+            g.add((patient_uri, SCHEMA.description, Literal(profile["description"])))
+            
+            # Add pharmacogenomics profile
+            pgx_profile = profile.get("pharmacogenomics_profile", {})
+            if "genes_analyzed" in pgx_profile:
+                for gene in pgx_profile["genes_analyzed"]:
+                    gene_uri = URIRef(f"http://identifiers.org/ncbigene/{gene}")
+                    g.add((patient_uri, PGX.hasGene, gene_uri))
+                    g.add((gene_uri, RDF.type, PGX.Gene))
+                    g.add((gene_uri, SCHEMA.name, Literal(gene)))
+            
+            # Add variants
+            for variant in profile.get("variants", []):
+                variant_uri = URIRef(f"http://identifiers.org/dbsnp/{variant.get('variant_id', 'unknown')}")
+                g.add((variant_uri, RDF.type, PGX.Variant))
+                g.add((variant_uri, SCHEMA.identifier, Literal(variant.get("variant_id", ""))))
+                g.add((variant_uri, PGX.affectsGene, URIRef(f"http://identifiers.org/ncbigene/{variant.get('gene', '')}")))
+                g.add((patient_uri, PGX.hasVariant, variant_uri))
+            
+            return g.serialize(format="turtle")
+            
+        except ImportError:
+            return f"# TTL export requires rdflib library\n# Patient: {profile.get('identifier')}\n# Genes: {', '.join(profile.get('pharmacogenomics_profile', {}).get('genes_analyzed', []))}\n"
     
     def _generate_html_report(self, profile: dict, gene_results: dict) -> str:
         """Generate HTML report from comprehensive profile"""
@@ -1563,6 +1315,12 @@ class PGxKGPipeline:
         return html
 
 
+# Legacy class for backward compatibility
+class PGxKGPipeline(PGxPipeline):
+    """Legacy class name for backward compatibility"""
+    pass
+
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
@@ -1617,7 +1375,7 @@ For more information, see README.md
         parser.error("Cannot specify both --gene and --genes")
     
     # Run pipeline
-    pipeline = PGxKGPipeline(config_path=args.config)
+    pipeline = PGxPipeline(config_path=args.config)
     
     if args.genes:
         # Multi-gene mode
@@ -1632,4 +1390,3 @@ For more information, see README.md
 
 if __name__ == "__main__":
     main()
-
