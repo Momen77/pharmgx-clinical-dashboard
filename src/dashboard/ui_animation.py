@@ -76,7 +76,14 @@ class Storyboard:
         if anim:
             try:
                 with self._place_anim.container():
-                    st_lottie(anim, height=240, key=f"anim_{self.scene}_{self._render_count}")
+                    # Render with explicit params; some environments need quality/loop set
+                    st_lottie(
+                        anim,
+                        height=240,
+                        loop=True,
+                        quality="high",
+                        key=f"anim_{self.scene}_{self._render_count}"
+                    )
             except Exception as e:
                 # Fallback to text if Lottie fails
                 with self._place_anim.container():
