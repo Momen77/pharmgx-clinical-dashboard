@@ -67,10 +67,17 @@ class Storyboard:
         
         if anim:
             try:
-                st_lottie(anim, height=240, key=f"anim_{self.scene}")
-            except Exception:
+                with self._place_anim.container():
+                    st_lottie(anim, height=240, key=f"anim_{self.scene}")
+            except Exception as e:
                 # Fallback to text if Lottie fails
+                with self._place_anim.container():
+                    st.info(f"🎬 {self.scene.replace('_', ' ').title()}")
+                    st.error(f"Animation error: {e}")
+        else:
+            with self._place_anim.container():
                 st.info(f"🎬 {self.scene.replace('_', ' ').title()}")
+        
         self._place_text.info(self.caption)
 
     def advance(self, event: PipelineEvent) -> None:
