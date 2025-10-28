@@ -1,85 +1,62 @@
 """
 Main Streamlit Dashboard Application
-Clinical Pharmacogenomics Testing Dashboard - FIXED IMPORTS
+Clinical Pharmacogenomics Testing Dashboard - FULL APP RESTORED with robust imports
 """
 import streamlit as st
 import sys
 from pathlib import Path
 from datetime import datetime
 
-# Robust path setup so `from src.main import PGxPipeline` always works
-# Resolve key directories relative to this file regardless of CWD
+# =========================
+# Robust import bootstrap
+# =========================
 _DASHBOARD_DIR = Path(__file__).resolve().parent
 _SRC_DIR = _DASHBOARD_DIR.parent
 _PROJECT_ROOT = _SRC_DIR.parent
 
-# Ensure src is at the very front of sys.path so `from main` also works
+# Ensure src first for `from main` to work consistently
 src_str = str(_SRC_DIR)
 if src_str not in sys.path:
     sys.path.insert(0, src_str)
-# Also add project root as a fallback for absolute package resolution
 proj_str = str(_PROJECT_ROOT)
 if proj_str not in sys.path:
     sys.path.insert(1, proj_str)
-# Finally, add dashboard dir to support local relative imports
-dash_str = str(_DASHBOARD_DIR)
-if dash_str not in sys.path:
-    sys.path.insert(2, dash_str)
+_dash_str = str(_DASHBOARD_DIR)
+if _dash_str not in sys.path:
+    sys.path.insert(2, _dash_str)
 
-# Short diagnostic banner (only once)
-try:
-    if not st.session_state.get("_import_diag_once"):
-        st.session_state["_import_diag_once"] = True
-        st.info(
-            f"Import paths configured:\n"
-            f"- src: {_SRC_DIR}\n- project_root: {_PROJECT_ROOT}\n- dashboard: {_DASHBOARD_DIR}"
-        )
-except Exception:
-    pass
-
-# Try very robust imports for PGxPipeline
-PGxKGPipeline = None
+# Load PGxPipeline with multiple fallbacks
 PGxPipeline = None
 _import_errors = []
-
 try:
-    # Preferred explicit package style
-    from src.main import PGxPipeline as _PGxPipeline
-    PGxPipeline = _PGxPipeline
+    from src.main import PGxPipeline as _PG
+    PGxPipeline = _PG
 except Exception as e:
     _import_errors.append(f"src.main: {e}")
     try:
-        # If src is first on sys.path, this works
-        from main import PGxPipeline as _PGxPipeline
-        PGxPipeline = _PGxPipeline
+        from main import PGxPipeline as _PG
+        PGxPipeline = _PG
     except Exception as e2:
         _import_errors.append(f"main: {e2}")
+        import importlib.util
+        main_path = _SRC_DIR / "main.py"
+        if main_path.exists():
+            spec = importlib.util.spec_from_file_location("main", main_path)
+            mod = importlib.util.module_from_spec(spec)
+            try:
+                spec.loader.exec_module(mod)  # type: ignore
+                PGxPipeline = getattr(mod, "PGxPipeline", None)
+                if PGxPipeline is None:
+                    _import_errors.append("dynamic: PGxPipeline not found in main.py")
+            except Exception as e3:
+                _import_errors.append(f"dynamic: {e3}")
+        else:
+            _import_errors.append(f"not found: {main_path}")
 
-# If both failed, attempt dynamic import by absolute path
-if PGxPipeline is None:
-    import importlib.util
-    main_path = _SRC_DIR / "main.py"
-    if main_path.exists():
-        spec = importlib.util.spec_from_file_location("main", main_path)
-        mod = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(mod)  # type: ignore
-            PGxPipeline = getattr(mod, "PGxPipeline", None)
-            if PGxPipeline is None:
-                _import_errors.append("main.py loaded but PGxPipeline not found")
-        except Exception as e3:
-            _import_errors.append(f"dynamic import: {e3}")
-    else:
-        _import_errors.append(f"not found: {main_path}")
-
-if PGxPipeline is None:
-    st.error("Could not import PGxPipeline after multiple strategies. See details in Debug page.")
-    st.caption("Import errors: " + " | ".join(_import_errors))
-
-# The rest of the original app imports and logic follow below
-# (We keep your existing app body intact and only replace the import bootstrap above.)
-
-# Import dashboard utils after path fix
+# =========================
+# Dashboard module imports
+# =========================
+# Styling
 try:
     from dashboard.utils.styling import inject_css
 except Exception:
@@ -89,83 +66,349 @@ except Exception:
         def inject_css():
             st.markdown("<!-- Styling unavailable -->", unsafe_allow_html=True)
 
-# Lazy-import remaining dashboard modules to avoid hard failures on first paint
-def _lazy_import(name, rel_path):
-    import importlib.util
-    p = _DASHBOARD_DIR / rel_path
-    if p.exists():
-        spec = importlib.util.spec_from_file_location(name, p)
-        m = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(m)  # type: ignore
-        return m
-    return None
+# Patient creator
+try:
+    from patient_creator import PatientCreator
+except Exception:
+    import importlib.util as _ilu
+    _p = _DASHBOARD_DIR / "patient_creator.py"
+    if _p.exists():
+        _s = _ilu.spec_from_file_location("patient_creator", _p)
+        _m = _ilu.module_from_spec(_s)
+        _s.loader.exec_module(_m)  # type: ignore
+        PatientCreator = getattr(_m, "PatientCreator", None)
+    else:
+        PatientCreator = None
 
-_patient_module = _lazy_import("patient_creator", "patient_creator.py")
-PatientCreator = getattr(_patient_module, "PatientCreator", None) if _patient_module else None
+# UI profile controls
+try:
+    from ui_profile import render_profile_controls, render_manual_enrichment_forms
+except Exception:
+    import importlib.util as _ilu
+    _p = _DASHBOARD_DIR / "ui_profile.py"
+    if _p.exists():
+        _s = _ilu.spec_from_file_location("ui_profile", _p)
+        _m = _ilu.module_from_spec(_s)
+        _s.loader.exec_module(_m)  # type: ignore
+        render_profile_controls = getattr(_m, "render_profile_controls", lambda: ("Manual (dashboard form)", "Auto (by age/lifestyle)"))
+        render_manual_enrichment_forms = getattr(_m, "render_manual_enrichment_forms", lambda: ([], [], {}))
+    else:
+        render_profile_controls = lambda: ("Manual (dashboard form)", "Auto (by age/lifestyle)")
+        render_manual_enrichment_forms = lambda: ([], [], {})
 
-_ui_profile_module = _lazy_import("ui_profile", "ui_profile.py")
-if _ui_profile_module:
-    render_profile_controls = getattr(_ui_profile_module, "render_profile_controls", lambda: ("Manual (dashboard form)", "Auto (by age/lifestyle)"))
-    render_manual_enrichment_forms = getattr(_ui_profile_module, "render_manual_enrichment_forms", lambda: ([], [], {}))
-else:
-    render_profile_controls = lambda: ("Manual (dashboard form)", "Auto (by age/lifestyle)")
-    render_manual_enrichment_forms = lambda: ([], [], {})
+# Animation UI
+try:
+    from ui_animation import Storyboard, consume_events, create_storyboard_with_controls
+except Exception:
+    import importlib.util as _ilu
+    _p = _DASHBOARD_DIR / "ui_animation.py"
+    if _p.exists():
+        _s = _ilu.spec_from_file_location("ui_animation", _p)
+        _m = _ilu.module_from_spec(_s)
+        _s.loader.exec_module(_m)  # type: ignore
+        Storyboard = getattr(_m, "Storyboard", None)
+        consume_events = getattr(_m, "consume_events", None)
+        create_storyboard_with_controls = getattr(_m, "create_storyboard_with_controls", None)
+    else:
+        Storyboard = None
+        consume_events = None
+        create_storyboard_with_controls = None
 
-_ui_animation_module = _lazy_import("ui_animation", "ui_animation.py")
-if _ui_animation_module:
-    Storyboard = getattr(_ui_animation_module, "Storyboard", None)
-    consume_events = getattr(_ui_animation_module, "consume_events", None)
-    create_storyboard_with_controls = getattr(_ui_animation_module, "create_storyboard_with_controls", None)
-else:
-    Storyboard = None
-    consume_events = None
-    create_storyboard_with_controls = None
+# Gene panel
+try:
+    from gene_panel_selector import GenePanelSelector
+except Exception:
+    import importlib.util as _ilu
+    _p = _DASHBOARD_DIR / "gene_panel_selector.py"
+    if _p.exists():
+        _s = _ilu.spec_from_file_location("gene_panel_selector", _p)
+        _m = _ilu.module_from_spec(_s)
+        _s.loader.exec_module(_m)  # type: ignore
+        GenePanelSelector = getattr(_m, "GenePanelSelector", None)
+    else:
+        GenePanelSelector = None
 
-_gene_panel_module = _lazy_import("gene_panel_selector", "gene_panel_selector.py")
-GenePanelSelector = getattr(_gene_panel_module, "GenePanelSelector", None) if _gene_panel_module else None
+# Worker & events
+# Prefer the new PipelineWorker that passes dashboard profile correctly
+try:
+    from utils.pipeline_worker import PipelineWorker
+except Exception:
+    try:
+        from utils.background_worker import EnhancedBackgroundWorker as PipelineWorker
+    except Exception:
+        PipelineWorker = None
 
-_alert_module = _lazy_import("alert_classifier", "alert_classifier.py")
-AlertClassifier = getattr(_alert_module, "AlertClassifier", None) if _alert_module else None
+try:
+    from utils.event_bus import PipelineEvent
+except Exception:
+    PipelineEvent = None
 
-# Page configuration
+# =========================
+# Streamlit page config
+# =========================
 st.set_page_config(
     page_title="UGent PGx Dashboard",
     page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Inject CSS
 inject_css()
 
-# Initialize session state
-for k, v in {
-    'patient_created': False,
-    'selected_genes': [],
-    'test_results': None,
-    'test_running': False,
-}.items():
-    st.session_state.setdefault(k, v)
+# Session state defaults
+st.session_state.setdefault('patient_created', False)
+st.session_state.setdefault('patient_profile', None)
+st.session_state.setdefault('selected_genes', [])
+st.session_state.setdefault('test_results', None)
+st.session_state.setdefault('test_running', False)
 
-# Sidebar
+# Sidebar nav
 with st.sidebar:
+    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", use_container_width=True)
     st.title("Navigation")
     page = st.radio(
         "Select Page",
         ["🏠 Home", "👤 Create Patient", "🧬 Select Genes", "🔬 Run Test", "📊 View Report", "💾 Export Data", "🛠️ Debug"],
-        index=0
+        index=0,
     )
 
-# --- Minimal pages to keep this patch focused on import fix ---
-if page == "🛠️ Debug":
+# =========================
+# Pages
+# =========================
+if page == "🏠 Home":
+    st.title("🧬 UGent Pharmacogenomics Testing Dashboard")
+    st.markdown("Welcome to the Clinical Pharmacogenomics Testing Platform")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Patients Tested", "1,234")
+    c2.metric("Genes Analyzed", "25+")
+    c3.metric("Drug Interactions", "500+")
+    st.info("Use the sidebar to navigate the workflow")
+
+elif page == "👤 Create Patient":
+    st.title("👤 Create Patient")
+    if PatientCreator is None:
+        st.error("PatientCreator module not available")
+    else:
+        # Load config.yaml if available for API keys
+        bioportal_key = None
+        try:
+            import yaml
+            for cp in [
+                _PROJECT_ROOT / "config.yaml",
+                _SRC_DIR.parent / "config.yaml",
+                _DASHBOARD_DIR.parent / "config.yaml",
+                Path("config.yaml"),
+            ]:
+                if cp.exists():
+                    with open(cp, 'r') as f:
+                        cfg = yaml.safe_load(f)
+                    bioportal_key = cfg.get('api', {}).get('bioportal_api_key')
+                    break
+        except Exception:
+            pass
+        creator = PatientCreator(bioportal_api_key=bioportal_key)
+        profile = creator.render_patient_form()
+        # PatientCreator should set st.session_state['patient_created'] and ['patient_profile']
+        if st.session_state.get('patient_created'):
+            st.success("✅ Patient profile created")
+            with st.expander("Saved Profile", expanded=False):
+                st.json(st.session_state.get('patient_profile', {}))
+
+elif page == "🧬 Select Genes":
+    st.title("🧬 Select Genes")
+    if GenePanelSelector is None:
+        st.error("GenePanelSelector module not available")
+    else:
+        selector = GenePanelSelector()
+        selected = selector.render_gene_selector()
+        if selected:
+            st.session_state['selected_genes'] = selected
+        st.info(f"Selected: {', '.join(st.session_state.get('selected_genes', [])) or 'None'}")
+
+elif page == "🔬 Run Test":
+    st.title("🔬 Run Pharmacogenetic Test")
+
+    # Preconditions
+    if not st.session_state.get('patient_created'):
+        st.warning("Please create a patient profile first")
+    if not st.session_state.get('selected_genes'):
+        st.warning("Please select genes to test")
+
+    if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
+        demo_mode = st.checkbox("Demo mode (simulated pipeline)", value=True)
+
+        mode, enrich = render_profile_controls()
+        manual_conditions, manual_meds, manual_labs = [], [], {}
+        if enrich == "Manual (enter now)":
+            manual_conditions, manual_meds, manual_labs = render_manual_enrichment_forms()
+
+        # Prepare profile copy to pass to worker
+        profile = dict(st.session_state.get('patient_profile') or {})
+        if enrich == "Auto (by age/lifestyle)":
+            profile.setdefault('auto_enrichment', True)
+        elif enrich == "Manual (enter now)":
+            profile.setdefault('manual_enrichment', {})
+            if manual_conditions:
+                profile['manual_enrichment']['conditions'] = manual_conditions
+            if manual_meds:
+                profile['manual_enrichment']['medications'] = manual_meds
+            if manual_labs:
+                profile['manual_enrichment']['labs'] = manual_labs
+
+        # Show passed profile for transparency
+        with st.expander("Profile to pass", expanded=False):
+            st.json(profile)
+
+        # Create worker and storyboard
+        if PipelineWorker is None or Storyboard is None or consume_events is None:
+            st.error("Runtime modules missing (worker/animation)")
+        else:
+            import queue as _q
+            import threading
+
+            event_q = _q.Queue()
+            result_q = _q.Queue()
+            cancel_flag = threading.Event()
+
+            # Resolve config
+            config_path = "config.yaml"
+            for cp in [
+                _PROJECT_ROOT / "config.yaml",
+                _SRC_DIR.parent / "config.yaml",
+                _DASHBOARD_DIR.parent / "config.yaml",
+                Path("config.yaml"),
+            ]:
+                if cp.exists():
+                    config_path = str(cp)
+                    break
+
+            storyboard = Storyboard()
+            st.info("Pipeline running... watch the animation above")
+
+            worker = PipelineWorker(
+                genes=st.session_state['selected_genes'],
+                profile=profile,
+                config_path=config_path,
+                event_queue=event_q,
+                result_queue=result_q,
+                cancel_event=cancel_flag,
+                demo_mode=demo_mode,
+            )
+            worker.start()
+
+            cancel_col, status_col = st.columns([1, 3])
+            with cancel_col:
+                if st.button("Cancel Run", type="secondary"):
+                    cancel_flag.set()
+                    st.warning("Cancelling...")
+            with status_col:
+                consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
+
+            # Collect results
+            results = result_q.get() if not result_q.empty() else {"success": False, "error": "No result"}
+            if results.get('success'):
+                st.session_state['test_results'] = results
+                st.session_state['test_complete'] = True
+                st.success("✅ Test Complete")
+
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Variants Found", results.get('total_variants', 0))
+                col2.metric("Genes Analyzed", len(results.get('genes', [])))
+                col3.metric("Affected Drugs", results.get('affected_drugs', 0))
+                col4.metric("Patient ID", results.get('patient_id', 'N/A'))
+
+                # Show whether dashboard profile used
+                cp = results.get('comprehensive_profile', {}) or {}
+                used_dashboard = cp.get('dashboard_source', False)
+                if used_dashboard:
+                    st.success("✅ Used dashboard patient profile")
+                else:
+                    st.warning("⚠️ Used auto-generated profile")
+
+                if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
+                    st.subheader("Generated Files")
+                    for t, p in results['comprehensive_outputs'].items():
+                        st.text(f"• {t}: {p}")
+            else:
+                st.error(f"Test failed: {results.get('error')}')")
+
+elif page == "📊 View Report":
+    st.title("📊 Clinical Report")
+    results = st.session_state.get('test_results')
+    if not results:
+        st.warning("No results. Run a test first.")
+    else:
+        demo = (st.session_state.get('patient_profile') or {}).get('demographics', {})
+        st.header("Patient Information")
+        st.write(f"Name: {demo.get('first_name', '')} {demo.get('last_name', '')}")
+        st.write(f"MRN: {demo.get('mrn', 'N/A')}")
+        st.write(f"Age: {demo.get('age', 'N/A')}")
+
+        st.header("Summary")
+        st.write(f"Genes: {', '.join(results.get('genes', []))}")
+        st.write(f"Total Variants: {results.get('total_variants', 0)}")
+
+        cp = results.get('comprehensive_profile', {}) or {}
+        st.write(f"Profile Source: {'Dashboard' if cp.get('dashboard_source') else 'Auto-generated'}")
+
+        if 'comprehensive_outputs' in results:
+            st.header("Generated Files")
+            for t, p in results['comprehensive_outputs'].items():
+                st.text(f"{t}: {p}")
+
+elif page == "💾 Export Data":
+    st.title("💾 Export Data")
+    results = st.session_state.get('test_results')
+    if not results:
+        st.warning("No results to export")
+    else:
+        outputs = results.get('comprehensive_outputs', {})
+        from pathlib import Path as _P
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Downloads")
+            for label_key in [
+                'Comprehensive JSON-LD',
+                'Comprehensive TTL',
+                'Comprehensive HTML Report',
+                'Summary Report',
+            ]:
+                path = outputs.get(label_key)
+                if path and _P(path).exists():
+                    with open(path, 'rb') as f:
+                        st.download_button(f"Download {label_key}", f.read(), file_name=_P(path).name)
+        with col2:
+            st.subheader("Paths")
+            for t, p in outputs.items():
+                exists = _P(p).exists() if p else False
+                st.text(f"{'✅' if exists else '❌'} {t}")
+                st.code(p or '', language=None)
+
+elif page == "🛠️ Debug":
+    st.title("🛠️ Debug")
     st.header("Import Debug")
     st.write({
         "src_dir": str(_SRC_DIR),
         "project_root": str(_PROJECT_ROOT),
         "dashboard_dir": str(_DASHBOARD_DIR),
         "PGxPipeline_imported": PGxPipeline is not None,
-        "errors": _import_errors,
+        "import_errors": _import_errors,
     })
+    st.subheader("sys.path (first 10)")
     st.code("\n".join(sys.path[:10]), language="text")
+
+    st.header("Session State")
+    st.json({k: v for k, v in st.session_state.items() if k in ['patient_created','patient_profile','selected_genes','test_results']})
+
+    st.header("Animation Test")
+    if create_storyboard_with_controls:
+        try:
+            debug_sb = create_storyboard_with_controls()
+            st.success("Storyboard OK")
+        except Exception as e:
+            st.error(f"Storyboard error: {e}")
+    else:
+        st.info("Storyboard control helper not available")
+
 else:
-    st.success("PGxPipeline import is configured." if PGxPipeline else "Import still failing — see Debug page.")
+    st.error("Unknown page")
