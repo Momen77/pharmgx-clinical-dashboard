@@ -100,7 +100,14 @@ class PipelineWorker(threading.Thread):
                 emit(self.event_queue, "annotation", "pharmgkb_connect", "Connecting to PharmGKB…")
                 emit(self.event_queue, "enrichment", "chembl_connect", "Connecting to ChEMBL…")
                 emit(self.event_queue, "enrichment", "europepmc_connect", "Querying Europe PMC for literature…")
-                results = pipeline.run_multi_gene(self.genes)
+                
+                # Pass patient profile to pipeline if available
+                if self.profile:
+                    emit(self.event_queue, "annotation", "patient_profile", f"Using patient profile: {self.profile.get('demographics', {}).get('mrn', 'Unknown')}")
+                    results = pipeline.run_multi_gene(self.genes, self.profile)
+                else:
+                    emit(self.event_queue, "annotation", "patient_profile", "Generating new patient profile")
+                    results = pipeline.run_multi_gene(self.genes)
 
             emit(self.event_queue, "linking", "link_variants", "Linking variants to conditions & drugs", progress=0.85)
             emit(self.event_queue, "report", "generate", "Generating JSON-LD and HTML report", progress=0.95)

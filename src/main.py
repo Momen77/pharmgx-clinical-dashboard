@@ -153,12 +153,13 @@ class PGxKGPipeline:
                 "error": str(e)
             }
     
-    def run_multi_gene(self, gene_symbols: list) -> dict:
+    def run_multi_gene(self, gene_symbols: list, patient_profile: dict = None) -> dict:
         """
         Run pipeline for multiple genes to create comprehensive patient profile
         
         Args:
             gene_symbols: List of gene symbols (e.g., ['CYP2D6', 'CYP2C19', 'CYP3A4'])
+            patient_profile: Optional patient profile from dashboard (if None, generates one)
             
         Returns:
             Dictionary with results for all genes
@@ -176,7 +177,14 @@ class PGxKGPipeline:
         all_variants = []
         all_drugs = set()
         all_diseases = set()
-        patient_id = f"comprehensive_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # Use patient profile from dashboard if provided, otherwise generate one
+        if patient_profile:
+            patient_id = patient_profile.get("demographics", {}).get("mrn", f"dashboard_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            print(f"Using patient profile from dashboard: {patient_id}")
+        else:
+            patient_id = f"comprehensive_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            print(f"Generating new patient profile: {patient_id}")
         
         try:
             # Process each gene individually
@@ -207,7 +215,7 @@ class PGxKGPipeline:
             print(f"{'='*70}")
             
             comprehensive_profile = self._create_comprehensive_profile(
-                patient_id, gene_symbols, all_variants, all_drugs, all_diseases
+                patient_id, gene_symbols, all_variants, all_drugs, all_diseases, patient_profile
             )
             
             # Link patient profile to variants and detect conflicts
@@ -493,10 +501,15 @@ class PGxKGPipeline:
         
         return diseases
     
-    def _create_comprehensive_profile(self, patient_id: str, genes: list, variants: list, drugs: set, diseases: set) -> dict:
+    def _create_comprehensive_profile(self, patient_id: str, genes: list, variants: list, drugs: set, diseases: set, dashboard_profile: dict = None) -> dict:
         """Create comprehensive patient profile with enhanced clinical information"""
-        # Generate clinical information
-        clinical_info = self._generate_clinical_information(patient_id)
+        # Use dashboard profile if provided, otherwise generate clinical information
+        if dashboard_profile:
+            print("Using patient profile from dashboard")
+            clinical_info = dashboard_profile
+        else:
+            print("Generating clinical information")
+            clinical_info = self._generate_clinical_information(patient_id)
         
         profile = {
             "@context": {
@@ -1340,6 +1353,20 @@ class PGxKGPipeline:
                 json.dump(conflict_data, f, indent=2)
             outputs["Conflict Report"] = str(conflict_file)
         
+        # 5. Generate TTL (Turtle) file
+        ttl_file = comp_dir / f"{patient_id}_comprehensive.ttl"
+        ttl_content = self._generate_ttl_from_profile(profile)
+        with open(ttl_file, 'w', encoding='utf-8') as f:
+            f.write(ttl_content)
+        outputs["Comprehensive TTL"] = str(ttl_file)
+        
+        # 6. Generate HTML report
+        html_file = comp_dir / f"{patient_id}_comprehensive_report.html"
+        html_content = self._generate_html_report(profile, gene_results)
+        with open(html_file, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        outputs["Comprehensive HTML Report"] = str(html_file)
+        
         return outputs
     
     def _create_drug_matrix(self, variants: list) -> dict:
@@ -1362,6 +1389,178 @@ class PGxKGPipeline:
                     }
         
         return matrix
+    
+    def _generate_ttl_from_profile(self, profile: dict) -> str:
+        """Generate TTL (Turtle) content from comprehensive profile"""
+        from rdflib import Graph, URIRef, Literal, Namespace
+        from rdflib.namespace import RDF, RDFS, XSD
+        
+        # Create graph
+        g = Graph()
+        
+        # Define namespaces
+        FOAF = Namespace("http://xmlns.com/foaf/0.1/")
+        SCHEMA = Namespace("http://schema.org/")
+        PGX = Namespace("http://pgx-kg.org/")
+        SNOMED = Namespace("http://snomed.info/id/")
+        
+        # Bind namespaces
+        g.bind("foaf", FOAF)
+        g.bind("schema", SCHEMA)
+        g.bind("pgx", PGX)
+        g.bind("snomed", SNOMED)
+        
+        # Add patient
+        patient_uri = URIRef(profile["@id"])
+        g.add((patient_uri, RDF.type, FOAF.Person))
+        g.add((patient_uri, RDF.type, SCHEMA.Person))
+        g.add((patient_uri, SCHEMA.identifier, Literal(profile["identifier"])))
+        g.add((patient_uri, SCHEMA.name, Literal(profile["name"])))
+        g.add((patient_uri, SCHEMA.description, Literal(profile["description"])))
+        g.add((patient_uri, SCHEMA.dateCreated, Literal(profile["dateCreated"], datatype=XSD.dateTime)))
+        
+        # Add clinical information
+        clinical_info = profile.get("clinical_information", {})
+        if "demographics" in clinical_info:
+            demo = clinical_info["demographics"]
+            if "first_name" in demo:
+                g.add((patient_uri, FOAF.firstName, Literal(demo["first_name"])))
+            if "last_name" in demo:
+                g.add((patient_uri, FOAF.lastName, Literal(demo["last_name"])))
+            if "age" in demo:
+                g.add((patient_uri, SCHEMA.age, Literal(demo["age"], datatype=XSD.integer)))
+        
+        # Add pharmacogenomics profile
+        pgx_profile = profile.get("pharmacogenomics_profile", {})
+        if "genes_analyzed" in pgx_profile:
+            for gene in pgx_profile["genes_analyzed"]:
+                gene_uri = URIRef(f"http://identifiers.org/ncbigene/{gene}")
+                g.add((patient_uri, PGX.hasGene, gene_uri))
+                g.add((gene_uri, RDF.type, PGX.Gene))
+                g.add((gene_uri, SCHEMA.name, Literal(gene)))
+        
+        # Add variants
+        for variant in profile.get("variants", []):
+            variant_uri = URIRef(f"http://identifiers.org/dbsnp/{variant.get('variant_id', 'unknown')}")
+            g.add((variant_uri, RDF.type, PGX.Variant))
+            g.add((variant_uri, SCHEMA.identifier, Literal(variant.get("variant_id", ""))))
+            g.add((variant_uri, PGX.affectsGene, URIRef(f"http://identifiers.org/ncbigene/{variant.get('gene', '')}")))
+            g.add((patient_uri, PGX.hasVariant, variant_uri))
+        
+        return g.serialize(format="turtle")
+    
+    def _generate_html_report(self, profile: dict, gene_results: dict) -> str:
+        """Generate HTML report from comprehensive profile"""
+        html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprehensive Pharmacogenomics Report - {profile.get('identifier', 'Unknown')}</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }}
+        .header {{ background: #2c3e50; color: white; padding: 20px; border-radius: 5px; }}
+        .section {{ margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }}
+        .gene-result {{ background: #f8f9fa; margin: 10px 0; padding: 10px; border-radius: 3px; }}
+        .variant {{ background: #e9ecef; margin: 5px 0; padding: 8px; border-radius: 3px; }}
+        .conflict {{ background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin: 5px 0; border-radius: 3px; }}
+        .critical {{ background: #f8d7da; border: 1px solid #f5c6cb; }}
+        .warning {{ background: #fff3cd; border: 1px solid #ffeaa7; }}
+        .info {{ background: #d1ecf1; border: 1px solid #bee5eb; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 10px 0; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f2f2f2; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧬 Comprehensive Pharmacogenomics Report</h1>
+        <p><strong>Patient ID:</strong> {profile.get('identifier', 'Unknown')}</p>
+        <p><strong>Generated:</strong> {profile.get('dateCreated', 'Unknown')}</p>
+        <p><strong>Description:</strong> {profile.get('description', 'No description')}</p>
+    </div>
+    
+    <div class="section">
+        <h2>📊 Analysis Summary</h2>
+        <p><strong>Genes Analyzed:</strong> {', '.join(profile.get('pharmacogenomics_profile', {}).get('genes_analyzed', []))}</p>
+        <p><strong>Total Variants:</strong> {profile.get('pharmacogenomics_profile', {}).get('total_variants', 0)}</p>
+        <p><strong>Affected Drugs:</strong> {len(profile.get('pharmacogenomics_profile', {}).get('affected_drugs', []))}</p>
+        <p><strong>Associated Diseases:</strong> {len(profile.get('pharmacogenomics_profile', {}).get('associated_diseases', []))}</p>
+    </div>
+    
+    <div class="section">
+        <h2>🧪 Gene Analysis Results</h2>
+"""
+        
+        # Add gene results
+        for gene, result in gene_results.items():
+            status = "✅ Success" if result.get("success", False) else "❌ Failed"
+            html += f"""
+        <div class="gene-result">
+            <h3>{gene} {status}</h3>
+            <p><strong>Variants Processed:</strong> {result.get('variants_processed', 0)}</p>
+            {f"<p><strong>Error:</strong> {result.get('error', '')}</p>" if not result.get('success', False) else ""}
+        </div>
+"""
+        
+        html += """
+    </div>
+    
+    <div class="section">
+        <h2>🧬 Variants</h2>
+"""
+        
+        # Add variants
+        for variant in profile.get("variants", []):
+            html += f"""
+        <div class="variant">
+            <h4>{variant.get('variant_id', 'Unknown')}</h4>
+            <p><strong>Gene:</strong> {variant.get('gene', 'Unknown')}</p>
+            <p><strong>Clinical Significance:</strong> {variant.get('clinical_significance', 'Unknown')}</p>
+            <p><strong>Drugs Affected:</strong> {len(variant.get('drugs', []))}</p>
+        </div>
+"""
+        
+        # Add variant linking and conflicts if available
+        if "variant_linking" in profile:
+            linking = profile["variant_linking"]
+            html += """
+    </div>
+    
+    <div class="section">
+        <h2>⚠️ Variant Linking & Conflicts</h2>
+"""
+            
+            # Add conflicts
+            conflicts = linking.get("conflicts", [])
+            if conflicts:
+                html += f"<p><strong>Total Conflicts:</strong> {len(conflicts)}</p>"
+                for conflict in conflicts:
+                    severity_class = conflict.get("severity", "info").lower()
+                    html += f"""
+        <div class="conflict {severity_class}">
+            <h4>{conflict.get('title', 'Unknown Conflict')}</h4>
+            <p><strong>Severity:</strong> {conflict.get('severity', 'Unknown')}</p>
+            <p><strong>Description:</strong> {conflict.get('description', 'No description')}</p>
+        </div>
+"""
+            else:
+                html += "<p>No conflicts detected.</p>"
+        
+        html += f"""
+    </div>
+    
+    <div class="section">
+        <h2>📋 Data Sources</h2>
+        <p>{profile.get('dataSource', 'Unknown data sources')}</p>
+    </div>
+    
+</body>
+</html>
+"""
+        
+        return html
 
 
 def main():
