@@ -72,6 +72,9 @@ class Storyboard:
         if not anim:
             # Fallback to placeholder if scene not found
             anim = load_lottie_json("placeholder.json")
+            used_name = "placeholder.json"
+        else:
+            used_name = f"{self.scene}.json"
         
         if anim:
             try:
@@ -93,7 +96,8 @@ class Storyboard:
             with self._place_anim.container():
                 st.info(f"🎬 {self.scene.replace('_', ' ').title()}")
         
-        self._place_text.info(self.caption)
+        # Show caption with the actual asset used for quick debugging
+        self._place_text.info(f"{self.caption}  ·  asset: {used_name}")
 
     def advance(self, event: PipelineEvent) -> None:
         # Safety check for event
