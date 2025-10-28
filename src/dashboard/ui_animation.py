@@ -34,8 +34,16 @@ class Storyboard:
 
     def _render(self) -> None:
         anim = self.assets.get(self.scene, {})
+        if not anim:
+            # Fallback to placeholder if scene not found
+            anim = load_lottie_json("placeholder.json")
+        
         if anim:
-            st_lottie(anim, height=240, key=f"anim_{self.scene}")
+            try:
+                st_lottie(anim, height=240, key=f"anim_{self.scene}")
+            except Exception:
+                # Fallback to text if Lottie fails
+                st.info(f"🎬 {self.scene.replace('_', ' ').title()}")
         self._place_text.info(self.caption)
 
     def advance(self, event: PipelineEvent) -> None:

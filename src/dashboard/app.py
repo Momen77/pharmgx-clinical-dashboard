@@ -160,6 +160,9 @@ elif page == "🔬 Run Test":
         st.info("Go to 'Select Genes' page in the sidebar")
     
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
+        # Demo mode toggle
+        demo_mode = st.checkbox("Demo mode (simulated pipeline)", value=False, help="Use simulated pipeline for testing UI")
+        
         # Profile controls
         mode, enrich = render_profile_controls()
         manual_conditions = []
@@ -224,10 +227,22 @@ elif page == "🔬 Run Test":
                         event_queue=event_q,
                         result_queue=result_q,
                         cancel_event=cancel_flag,
+                        demo_mode=demo_mode,
                     )
                     worker.start()
 
                     storyboard = Storyboard()
+                    
+                    # Cancel button
+                    cancel_col, status_col = st.columns([1, 3])
+                    with cancel_col:
+                        if st.button("Cancel Run", type="secondary"):
+                            cancel_flag.set()
+                            st.warning("Cancelling pipeline...")
+                    
+                    with status_col:
+                        st.info("🔄 Pipeline running... Check animation above for progress")
+                    
                     consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
 
                     # Get result
@@ -240,6 +255,9 @@ elif page == "🔬 Run Test":
                         st.session_state['test_results'] = results
                         st.session_state['test_complete'] = True
                         st.success("✅ Pharmacogenetic Test Complete!")
+                        
+                        # Enhanced results display
+                        st.header("📊 Results Summary")
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
                             st.metric("Variants Found", results.get('total_variants', 0))
@@ -250,6 +268,13 @@ elif page == "🔬 Run Test":
                             st.metric("Critical Alerts", critical_count, delta_color="inverse")
                         with col4:
                             st.metric("Affected Drugs", results.get('affected_drugs', 0))
+                        
+                        # Show generated files
+                        if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
+                            st.subheader("📁 Generated Files")
+                            for file_type, file_path in results['comprehensive_outputs'].items():
+                                st.text(f"• {file_type}: {file_path}")
+                        
                         st.info("📊 View the detailed report in the 'View Report' page")
                     else:
                         st.error(f"❌ Test failed: {results.get('error')}")

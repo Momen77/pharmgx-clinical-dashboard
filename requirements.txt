@@ -1,4 +1,5 @@
 streamlit>=1.28.0
+streamlit-lottie>=0.0.5
 reportlab>=4.0.0
 Pillow>=10.0.0
 plotly>=5.17.0
