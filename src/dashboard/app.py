@@ -47,6 +47,8 @@ except ImportError as e:
                 st.markdown("<!-- Styling module not loaded -->", unsafe_allow_html=True)
 
 from patient_creator import PatientCreator
+from ui_profile import render_profile_controls, render_manual_enrichment_forms
+from ui_animation import Storyboard, consume_events
 from gene_panel_selector import GenePanelSelector
 from alert_classifier import AlertClassifier
 
@@ -158,6 +160,13 @@ elif page == "🔬 Run Test":
         st.info("Go to 'Select Genes' page in the sidebar")
     
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
+        # Profile controls
+        mode, enrich = render_profile_controls()
+        manual_conditions = []
+        manual_meds = []
+        manual_labs = {}
+        if enrich == "Manual (enter now)":
+            manual_conditions, manual_meds, manual_labs = render_manual_enrichment_forms()
         selector = GenePanelSelector()
         patient_profile = st.session_state.get('patient_profile')
         
@@ -169,41 +178,68 @@ elif page == "🔬 Run Test":
         if test_button:
             st.session_state['test_running'] = True
             
-            # Show progress
-            with st.spinner("Running test..."):
-                selector.render_test_progress(st.session_state['selected_genes'])
-            
-            # Actually run the pipeline
+            # Background worker + storyboard
             if PGxKGPipeline is None:
                 st.error("Pipeline not available. Please check imports.")
             else:
                 try:
-                    with st.spinner("Executing PGx pipeline..."):
-                        # Try to find config.yaml in multiple locations
-                        config_paths = [
-                            project_root / "config.yaml",
-                            src_dir.parent / "config.yaml",
-                            dashboard_dir.parent / "config.yaml",
-                            Path("config.yaml")
-                        ]
-                        
-                        config_path = "config.yaml"
-                        for cp in config_paths:
-                            if cp.exists():
-                                config_path = str(cp)
-                                break
-                        
-                        pipeline = PGxKGPipeline(config_path=config_path)
-                        results = pipeline.run_multi_gene(st.session_state['selected_genes'])
-                        
+                    import queue as _q
+                    from ..utils.background_worker import PipelineWorker
+                    from ..utils.event_bus import PipelineEvent
+
+                    # Resolve config path
+                    config_paths = [
+                        project_root / "config.yaml",
+                        src_dir.parent / "config.yaml",
+                        dashboard_dir.parent / "config.yaml",
+                        Path("config.yaml")
+                    ]
+                    config_path = "config.yaml"
+                    for cp in config_paths:
+                        if cp.exists():
+                            config_path = str(cp)
+                            break
+
+                    event_q = _q.Queue()
+                    result_q = _q.Queue()
+                    cancel_flag = __import__("threading").Event()
+
+                    # Prepare profile base
+                    profile = st.session_state.get('patient_profile', {})
+                    if enrich == "Auto (by age/lifestyle)":
+                        profile.setdefault('auto_enrichment', True)
+                    elif enrich == "Manual (enter now)":
+                        profile.setdefault('manual_enrichment', {})
+                        if manual_conditions:
+                            profile['manual_enrichment']['conditions'] = manual_conditions
+                        if manual_meds:
+                            profile['manual_enrichment']['medications'] = manual_meds
+                        if manual_labs:
+                            profile['manual_enrichment']['labs'] = manual_labs
+
+                    worker = PipelineWorker(
+                        genes=st.session_state['selected_genes'],
+                        profile=profile,
+                        config_path=config_path,
+                        event_queue=event_q,
+                        result_queue=result_q,
+                        cancel_event=cancel_flag,
+                    )
+                    worker.start()
+
+                    storyboard = Storyboard()
+                    consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
+
+                    # Get result
+                    if not result_q.empty():
+                        results = result_q.get()
+                    else:
+                        results = {"success": False, "error": "No result from worker"}
+
+                    if results.get('success'):
                         st.session_state['test_results'] = results
-                        st.session_state['test_running'] = False
                         st.session_state['test_complete'] = True
-                        
-                        # Show success screen
                         st.success("✅ Pharmacogenetic Test Complete!")
-                        
-                        # Summary metrics
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
                             st.metric("Variants Found", results.get('total_variants', 0))
@@ -214,8 +250,9 @@ elif page == "🔬 Run Test":
                             st.metric("Critical Alerts", critical_count, delta_color="inverse")
                         with col4:
                             st.metric("Affected Drugs", results.get('affected_drugs', 0))
-                        
                         st.info("📊 View the detailed report in the 'View Report' page")
+                    else:
+                        st.error(f"❌ Test failed: {results.get('error')}")
                         
                 except Exception as e:
                     st.error(f"❌ Test failed: {str(e)}")
