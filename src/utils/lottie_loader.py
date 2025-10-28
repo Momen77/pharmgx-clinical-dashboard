@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from functools import lru_cache
+from functools import lru_cache as _unused_lru_cache  # avoided to prevent stale caches during runtime
 
 
-@lru_cache(maxsize=32)
 def load_lottie_json(relative_path: str) -> dict:
     """Load a Lottie JSON asset from the correct path."""
     import os

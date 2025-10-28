@@ -335,13 +335,15 @@ elif page == "🔬 Run Test":
                         cancel_event=cancel_flag,
                         demo_mode=demo_mode,
                     )
-                    worker.start()
-
+                    # Initialize storyboard BEFORE starting the worker to render early stages first
                     if Storyboard is not None:
                         storyboard = Storyboard()
                     else:
                         st.error("Animation module not available")
                         storyboard = None
+
+                    # Now start the worker so events flow after storyboard exists
+                    worker.start()
                     
                     # Cancel button
                     cancel_col, status_col = st.columns([1, 3])
