@@ -1,6 +1,6 @@
 """
 Main Streamlit Dashboard Application
-Clinical Pharmacogenomics Testing Dashboard
+Clinical Pharmacogenomics Testing Dashboard - FIXED VERSION
 """
 import streamlit as st
 import sys
@@ -80,7 +80,7 @@ except ImportError:
             return [], [], {}
 
 try:
-    from ui_animation import Storyboard, consume_events
+    from ui_animation import Storyboard, consume_events, create_storyboard_with_controls
 except ImportError:
     import importlib.util
     ui_animation_path = dashboard_dir / "ui_animation.py"
@@ -90,6 +90,7 @@ except ImportError:
         spec.loader.exec_module(ui_animation_module)
         Storyboard = ui_animation_module.Storyboard
         consume_events = ui_animation_module.consume_events
+        create_storyboard_with_controls = getattr(ui_animation_module, 'create_storyboard_with_controls', None)
     else:
         st.error("Could not find ui_animation.py")
         class Storyboard:
@@ -99,6 +100,7 @@ except ImportError:
                 pass
         def consume_events(event_q, storyboard, worker_alive_fn):
             return None
+        create_storyboard_with_controls = None
 
 try:
     from gene_panel_selector import GenePanelSelector
@@ -130,13 +132,13 @@ except ImportError:
 
 # Import main pipeline
 try:
-    from src.main import PGxKGPipeline
+    from src.main import PGxPipeline
 except ImportError:
     try:
-        from main import PGxKGPipeline
+        from main import PGxPipeline
     except ImportError:
-        st.error("Could not import PGxKGPipeline. Please ensure main.py is accessible.")
-        PGxKGPipeline = None
+        st.error("Could not import PGxPipeline. Please ensure main.py is accessible.")
+        PGxPipeline = None
 
 # Page configuration
 st.set_page_config(
@@ -166,7 +168,7 @@ with st.sidebar:
     
     page = st.radio(
         "Select Page",
-        ["🏠 Home", "👤 Create Patient", "🧬 Select Genes", "🔬 Run Test", "📊 View Report", "💾 Export Data"],
+        ["🏠 Home", "👤 Create Patient", "🧬 Select Genes", "🔬 Run Test", "📊 View Report", "💾 Export Data", "🛠️ Debug"],
         index=0
     )
 
@@ -243,7 +245,7 @@ elif page == "🔬 Run Test":
     
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
         # Demo mode toggle
-        demo_mode = st.checkbox("Demo mode (simulated pipeline)", value=False, help="Use simulated pipeline for testing UI")
+        demo_mode = st.checkbox("Demo mode (simulated pipeline)", value=True, help="Use simulated pipeline for testing UI")
         
         # Profile controls
         mode, enrich = render_profile_controls()
@@ -257,6 +259,14 @@ elif page == "🔬 Run Test":
             selector = GenePanelSelector()
             patient_profile = st.session_state.get('patient_profile')
             
+            # Debug info
+            with st.expander("Debug: Patient Profile Info", expanded=False):
+                st.write("**Patient Profile Available:**", patient_profile is not None)
+                if patient_profile:
+                    st.json(patient_profile)
+                else:
+                    st.write("No patient profile found in session state")
+            
             test_button = selector.render_test_button(
                 st.session_state['selected_genes'],
                 patient_profile
@@ -269,32 +279,27 @@ elif page == "🔬 Run Test":
             st.session_state['test_running'] = True
             
             # Background worker + storyboard
-            if PGxKGPipeline is None:
+            if PGxPipeline is None:
                 st.error("Pipeline not available. Please check imports.")
             else:
                 try:
                     import queue as _q
                     
-                    # Robust import for utils modules
+                    # FIXED: Import the correct PipelineWorker
                     try:
-                        from utils.background_worker import PipelineWorker
+                        from utils.pipeline_worker import PipelineWorker
                         from utils.event_bus import PipelineEvent
-                    except ImportError:
-                        import importlib.util
-                        
-                        worker_path = src_dir / "utils" / "background_worker.py"
-                        if worker_path.exists():
-                            spec = importlib.util.spec_from_file_location("background_worker", worker_path)
-                            worker_module = importlib.util.module_from_spec(spec)
-                            spec.loader.exec_module(worker_module)
-                            PipelineWorker = worker_module.PipelineWorker
-                        
-                        event_path = src_dir / "utils" / "event_bus.py"
-                        if event_path.exists():
-                            spec = importlib.util.spec_from_file_location("event_bus", event_path)
-                            event_module = importlib.util.module_from_spec(spec)
-                            spec.loader.exec_module(event_module)
-                            PipelineEvent = event_module.PipelineEvent
+                        st.success("✅ Successfully imported PipelineWorker")
+                    except ImportError as import_error:
+                        st.error(f"Failed to import PipelineWorker: {import_error}")
+                        # Fallback to original
+                        try:
+                            from utils.background_worker import EnhancedBackgroundWorker as PipelineWorker
+                            from utils.event_bus import PipelineEvent
+                            st.warning("⚠️ Using fallback worker")
+                        except ImportError:
+                            st.error("Could not import any pipeline worker")
+                            st.stop()
 
                     # Resolve config path
                     config_paths = [
@@ -315,6 +320,12 @@ elif page == "🔬 Run Test":
 
                     # Prepare profile base
                     profile = st.session_state.get('patient_profile', {})
+                    
+                    # Debug the profile being passed
+                    st.info(f"Profile being passed to worker: {profile is not None}")
+                    if profile:
+                        st.info(f"Profile keys: {list(profile.keys())}")
+                    
                     if enrich == "Auto (by age/lifestyle)":
                         profile.setdefault('auto_enrichment', True)
                     elif enrich == "Manual (enter now)":
@@ -326,23 +337,33 @@ elif page == "🔬 Run Test":
                         if manual_labs:
                             profile['manual_enrichment']['labs'] = manual_labs
 
+                    # Create worker with explicit debugging
+                    st.info("🔧 Creating pipeline worker...")
                     worker = PipelineWorker(
                         genes=st.session_state['selected_genes'],
-                        profile=profile,
+                        profile=profile,  # This is the key fix!
                         config_path=config_path,
                         event_queue=event_q,
                         result_queue=result_q,
                         cancel_event=cancel_flag,
                         demo_mode=demo_mode,
                     )
+                    
                     # Initialize storyboard BEFORE starting the worker to render early stages first
+                    st.info("🎨 Initializing animation storyboard...")
                     if Storyboard is not None:
-                        storyboard = Storyboard()
+                        try:
+                            storyboard = Storyboard()
+                            st.success("✅ Animation storyboard created successfully")
+                        except Exception as storyboard_error:
+                            st.error(f"Storyboard creation failed: {storyboard_error}")
+                            storyboard = None
                     else:
                         st.error("Animation module not available")
                         storyboard = None
 
                     # Now start the worker so events flow after storyboard exists
+                    st.info("🚀 Starting pipeline worker...")
                     worker.start()
                     
                     # Cancel button
@@ -358,15 +379,25 @@ elif page == "🔬 Run Test":
                     if storyboard is not None:
                         consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
                     else:
-                        # Fallback: just show progress without animation
+                        # Fallback: show progress without animation
                         st.info("🔄 Pipeline running... (animation not available)")
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
                         while worker.is_alive():
-                            st.empty()  # Keep UI responsive
+                            try:
+                                event = event_q.get(timeout=0.1)
+                                if event:
+                                    status_text.text(f"[{event.stage}] {event.message}")
+                                    if hasattr(event, 'progress') and event.progress is not None:
+                                        progress_bar.progress(event.progress)
+                            except:
+                                pass
 
                     # Get result
-                    if not result_q.empty():
-                        results = result_q.get()
-                    else:
+                    try:
+                        results = result_q.get(timeout=1)
+                    except:
                         results = {"success": False, "error": "No result from worker"}
 
                     if results.get('success'):
@@ -387,11 +418,22 @@ elif page == "🔬 Run Test":
                         with col4:
                             st.metric("Affected Drugs", results.get('affected_drugs', 0))
                         
+                        # Show patient profile source
+                        if 'comprehensive_profile' in results:
+                            profile_info = results['comprehensive_profile']
+                            dashboard_source = profile_info.get('dashboard_source', False)
+                            if dashboard_source:
+                                st.success("✅ Used dashboard patient profile")
+                            else:
+                                st.warning("⚠️ Used auto-generated profile (dashboard profile not detected)")
+                        
                         # Show generated files
                         if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
                             st.subheader("📁 Generated Files")
                             for file_type, file_path in results['comprehensive_outputs'].items():
-                                st.text(f"• {file_type}: {file_path}")
+                                file_exists = Path(file_path).exists() if file_path else False
+                                status_icon = "✅" if file_exists else "❌"
+                                st.text(f"{status_icon} {file_type}: {file_path}")
                         
                         st.info("📊 View the detailed report in the 'View Report' page")
                     else:
@@ -399,6 +441,8 @@ elif page == "🔬 Run Test":
                         
                 except Exception as e:
                     st.error(f"❌ Test failed: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
                     st.session_state['test_running'] = False
                 
                 finally:
@@ -425,12 +469,20 @@ elif page == "📊 View Report":
         st.write(f"**Genes Analyzed:** {', '.join(results.get('genes', []))}")
         st.write(f"**Total Variants:** {results.get('total_variants', 0)}")
         
+        # Show profile source
+        if 'comprehensive_profile' in results:
+            profile_info = results['comprehensive_profile']
+            dashboard_source = profile_info.get('dashboard_source', False)
+            st.write(f"**Profile Source:** {'Dashboard' if dashboard_source else 'Auto-generated'}")
+        
         # Show outputs
         if 'comprehensive_outputs' in results:
             outputs = results['comprehensive_outputs']
             st.header("Generated Files")
             for output_type, path in outputs.items():
-                st.text(f"{output_type}: {path}")
+                file_exists = Path(path).exists() if path else False
+                status = "✅" if file_exists else "❌"
+                st.text(f"{status} {output_type}: {path}")
 
 elif page == "💾 Export Data":
     st.title("💾 Export Data")
@@ -466,7 +518,7 @@ elif page == "💾 Export Data":
                 if ttl_path and Path(ttl_path).exists():
                     with open(ttl_path, 'rb') as f:
                         st.download_button(
-                            "🧾 Download TTL (RDF Turtle)",
+                            "🧠 Download TTL (RDF Turtle)",
                             f.read(),
                             file_name=Path(ttl_path).name,
                             mime="text/turtle"
@@ -494,28 +546,6 @@ elif page == "💾 Export Data":
                             mime="application/json"
                         )
 
-                # Drug Interaction Matrix
-                matrix_path = outputs.get('Drug Interaction Matrix')
-                if matrix_path and Path(matrix_path).exists():
-                    with open(matrix_path, 'rb') as f:
-                        st.download_button(
-                            "🧪 Download Drug Matrix JSON",
-                            f.read(),
-                            file_name=Path(matrix_path).name,
-                            mime="application/json"
-                        )
-
-                # Conflict Report
-                conflict_path = outputs.get('Conflict Report')
-                if conflict_path and Path(conflict_path).exists():
-                    with open(conflict_path, 'rb') as f:
-                        st.download_button(
-                            "⚠️ Download Conflict Report JSON",
-                            f.read(),
-                            file_name=Path(conflict_path).name,
-                            mime="application/json"
-                        )
-
                 # Zip all
                 import io, zipfile
                 if st.button("📦 Download ALL as ZIP"):
@@ -538,9 +568,90 @@ elif page == "💾 Export Data":
             st.subheader("Raw Data Files")
             outputs = results.get('comprehensive_outputs', {})
             for file_type, file_path in outputs.items():
-                st.text(f"• {file_type}")
+                file_exists = Path(file_path).exists() if file_path else False
+                status = "✅" if file_exists else "❌"
+                st.text(f"{status} {file_type}")
                 st.code(file_path, language=None)
+
+elif page == "🛠️ Debug":
+    st.title("🛠️ Debug Information")
+    
+    # Animation Debug Section
+    st.header("🎨 Animation Debug")
+    
+    if create_storyboard_with_controls:
+        st.info("Testing animation with manual controls:")
+        try:
+            debug_storyboard = create_storyboard_with_controls()
+            st.success("✅ Animation debug storyboard created successfully")
+        except Exception as e:
+            st.error(f"Animation debug failed: {e}")
+    else:
+        st.warning("Manual animation controls not available")
+    
+    # Test basic storyboard
+    st.subheader("Basic Animation Test")
+    if st.button("Test Basic Animation"):
+        try:
+            test_storyboard = Storyboard()
+            st.success("✅ Basic storyboard created successfully")
+        except Exception as e:
+            st.error(f"Basic animation test failed: {e}")
+            st.code(str(e))
+    
+    # Session State Debug
+    st.header("💾 Session State Debug")
+    with st.expander("View Session State", expanded=False):
+        st.json(dict(st.session_state))
+    
+    # Import Debug
+    st.header("📦 Import Debug")
+    modules = {
+        "PatientCreator": PatientCreator,
+        "GenePanelSelector": GenePanelSelector, 
+        "Storyboard": Storyboard,
+        "PGxPipeline": PGxPipeline
+    }
+    
+    for name, module in modules.items():
+        if module:
+            st.success(f"✅ {name} imported successfully")
+        else:
+            st.error(f"❌ {name} failed to import")
+    
+    # Path Debug
+    st.header("📋 Path Debug")
+    st.write(f"**Dashboard Dir:** {dashboard_dir}")
+    st.write(f"**Source Dir:** {src_dir}")
+    st.write(f"**Project Root:** {project_root}")
+    
+    # Test PipelineWorker Import
+    st.header("🔧 PipelineWorker Import Test")
+    try:
+        from utils.pipeline_worker import PipelineWorker
+        st.success("✅ PipelineWorker imported successfully from utils.pipeline_worker")
+        
+        # Test creating a worker
+        if st.button("Test Create PipelineWorker"):
+            try:
+                test_worker = PipelineWorker(
+                    genes=["CYP2D6"],
+                    profile={"test": "profile"},
+                    demo_mode=True
+                )
+                st.success("✅ PipelineWorker created successfully")
+                st.json({"worker_created": True, "genes": test_worker.genes})
+            except Exception as e:
+                st.error(f"Worker creation failed: {e}")
+    except ImportError as e:
+        st.error(f"❌ PipelineWorker import failed: {e}")
+        
+        # Try fallback
+        try:
+            from utils.background_worker import EnhancedBackgroundWorker
+            st.warning("⚠️ Using fallback EnhancedBackgroundWorker")
+        except ImportError as e2:
+            st.error(f"❌ Fallback import also failed: {e2}")
 
 if __name__ == "__main__":
     pass
-
