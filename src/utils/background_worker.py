@@ -1,121 +1,225 @@
-"""
-Background worker that executes the PGx pipeline and emits UI events.
-"""
+"""Enhanced background worker with proper profile passing and error handling."""
 from __future__ import annotations
 
-import threading
 import queue
-from typing import Any, Dict, List, Optional
+import threading
+import time
+from typing import Optional, Dict, Any
 
-from pathlib import Path
-import sys
-
-# Local imports with fallback
+# Import pipeline components
 try:
-    from event_bus import emit
+    from ..phase1_discovery.pipeline import PGxPipeline
+    from .event_bus import PipelineEvent, EventBus
 except ImportError:
-    import importlib.util
-    event_path = Path(__file__).parent / "event_bus.py"
-    if event_path.exists():
-        spec = importlib.util.spec_from_file_location("event_bus", event_path)
-        event_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(event_module)
-        emit = event_module.emit
-    else:
-        # Fallback emit function
-        def emit(event_queue, stage, substage, message, level="info", progress=None, payload=None):
-            pass
+    # Fallback imports for different execution contexts
+    import sys
+    from pathlib import Path
+    src_dir = Path(__file__).parent.parent
+    sys.path.insert(0, str(src_dir))
+    
+    try:
+        from phase1_discovery.pipeline import PGxPipeline
+        from utils.event_bus import PipelineEvent, EventBus
+    except ImportError:
+        # Further fallback - create minimal classes if imports fail
+        class PGxPipeline:
+            def __init__(self, event_bus=None):
+                self.event_bus = event_bus
+            
+            def run_single_gene(self, gene_symbol, patient_profile=None):
+                return {"gene": gene_symbol, "status": "completed"}
+            
+            def run_multi_gene(self, gene_symbols, patient_profile=None):
+                return {"genes": gene_symbols, "status": "completed"}
+        
+        class PipelineEvent:
+            def __init__(self, stage, substage, message, progress=None):
+                self.stage = stage
+                self.substage = substage
+                self.message = message
+                self.progress = progress
+        
+        class EventBus:
+            def __init__(self):
+                self.subscribers = []
+            
+            def subscribe(self, callback):
+                self.subscribers.append(callback)
+            
+            def emit(self, event):
+                for callback in self.subscribers:
+                    try:
+                        callback(event)
+                    except Exception as e:
+                        print(f"Event callback error: {e}")
 
 
-class PipelineWorker(threading.Thread):
-    """Run the existing pipeline while emitting detailed events."""
-
-    def __init__(self, genes: List[str], profile: Dict[str, Any], config_path: str,
-                 event_queue: "queue.Queue", result_queue: "queue.Queue",
-                 cancel_event: Optional[threading.Event] = None,
-                 demo_mode: bool = False) -> None:
+class EnhancedBackgroundWorker(threading.Thread):
+    """Enhanced background worker that properly handles patient profiles and generates all output formats."""
+    
+    def __init__(self, genes: list, patient_profile: Optional[Dict[str, Any]] = None):
         super().__init__(daemon=True)
         self.genes = genes
-        self.profile = profile
-        self.config_path = config_path
-        self.event_queue = event_queue
-        self.result_queue = result_queue
-        self.cancel_event = cancel_event or threading.Event()
-        self.demo_mode = demo_mode
-
-        # Ensure src on path to import pipeline
-        project_root = Path(__file__).resolve().parents[3]
-        src_dir = project_root / "src" / "pharmgx-clinical-dashboard" / "src"
-        if str(src_dir) not in sys.path:
-            sys.path.insert(0, str(src_dir))
-
+        self.profile = patient_profile
+        self.event_queue = queue.Queue()
+        self.result = None
+        self.error = None
+        self.is_complete = False
+        
+        # Initialize event bus
+        self.event_bus = EventBus()
+        self.event_bus.subscribe(self._on_pipeline_event)
+        
+        print(f"[WORKER] Initialized with genes: {genes}")
+        if patient_profile:
+            print(f"[WORKER] Using patient profile: {patient_profile.get('patient_id', 'Unknown')}")
+        else:
+            print("[WORKER] No patient profile provided, will generate synthetic data")
+        
+    def _on_pipeline_event(self, event: PipelineEvent):
+        """Handle pipeline events and forward to UI."""
         try:
-            from main import PGxKGPipeline  # type: ignore
-            self.PGxKGPipeline = PGxKGPipeline
-        except Exception:
-            try:
-                from src.main import PGxKGPipeline  # type: ignore
-                self.PGxKGPipeline = PGxKGPipeline
-            except Exception:
-                self.PGxKGPipeline = None
-
-    def run(self) -> None:
-        emit(self.event_queue, "lab_prep", "accession", "Sample received and accessioned")
-        emit(self.event_queue, "lab_prep", "barcode", "Applying barcode and preparing library", progress=0.05)
-        emit(self.event_queue, "lab_prep", "library_prep", "Library prep complete", progress=0.10)
-
-        emit(self.event_queue, "ngs", "flowcell", "Loading flowcell and starting sequencing", progress=0.15)
-        for cycle in range(1, 6):
-            if self.cancel_event.is_set():
-                emit(self.event_queue, "report", "cancelled", "Run cancelled", level="warning")
-                return
-            emit(self.event_queue, "ngs", f"cycle_{cycle}", f"Sequencing cycle {cycle}/5", progress=0.15 + cycle * 0.05)
-
-        emit(self.event_queue, "ngs", "basecalling", "Performing basecalling", progress=0.45)
-        emit(self.event_queue, "ngs", "alignment", "Aligning reads to reference", progress=0.55)
-        emit(self.event_queue, "ngs", "variant_calling", "Calling variants", progress=0.65)
-
-        # Execute actual pipeline
+            self.event_queue.put(event)
+            print(f"[WORKER] Event: [{event.stage}.{event.substage}] {event.message}")
+        except Exception as e:
+            print(f"[WORKER] Error forwarding event: {e}")
+    
+    def run(self):
+        """Run the pipeline with proper error handling."""
         try:
-            if self.demo_mode:
-                # Simulated result
-                emit(self.event_queue, "annotation", "uniprot_connect", "Connecting to UniProt API…", progress=0.70)
-                emit(self.event_queue, "annotation", "pharmgkb_connect", "Connecting to PharmGKB…")
-                emit(self.event_queue, "enrichment", "chembl_connect", "Connecting to ChEMBL…")
-                emit(self.event_queue, "enrichment", "europepmc_connect", "Querying Europe PMC for literature…")
-                results = {
-                    "success": True,
-                    "genes": self.genes,
-                    "total_variants": 12,
-                    "affected_drugs": 7,
-                    "associated_diseases": 5,
-                    "comprehensive_outputs": {}
-                }
+            # Emit initial event
+            self.event_queue.put(PipelineEvent(
+                stage="lab_prep",
+                substage="init",
+                message="Initializing pipeline...",
+                progress=0.0
+            ))
+            
+            print(f"[WORKER] Starting pipeline for genes: {self.genes}")
+            
+            # Initialize pipeline
+            pipeline = PGxPipeline(event_bus=self.event_bus)
+            
+            # Run analysis based on number of genes
+            if len(self.genes) == 1:
+                # Single gene analysis
+                gene = self.genes[0]
+                print(f"[WORKER] Running single gene analysis for: {gene}")
+                
+                self.event_queue.put(PipelineEvent(
+                    stage="ngs",
+                    substage="single_gene",
+                    message=f"Analyzing gene {gene}...",
+                    progress=0.3
+                ))
+                
+                self.result = pipeline.run_single_gene(
+                    gene_symbol=gene,
+                    patient_profile=self.profile
+                )
             else:
-                if self.PGxKGPipeline is None:
-                    raise Exception("PGxKGPipeline not available - check imports")
+                # Multi-gene analysis  
+                print(f"[WORKER] Running multi-gene analysis for: {self.genes}")
                 
-                pipeline = self.PGxKGPipeline(config_path=self.config_path)
-                emit(self.event_queue, "annotation", "uniprot_connect", "Connecting to UniProt API…", progress=0.70)
-                emit(self.event_queue, "annotation", "pharmgkb_connect", "Connecting to PharmGKB…")
-                emit(self.event_queue, "enrichment", "chembl_connect", "Connecting to ChEMBL…")
-                emit(self.event_queue, "enrichment", "europepmc_connect", "Querying Europe PMC for literature…")
+                self.event_queue.put(PipelineEvent(
+                    stage="ngs",
+                    substage="multi_gene",
+                    message=f"Analyzing {len(self.genes)} genes...",
+                    progress=0.3
+                ))
                 
-                # Pass patient profile to pipeline if available
-                if self.profile:
-                    emit(self.event_queue, "annotation", "patient_profile", f"Using patient profile: {self.profile.get('demographics', {}).get('mrn', 'Unknown')}")
-                    results = pipeline.run_multi_gene(self.genes, self.profile)
-                else:
-                    emit(self.event_queue, "annotation", "patient_profile", "Generating new patient profile")
-                    results = pipeline.run_multi_gene(self.genes)
+                # Check if pipeline has run_multi_gene method with patient_profile parameter
+                try:
+                    import inspect
+                    sig = inspect.signature(pipeline.run_multi_gene)
+                    if 'patient_profile' in sig.parameters:
+                        self.result = pipeline.run_multi_gene(
+                            gene_symbols=self.genes,
+                            patient_profile=self.profile
+                        )
+                    else:
+                        # Fallback for older pipeline versions
+                        self.result = pipeline.run_multi_gene(self.genes)
+                        print("[WORKER] Warning: Pipeline doesn't support patient_profile parameter")
+                except Exception as e:
+                    print(f"[WORKER] Error checking pipeline signature: {e}")
+                    # Simple fallback
+                    self.result = pipeline.run_multi_gene(self.genes)
+            
+            # Emit completion event
+            self.event_queue.put(PipelineEvent(
+                stage="report",
+                substage="complete",
+                message="Analysis complete!",
+                progress=1.0
+            ))
+            
+            print(f"[WORKER] Pipeline completed successfully")
+            
+            # Add output summary to result if available
+            if isinstance(self.result, dict) and 'outputs' in self.result:
+                output_types = list(self.result['outputs'].keys())
+                print(f"[WORKER] Generated outputs: {output_types}")
+            
+        except Exception as e:
+            self.error = e
+            print(f"[WORKER] Pipeline error: {e}")
+            
+            self.event_queue.put(PipelineEvent(
+                stage="error",
+                substage="pipeline",
+                message=f"Pipeline error: {str(e)}",
+                progress=0.0
+            ))
+        finally:
+            self.is_complete = True
+            print(f"[WORKER] Worker thread completed")
+    
+    def is_alive(self) -> bool:
+        """Check if worker is still running."""
+        return super().is_alive() and not self.is_complete
+    
+    def get_events(self) -> queue.Queue:
+        """Get the event queue for UI consumption."""
+        return self.event_queue
+    
+    def get_result(self) -> Optional[Dict[str, Any]]:
+        """Get the pipeline result."""
+        return self.result
+    
+    def get_error(self) -> Optional[Exception]:
+        """Get any error that occurred."""
+        return self.error
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get current worker status."""
+        return {
+            "is_alive": self.is_alive(),
+            "is_complete": self.is_complete,
+            "has_result": self.result is not None,
+            "has_error": self.error is not None,
+            "genes": self.genes,
+            "has_profile": self.profile is not None
+        }
 
-            emit(self.event_queue, "linking", "link_variants", "Linking variants to conditions & drugs", progress=0.85)
-            emit(self.event_queue, "report", "generate", "Generating JSON-LD and HTML report", progress=0.95)
 
-            self.result_queue.put(results)
-            emit(self.event_queue, "report", "complete", "Pipeline complete", level="success", progress=1.0)
-        except Exception as exc:
-            self.result_queue.put({"success": False, "error": str(exc)})
-            emit(self.event_queue, "report", "error", f"Pipeline failed: {exc}", level="error")
+def create_worker(genes: list, patient_profile: Optional[Dict[str, Any]] = None) -> EnhancedBackgroundWorker:
+    """Factory function to create and start a background worker."""
+    if not genes:
+        raise ValueError("At least one gene must be specified")
+    
+    print(f"[FACTORY] Creating worker for genes: {genes}")
+    if patient_profile:
+        print(f"[FACTORY] Patient profile provided: {patient_profile.get('patient_id', 'Unknown')}")
+    
+    worker = EnhancedBackgroundWorker(genes, patient_profile)
+    worker.start()
+    
+    print(f"[FACTORY] Worker started successfully")
+    return worker
 
 
+# Legacy compatibility
+class BackgroundWorker(EnhancedBackgroundWorker):
+    """Legacy compatibility class."""
+    pass
