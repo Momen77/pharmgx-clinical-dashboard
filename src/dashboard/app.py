@@ -6,25 +6,13 @@ import streamlit as st
 import sys
 from pathlib import Path
 from datetime import datetime
+import json
 
 # =========================
 # Robust import bootstrap
 # =========================
-_DASHBOARD_DIR = Path(__file__).resolve().parent
-_SRC_DIR = _DASHBOARD_DIR.parent
-_PROJECT_ROOT = _SRC_DIR.parent
-
-# Ensure src first for `from main` to work consistently
-src_str = str(_SRC_DIR)
-if src_str not in sys.path:
-    sys.path.insert(0, src_str)
-proj_str = str(_PROJECT_ROOT)
-if proj_str not in sys.path:
-    sys.path.insert(1, proj_str)
-_dash_str = str(_DASHBOARD_DIR)
-if _dash_str not in sys.path:
-    sys.path.insert(2, _dash_str)
-
+# This section is removed. The entry point `pharmgx-clinical-dashboard/app.py`
+# is now responsible for setting up the Python path correctly.
 # Load PGxPipeline with multiple fallbacks
 PGxPipeline = None
 _import_errors = []
@@ -37,6 +25,10 @@ except Exception as e:
         from main import PGxPipeline as _PG
         PGxPipeline = _PG
     except Exception as e2:
+        # Define these here for the dynamic import fallback
+        _DASHBOARD_DIR = Path(__file__).resolve().parent
+        _SRC_DIR = _DASHBOARD_DIR.parent
+
         _import_errors.append(f"main: {e2}")
         import importlib.util
         main_path = _SRC_DIR / "main.py"
@@ -59,6 +51,7 @@ except Exception as e:
 # Styling
 try:
     from dashboard.utils.styling import inject_css
+    _DASHBOARD_DIR = Path(__file__).resolve().parent
 except Exception:
     try:
         from .utils.styling import inject_css  # type: ignore
@@ -158,6 +151,10 @@ except Exception:
 # For handling clicks from the D3 component
 import streamlit.components.v1 as components
 
+
+def main():
+    """Main function to run the Streamlit application."""
+
 # =========================
 # Streamlit page config
 # =========================
@@ -190,6 +187,10 @@ with st.sidebar:
 # =========================
 # Pages
 # =========================
+    _DASHBOARD_DIR = Path(__file__).resolve().parent
+    _SRC_DIR = _DASHBOARD_DIR.parent
+    _PROJECT_ROOT = _SRC_DIR.parent
+
 if page == "🏠 Home":
     st.title("🧬 UGent Pharmacogenomics Testing Dashboard")
     st.markdown("Welcome to the Clinical Pharmacogenomics Testing Platform")
@@ -464,3 +465,7 @@ elif page == "🛠️ Debug":
 
 else:
     st.error("Unknown page")
+
+if __name__ == "__main__":
+    # This allows running this file directly for local development
+    main()
