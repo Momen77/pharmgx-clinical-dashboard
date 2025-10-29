@@ -6,23 +6,19 @@ import streamlit as st
 import sys
 from pathlib import Path
 
-# --- Robust Path Setup for Deployment ---
-# This is the single source of truth for path configuration.
+# Add src to path for all imports
+src_path = Path(__file__).parent / "src"
+sys.path.insert(0, str(src_path))
+# Correctly resolve the 'src' directory, which is the parent of this file's directory.
+# This makes the entry point work for both local execution and cloud deployment.
+project_root = Path(__file__).resolve().parent
+src_dir = project_root / "src"
 
-# This file's location (/.../pharmgx-clinical-dashboard/app.py)
-_APP_DIR = Path(__file__).resolve().parent
-
-# The 'src' directory containing all modules (/.../pharmgx-clinical-dashboard/src)
-_SRC_DIR = _APP_DIR / "src"
-
-# The project root, one level above 'src'
-_PROJECT_ROOT = _APP_DIR.parent
-
-# Add all necessary paths to sys.path to ensure all imports work
-sys.path.insert(0, str(_SRC_DIR))
-sys.path.insert(1, str(_PROJECT_ROOT))
+if str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
 # Now import and run the dashboard app
 if __name__ == "__main__":
-    from dashboard.app import main
-    main()
+    # Import the actual dashboard app
+    from dashboard.app import *
+
