@@ -433,8 +433,21 @@ elif page == "🔬 Run Test":
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                # Create event bus with callback to update progress
-                from utils.event_bus import EventBus
+                # Create event bus - simple implementation
+                class EventBus:
+                    def __init__(self):
+                        self.subscribers = []
+                    
+                    def subscribe(self, callback):
+                        self.subscribers.append(callback)
+                    
+                    def emit(self, event):
+                        for callback in self.subscribers:
+                            try:
+                                callback(event)
+                            except Exception as e:
+                                print(f"Event callback error: {e}")
+                
                 event_bus = EventBus()
                 
                 current_progress = [0]  # Use list to allow mutation in callback
@@ -529,45 +542,73 @@ elif page == "📊 View Report":
         cp = results.get('comprehensive_profile', {}) or {}
         st.write(f"Profile Source: {'Dashboard' if cp.get('dashboard_source') else 'Auto-generated'}")
 
-        if 'comprehensive_outputs' in results:
+        # Show generated files
+        outputs = results.get('comprehensive_outputs', {}) or results.get('outputs', {})
+        if outputs:
             st.header("Generated Files")
-            for t, p in results['comprehensive_outputs'].items():
-                st.text(f"{t}: {p}")
+            with st.expander("📁 Output Files", expanded=False):
+                for t, p in outputs.items():
+                    st.text(f"{t}: {p}")
         
         # Interactive Visualization Section
         st.header("Interactive Knowledge Graph")
         if render_d3_visualization is None:
             st.error("Visualization component is not available.")
         else:
-            jsonld_path_str = (results.get('comprehensive_outputs', {}) or {}).get('JSON-LD')
+            # Try to find JSON-LD file with various key names
+            jsonld_path_str = None
+            for key in ['Comprehensive JSON-LD', 'JSON-LD', 'jsonld', 'comprehensive_jsonld']:
+                jsonld_path_str = outputs.get(key)
+                if jsonld_path_str:
+                    break
+            
+            # If still not found, try to find any .jsonld file in outputs
+            if not jsonld_path_str:
+                for key, path in outputs.items():
+                    if path and (path.endswith('.jsonld') or '.jsonld' in path):
+                        jsonld_path_str = path
+                        break
+            
             if jsonld_path_str and Path(jsonld_path_str).exists():
-                with open(jsonld_path_str, 'r', encoding='utf-8') as f:
-                    jsonld_data = json.load(f)
+                try:
+                    with open(jsonld_path_str, 'r', encoding='utf-8') as f:
+                        jsonld_data = json.load(f)
 
-                with st.spinner("Generating interactive graph..."):
-                    hierarchy_data = jsonld_to_hierarchy(jsonld_data)
-                    if hierarchy_data:
-                        render_d3_visualization(hierarchy_data)
-                    else:
-                        st.warning("Could not generate hierarchy from JSON-LD data.")
-
-                # Handle clicks from the visualization
-                clicked_node_uri = st.query_params.get("clicked_node_uri")
-                if clicked_node_uri and get_node_details:
-                    with st.expander(f"🔍 Details for: **{clicked_node_uri.split('/')[-1]}**", expanded=True):
-                        details = get_node_details(jsonld_data, clicked_node_uri)
-                        if not details:
-                            st.write("No further details found for this node.")
+                    with st.spinner("Generating interactive graph..."):
+                        hierarchy_data = jsonld_to_hierarchy(jsonld_data)
+                        if hierarchy_data:
+                            render_d3_visualization(hierarchy_data)
                         else:
-                            for prop, values in details.items():
-                                st.markdown(f"**{prop}:**")
-                                for value in values:
-                                    if value.startswith("http"):
-                                        st.markdown(f"- <{value}>")
-                                    else:
-                                        st.markdown(f"- {value}")
+                            st.warning("Could not generate hierarchy from JSON-LD data.")
+
+                    # Handle clicks from the visualization
+                    clicked_node_uri = st.query_params.get("clicked_node_uri")
+                    if clicked_node_uri and get_node_details:
+                        with st.expander(f"🔍 Details for: **{clicked_node_uri.split('/')[-1]}**", expanded=True):
+                            details = get_node_details(jsonld_data, clicked_node_uri)
+                            if not details:
+                                st.write("No further details found for this node.")
+                            else:
+                                for prop, values in details.items():
+                                    st.markdown(f"**{prop}:**")
+                                    for value in values:
+                                        if value.startswith("http"):
+                                            st.markdown(f"- <{value}>")
+                                        else:
+                                            st.markdown(f"- {value}")
+                except Exception as e:
+                    st.error(f"Error loading visualization: {e}")
+                    with st.expander("Debug Info"):
+                        st.write(f"Path attempted: {jsonld_path_str}")
+                        st.write(f"Available outputs: {list(outputs.keys())}")
             else:
                 st.warning("Comprehensive JSON-LD file not found. Cannot render visualization.")
+                with st.expander("🔍 Debug - Available Files"):
+                    st.write(f"Looking for JSON-LD in: {list(outputs.keys())}")
+                    if jsonld_path_str:
+                        st.write(f"Found path but file doesn't exist: {jsonld_path_str}")
+                    else:
+                        st.write("No JSON-LD key found in outputs")
 
 elif page == "💾 Export Data":
     st.title("💾 Export Data")
@@ -575,27 +616,60 @@ elif page == "💾 Export Data":
     if not results:
         st.warning("No results to export")
     else:
-        outputs = results.get('comprehensive_outputs', {})
+        outputs = results.get('comprehensive_outputs', {}) or results.get('outputs', {})
         from pathlib import Path as _P
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Downloads")
-            for label_key in [
-                'Comprehensive JSON-LD',
-                'Comprehensive TTL',
-                'Comprehensive HTML Report',
-                'Summary Report',
-            ]:
-                path = outputs.get(label_key)
-                if path and _P(path).exists():
-                    with open(path, 'rb') as f:
-                        st.download_button(f"Download {label_key}", f.read(), file_name=_P(path).name)
-        with col2:
-            st.subheader("Paths")
-            for t, p in outputs.items():
-                exists = _P(p).exists() if p else False
-                st.text(f"{'✅' if exists else '❌'} {t}")
-                st.code(p or '', language=None)
+        
+        if not outputs:
+            st.warning("No output files found in results")
+        else:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("📥 Downloads")
+                
+                # Group files by type
+                file_groups = {
+                    "JSON-LD Files": [k for k in outputs.keys() if 'jsonld' in k.lower() or k.endswith('.jsonld')],
+                    "RDF/TTL Files": [k for k in outputs.keys() if 'ttl' in k.lower() or k.endswith('.ttl')],
+                    "HTML Reports": [k for k in outputs.keys() if 'html' in k.lower() or k.endswith('.html')],
+                    "Other Files": []
+                }
+                
+                # Add files that don't match any category to "Other"
+                categorized = set()
+                for group in file_groups.values():
+                    categorized.update(group)
+                file_groups["Other Files"] = [k for k in outputs.keys() if k not in categorized]
+                
+                # Display download buttons by group
+                for group_name, file_keys in file_groups.items():
+                    if file_keys:
+                        st.markdown(f"**{group_name}**")
+                        for key in file_keys:
+                            path = outputs.get(key)
+                            if path and _P(path).exists():
+                                try:
+                                    with open(path, 'rb') as f:
+                                        file_content = f.read()
+                                        st.download_button(
+                                            f"📄 {key}",
+                                            file_content,
+                                            file_name=_P(path).name,
+                                            key=f"download_{key}",
+                                            use_container_width=False
+                                        )
+                                except Exception as e:
+                                    st.error(f"Error reading {key}: {e}")
+                            else:
+                                st.caption(f"⚠️ {key} - File not found")
+                        st.divider()
+            
+            with col2:
+                st.subheader("📂 File Paths")
+                for t, p in outputs.items():
+                    exists = _P(p).exists() if p else False
+                    status = "✅" if exists else "❌"
+                    st.text(f"{status} {t}")
+                    st.code(p or 'No path', language=None)
 
 elif page == "🛠️ Debug":
     st.title("🛠️ Debug")
