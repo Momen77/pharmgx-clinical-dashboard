@@ -301,24 +301,74 @@ def render_d3_visualization(d3_data: dict):
     <head>
       <meta charset="utf-8">
       <style>
-        .node circle {{
-          cursor: pointer;
-          stroke: #3182bd;
-          stroke-width: 1.5px;
+        body {{
+          margin: 0;
+          font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+          color: #1f2a37;
+          background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
         }}
-        .node text {{
-          font: 12px sans-serif;
-          cursor: pointer;
+        #container {{
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          gap: 16px;
+          padding: 16px;
         }}
-        .link {{
-          fill: none;
-          stroke: #ccc;
-          stroke-width: 1.5px;
+        #sidebar {{
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 16px;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }}
+        #legend h3, #controls h3 {{
+          font-size: 14px;
+          margin: 0 0 8px 0;
+          color: #374151;
+        }}
+        .legend-item {{ display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; color: #4b5563; }}
+        .legend-swatch {{ width: 14px; height: 14px; border-radius: 3px; display: inline-block; }}
+        .legend-swatch.dashed {{ width: 28px; height: 0; border-bottom: 3px dashed #9ca3af; border-radius: 0; margin-right: 6px; }}
+        .control-item {{ display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; color: #4b5563; }}
+        #chart-wrapper {{
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+          padding: 8px;
+        }}
+        .node circle {{ cursor: pointer; stroke: #1f2937; stroke-width: 1px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.08)); }}
+        .node circle:hover {{ stroke-width: 2px; }}
+        .node text {{ font: 12px sans-serif; cursor: pointer; fill: #111827; }}
+        .link {{ fill: none; stroke: #e5e7eb; stroke-width: 1.5px; }}
+        .extra-links path {{ filter: drop-shadow(0 0 1px rgba(0,0,0,.08)); }}
+        #tooltip {{ position: fixed; pointer-events: none; background: #111827; color: #f9fafb; padding: 6px 8px; border-radius: 6px; font-size: 12px; opacity: 0; transition: opacity .15s ease; z-index: 10; }}
       </style>
     </head>
     <body>
-      <div id="chart"></div>
+      <div id="container">
+        <div id="sidebar">
+          <div id="legend">
+            <h3>Legend</h3>
+            <div class="legend-item"><span class="legend-swatch" style="background:#1f77b4"></span> Patient / Default</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#2ca02c"></span> Gene</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#ff7f0e"></span> Variant</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#d62728"></span> Drug</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#9467bd"></span> Disease</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#17becf"></span> Ethnicity</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:#8c564b"></span> Med Suggestion</div>
+            <div class="legend-item"><span class="legend-swatch dashed"></span> Extra semantic link</div>
+          </div>
+          <div id="controls" style="margin-top:14px;">
+            <h3>Overlays</h3>
+            <label class="control-item"><input type="checkbox" id="toggle-affects" checked> Variant → Drug</label>
+            <label class="control-item"><input type="checkbox" id="toggle-associated" checked> Variant → Disease</label>
+            <label class="control-item"><input type="checkbox" id="toggle-suggestion" checked> Patient → Suggestion</label>
+            <label class="control-item"><input type="checkbox" id="toggle-vlinks" checked> Variant Linking</label>
+          </div>
+        </div>
+        <div id="chart-wrapper"><div id="chart"></div></div>
+      </div>
+      <div id="tooltip"></div>
       <script src="https://d3js.org/d3.v7.min.js"></script>
       <script>
         const width = 900;
@@ -372,6 +422,24 @@ def render_d3_visualization(d3_data: dict):
                     type: "set_query_params",
                     queryParams: {{ "clicked_node_uri": clicked_uri }}
                 }}, "*");
+            }})
+            .on("mouseenter", (event, d) => {{
+                const tip = document.getElementById('tooltip');
+                const name = d?.data?.name || '';
+                const uri = d?.data?.uri || '';
+                tip.innerHTML = `<div style=\"font-weight:600;margin-bottom:2px;\">${{name}}</div><div style=\"opacity:.8;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;\">${{uri}}</div>`;
+                tip.style.opacity = 1;
+                tip.style.left = (event.clientX + 10) + 'px';
+                tip.style.top = (event.clientY + 10) + 'px';
+            }})
+            .on("mousemove", (event) => {{
+                const tip = document.getElementById('tooltip');
+                tip.style.left = (event.clientX + 10) + 'px';
+                tip.style.top = (event.clientY + 10) + 'px';
+            }})
+            .on("mouseleave", () => {{
+                const tip = document.getElementById('tooltip');
+                tip.style.opacity = 0;
             }});
 
         node.append("circle")
@@ -399,17 +467,29 @@ def render_d3_visualization(d3_data: dict):
           if (d.data && d.data.uri) {{ uriToNode.set(d.data.uri, d); }}
         }});
 
-        // Draw extra semantic links as overlays (dashed colored lines)
+        // Draw extra semantic links with overlay toggles
         const extra = extraLinks.filter(l => uriToNode.has(l.source) && uriToNode.has(l.target));
-        if (extra.length > 0) {{
-          const linkLayer = svg.append("g").attr("class", "extra-links");
+        const linkLayer = svg.append("g").attr("class", "extra-links");
+        function drawExtraLinks() {{
+          linkLayer.selectAll("path").remove();
+          const showAffects = document.getElementById('toggle-affects')?.checked ?? true;
+          const showAssoc = document.getElementById('toggle-associated')?.checked ?? true;
+          const showSuggest = document.getElementById('toggle-suggestion')?.checked ?? true;
+          const showVlinks = document.getElementById('toggle-vlinks')?.checked ?? true;
+          const allowed = new Set();
+          if (showAffects) allowed.add('affects');
+          if (showAssoc) allowed.add('associated');
+          if (showSuggest) allowed.add('suggestion');
+          if (showVlinks) allowed.add('drug-variant'), allowed.add('med-variant'), allowed.add('condition-disease');
+          const filtered = extra.filter(d => allowed.has(d.label));
+          if (filtered.length === 0) return;
           linkLayer.selectAll("path")
-            .data(extra)
+            .data(filtered)
             .join("path")
               .attr("stroke", d => d.color || "#999")
-              .attr("stroke-dasharray", "4,2")
+              .attr("stroke-dasharray", "6,3")
               .attr("fill", "none")
-              .attr("opacity", 0.8)
+              .attr("opacity", 0.9)
               .attr("d", d => {{
                 const s = uriToNode.get(d.source);
                 const t = uriToNode.get(d.target);
@@ -420,6 +500,11 @@ def render_d3_visualization(d3_data: dict):
                 return `M ${sx},${sy} L ${tx},${ty}`;
               }});
         }}
+        drawExtraLinks();
+        ['toggle-affects','toggle-associated','toggle-suggestion','toggle-vlinks'].forEach(id => {{
+          const el = document.getElementById(id);
+          if (el) el.addEventListener('change', drawExtraLinks);
+        }});
 
       </script>
     </body>
