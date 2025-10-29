@@ -451,7 +451,6 @@ def render_d3_visualization(d3_data: dict):
 
         const data = {d3_json};
         const extraLinks = {extra_links_json};
-        const root = tree(d3.hierarchy(data));
 
         const svg = d3.select("#chart").append("svg")
             .attr("width", width)
@@ -461,35 +460,45 @@ def render_d3_visualization(d3_data: dict):
 
         const g = svg.append("g");
 
-        // Links
-        g.append("g")
+        // Collapsible tree setup
+        const root = d3.hierarchy(data);
+        function collapse(d) {{
+          if (d.children) {{
+            d._children = d.children;
+            d._children.forEach(collapse);
+            d.children = null;
+          }}
+        }}
+        collapse(root); // collapse all; user expands gradually
+
+        const linkLayerTree = g.append("g").attr("class", "tree-links");
+        const nodeLayer = g.append("g").attr("class", "tree-nodes");
+        const linkLayerExtra = g.append("g").attr("class", "extra-links");
+
+        function update(source) {{
+          const layoutRoot = tree(root);
+
+          // LINKS
+          const links = linkLayerTree.selectAll("path").data(layoutRoot.links(), d => d.target.data.uri + '-' + d.target.depth);
+          links.join(
+            enter => enter.append("path")
             .attr("fill", "none")
             .attr("stroke", "#ccc")
             .attr("stroke-opacity", 0.6)
             .attr("stroke-width", 1.5)
-          .selectAll("path")
-          .data(root.links())
-          .join("path")
-            .attr("d", d3.linkRadial()
-                .angle(d => d.x)
-                .radius(d => d.y));
+              .attr("d", d3.linkRadial().angle(d => d.x).radius(d => d.y)),
+            update => update.attr("d", d3.linkRadial().angle(d => d.x).radius(d => d.y)),
+            exit => exit.remove()
+          );
 
-        // Nodes
-        const node = g.append("g")
-            .attr("stroke-linejoin", "round")
-            .attr("stroke-width", 3)
-          .selectAll("g")
-          .data(root.descendants())
-          .join("g")
+          // NODES
+          const nodes = nodeLayer.selectAll("g").data(layoutRoot.descendants(), d => d.data.uri + '-' + d.depth);
+          const nodesEnter = nodes.enter().append("g")
             .attr("transform", d => `rotate(${{d.x * 180 / Math.PI - 90}}) translate(${{d.y}},0)`)
             .on("click", (event, d) => {{
-                // Send the clicked node's URI back to Streamlit
-                const clicked_uri = d.data.uri;
-                window.parent.postMessage({{
-                    isStreamlitMessage: true,
-                    type: "set_query_params",
-                    queryParams: {{ "clicked_node_uri": clicked_uri }}
-                }}, "*");
+              if (d.children) {{ d._children = d.children; d.children = null; }}
+              else {{ d.children = d._children; d._children = null; }}
+              update(d);
             }})
             .on("mouseenter", (event, d) => {{
                 const tip = document.getElementById('tooltip');
@@ -510,18 +519,68 @@ def render_d3_visualization(d3_data: dict):
                 tip.style.opacity = 0;
             }});
 
-        node.append("circle")
-            .attr("fill", d => d.data.color || (d.children ? "#555" : "#999"))
+          nodesEnter.append("circle")
+            .attr("fill", d => d.data.color || ((d.children || d._children) ? "#555" : "#999"))
             .attr("r", 4.5);
 
-        node.append("text")
+          nodesEnter.append("text")
             .attr("dy", "0.31em")
-            .attr("x", d => d.x < Math.PI === !d.children ? 6 : -6)
-            .attr("text-anchor", d => d.x < Math.PI === !d.children ? "start" : "end")
+            .attr("x", d => d.x < Math.PI === !(d.children || d._children) ? 6 : -6)
+            .attr("text-anchor", d => d.x < Math.PI === !(d.children || d._children) ? "start" : "end")
             .attr("transform", d => d.x >= Math.PI ? "rotate(180)" : null)
             .text(d => d.data.name)
             .clone(true).lower()
             .attr("stroke", "white");
+
+          nodes.merge(nodesEnter)
+            .attr("transform", d => `rotate(${{d.x * 180 / Math.PI - 90}}) translate(${{d.y}},0)`)
+            .select("circle")
+              .attr("fill", d => d.data.color || ((d.children || d._children) ? "#555" : "#999"));
+
+          nodes.exit().remove();
+
+          // EXTRA LINKS (respecting toggles and current visibility)
+          const uriToNode = new Map();
+          layoutRoot.descendants().forEach(d => { if (d.data && d.data.uri) { uriToNode.set(d.data.uri, d); } });
+          const extra = extraLinks.filter(l => uriToNode.has(l.source) && uriToNode.has(l.target));
+          function drawExtraLinks() {
+            linkLayerExtra.selectAll("path").remove();
+            const showAffects = document.getElementById('toggle-affects')?.checked ?? true;
+            const showAssoc = document.getElementById('toggle-associated')?.checked ?? true;
+            const showSuggest = document.getElementById('toggle-suggestion')?.checked ?? true;
+            const showVlinks = document.getElementById('toggle-vlinks')?.checked ?? true;
+            const allowed = new Set();
+            if (showAffects) allowed.add('affects');
+            if (showAssoc) allowed.add('associated');
+            if (showSuggest) allowed.add('suggestion');
+            if (showVlinks) { allowed.add('drug-variant'); allowed.add('med-variant'); allowed.add('condition-disease'); }
+            const filtered = extra.filter(d => allowed.has(d.label));
+            if (filtered.length === 0) return;
+            linkLayerExtra.selectAll("path")
+              .data(filtered)
+              .join("path")
+                .attr("stroke", d => d.color || "#999")
+                .attr("stroke-dasharray", "6,3")
+                .attr("fill", "none")
+                .attr("opacity", 0.9)
+                .attr("d", d => {
+                  const s = uriToNode.get(d.source);
+                  const t = uriToNode.get(d.target);
+                  const sx = Math.cos(s.x - Math.PI / 2) * s.y;
+                  const sy = Math.sin(s.x - Math.PI / 2) * s.y;
+                  const tx = Math.cos(t.x - Math.PI / 2) * t.y;
+                  const ty = Math.sin(t.x - Math.PI / 2) * t.y;
+                  return `M ${sx},${sy} L ${tx},${ty}`;
+                });
+          }
+          drawExtraLinks();
+          ['toggle-affects','toggle-associated','toggle-suggestion','toggle-vlinks'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && !el._bound) { el.addEventListener('change', drawExtraLinks); el._bound = true; }
+          });
+        }
+
+        update(root);
 
         // Zooming
         const zoom = d3.zoom().on("zoom", (event) => {{
@@ -529,50 +588,8 @@ def render_d3_visualization(d3_data: dict):
         }});
         svg.call(zoom);
 
-        // Build a URI -> node map for extra semantic links
-        const uriToNode = new Map();
-        root.descendants().forEach(d => {{
-          if (d.data && d.data.uri) {{ uriToNode.set(d.data.uri, d); }}
-        }});
-
-        // Draw extra semantic links with overlay toggles
-        const extra = extraLinks.filter(l => uriToNode.has(l.source) && uriToNode.has(l.target));
-        const linkLayer = svg.append("g").attr("class", "extra-links");
-        function drawExtraLinks() {{
-          linkLayer.selectAll("path").remove();
-          const showAffects = document.getElementById('toggle-affects')?.checked ?? true;
-          const showAssoc = document.getElementById('toggle-associated')?.checked ?? true;
-          const showSuggest = document.getElementById('toggle-suggestion')?.checked ?? true;
-          const showVlinks = document.getElementById('toggle-vlinks')?.checked ?? true;
-          const allowed = new Set();
-          if (showAffects) allowed.add('affects');
-          if (showAssoc) allowed.add('associated');
-          if (showSuggest) allowed.add('suggestion');
-          if (showVlinks) {{ allowed.add('drug-variant'); allowed.add('med-variant'); allowed.add('condition-disease'); }}
-          const filtered = extra.filter(d => allowed.has(d.label));
-          if (filtered.length === 0) return;
-          linkLayer.selectAll("path")
-            .data(filtered)
-            .join("path")
-              .attr("stroke", d => d.color || "#999")
-              .attr("stroke-dasharray", "6,3")
-              .attr("fill", "none")
-              .attr("opacity", 0.9)
-              .attr("d", d => {{
-                const s = uriToNode.get(d.source);
-                const t = uriToNode.get(d.target);
-                const sx = Math.cos(s.x - Math.PI / 2) * s.y;
-                const sy = Math.sin(s.x - Math.PI / 2) * s.y;
-                const tx = Math.cos(t.x - Math.PI / 2) * t.y;
-                const ty = Math.sin(t.x - Math.PI / 2) * t.y;
-                return `M ${sx},${sy} L ${tx},${ty}`;
-              }});
-        }}
-        drawExtraLinks();
-        ['toggle-affects','toggle-associated','toggle-suggestion','toggle-vlinks'].forEach(id => {{
-          const el = document.getElementById(id);
-          if (el) el.addEventListener('change', drawExtraLinks);
-        }});
+        // Extra semantic links are drawn per update() so they respect collapsed nodes
+        // We hook into update() by redefining it to also draw overlays
 
       </script>
     </body>
