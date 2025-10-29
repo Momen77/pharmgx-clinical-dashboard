@@ -237,17 +237,24 @@ try:
 except Exception:
     PipelineEvent = None
 
-# Visualization component
+# Visualization component - try new module first, then fallback
 try:
-    from components.jsonld_visualizer import (
+    from components.visualize_jsonld import (
         jsonld_to_hierarchy,
         render_d3_visualization,
         get_node_details,
     )
 except Exception:
-    jsonld_to_hierarchy = None
-    render_d3_visualization = None
-    get_node_details = None
+    try:
+        from components.jsonld_visualizer import (
+            jsonld_to_hierarchy,
+            render_d3_visualization,
+            get_node_details,
+        )
+    except Exception:
+        jsonld_to_hierarchy = None
+        render_d3_visualization = None
+        get_node_details = None
 
 # For handling clicks from the D3 component
 import streamlit.components.v1 as components
@@ -574,33 +581,58 @@ elif page == "📊 View Report":
                     with open(jsonld_path_str, 'r', encoding='utf-8') as f:
                         jsonld_data = json.load(f)
 
+                    # Info about the visualization
+                    st.info("💡 **Tip:** Click on nodes to see details, use mouse wheel to zoom, drag to pan. Use the controls to reset zoom or expand/collapse all nodes.")
+                    
                     with st.spinner("Generating interactive graph..."):
                         hierarchy_data = jsonld_to_hierarchy(jsonld_data)
                         if hierarchy_data:
-                            render_d3_visualization(hierarchy_data)
+                            # Create two columns - one for viz, one for details
+                            viz_col, detail_col = st.columns([2, 1])
+                            
+                            with viz_col:
+                                # Render visualization with component value
+                                clicked_node = render_d3_visualization(hierarchy_data)
+                            
+                            with detail_col:
+                                st.subheader("🔍 Node Details")
+                                
+                                # Check if a node was clicked
+                                if clicked_node:
+                                    st.markdown(f"**Selected:** `{clicked_node.get('name', 'Unknown')}`")
+                                    st.write(f"**Depth:** {clicked_node.get('depth', 'N/A')}")
+                                    st.write(f"**Has Children:** {'Yes' if clicked_node.get('hasChildren') else 'No'}")
+                                    if clicked_node.get('childCount'):
+                                        st.write(f"**Child Count:** {clicked_node['childCount']}")
+                                    
+                                    st.divider()
+                                    
+                                    # Get detailed information from JSON-LD
+                                    if get_node_details:
+                                        details = get_node_details(jsonld_data, clicked_node.get('name', ''))
+                                        if details:
+                                            st.markdown("**Properties:**")
+                                            for prop, values in details.items():
+                                                with st.expander(f"📌 {prop}", expanded=True):
+                                                    for value in values:
+                                                        if value.startswith("http"):
+                                                            st.markdown(f"- [{value.split('/')[-1]}]({value})")
+                                                        else:
+                                                            st.markdown(f"- {value}")
+                                        else:
+                                            st.caption("No additional details found in graph.")
+                                else:
+                                    st.info("Click on a node in the visualization to see its details here.")
                         else:
                             st.warning("Could not generate hierarchy from JSON-LD data.")
 
-                    # Handle clicks from the visualization
-                    clicked_node_uri = st.query_params.get("clicked_node_uri")
-                    if clicked_node_uri and get_node_details:
-                        with st.expander(f"🔍 Details for: **{clicked_node_uri.split('/')[-1]}**", expanded=True):
-                            details = get_node_details(jsonld_data, clicked_node_uri)
-                            if not details:
-                                st.write("No further details found for this node.")
-                            else:
-                                for prop, values in details.items():
-                                    st.markdown(f"**{prop}:**")
-                                    for value in values:
-                                        if value.startswith("http"):
-                                            st.markdown(f"- <{value}>")
-                                        else:
-                                            st.markdown(f"- {value}")
                 except Exception as e:
                     st.error(f"Error loading visualization: {e}")
                     with st.expander("Debug Info"):
                         st.write(f"Path attempted: {jsonld_path_str}")
                         st.write(f"Available outputs: {list(outputs.keys())}")
+                        import traceback
+                        st.code(traceback.format_exc())
             else:
                 st.warning("Comprehensive JSON-LD file not found. Cannot render visualization.")
                 with st.expander("🔍 Debug - Available Files"):
