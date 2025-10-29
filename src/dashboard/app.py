@@ -229,7 +229,7 @@ except Exception as e1:
             PipelineWorker = WorkerAdapter
             _worker_source = "EnhancedBackgroundWorker (adapted)"
         except Exception as e3:
-        PipelineWorker = None
+            PipelineWorker = None
             _worker_source = f"none (errors: {e1}, {e2}, {e3})"
 
 try:
@@ -245,16 +245,16 @@ try:
         get_node_details,
     )
 except Exception:
-try:
-    from components.jsonld_visualizer import (
-        jsonld_to_hierarchy,
-        render_d3_visualization,
-        get_node_details,
-    )
-except Exception:
-    jsonld_to_hierarchy = None
-    render_d3_visualization = None
-    get_node_details = None
+    try:
+        from components.jsonld_visualizer import (
+            jsonld_to_hierarchy,
+            render_d3_visualization,
+            get_node_details,
+        )
+    except Exception:
+        jsonld_to_hierarchy = None
+        render_d3_visualization = None
+        get_node_details = None
 
 # For handling clicks from the D3 component
 import streamlit.components.v1 as components
@@ -374,7 +374,7 @@ elif page == "🧬 Select Genes":
             st.success(f"✅ Selected: {', '.join(st.session_state.get('selected_genes', []))}")
             st.info("➡️ **Next:** Go to **🔬 Run Test** to analyze these genes.")
         else:
-        st.info(f"Selected: {', '.join(st.session_state.get('selected_genes', [])) or 'None'}")
+            st.info(f"Selected: {', '.join(st.session_state.get('selected_genes', [])) or 'None'}")
 
 elif page == "🔬 Run Test":
     st.title("🔬 Run Pharmacogenetic Test")
@@ -695,7 +695,7 @@ elif page == "📊 View Results":
             st.header("Generated Files")
             with st.expander("📁 Output Files", expanded=False):
                 for t, p in outputs.items():
-                st.text(f"{t}: {p}")
+                    st.text(f"{t}: {p}")
         
         # Interactive Visualization Section
         st.header("Interactive Knowledge Graph")
@@ -764,15 +764,15 @@ elif page == "📊 View Results":
             
             if jsonld_path_str and Path(jsonld_path_str).exists():
                 try:
-                with open(jsonld_path_str, 'r', encoding='utf-8') as f:
-                    jsonld_data = json.load(f)
+                    with open(jsonld_path_str, 'r', encoding='utf-8') as f:
+                        jsonld_data = json.load(f)
 
-                    # Info about the visualization
-                    st.info("💡 **Tip:** Click on nodes to see details, use mouse wheel to zoom, drag to pan. Use the controls to reset zoom or expand/collapse all nodes.")
+                        # Info about the visualization
+                        st.info("💡 **Tip:** Click on nodes to see details, use mouse wheel to zoom, drag to pan. Use the controls to reset zoom or expand/collapse all nodes.")
 
-                with st.spinner("Generating interactive graph..."):
-                    hierarchy_data = jsonld_to_hierarchy(jsonld_data)
-                    if hierarchy_data:
+                    with st.spinner("Generating interactive graph..."):
+                        hierarchy_data = jsonld_to_hierarchy(jsonld_data)
+                        if hierarchy_data:
                             # Create two columns - one for viz, one for details
                             viz_col, detail_col = st.columns([2, 1])
                             
@@ -798,17 +798,17 @@ elif page == "📊 View Results":
                                         details = get_node_details(jsonld_data, clicked_node.get('name', ''))
                                         if details:
                                             st.markdown("**Properties:**")
-                            for prop, values in details.items():
+                                            for prop, values in details.items():
                                                 with st.expander(f"📌 {prop}", expanded=True):
-                                for value in values:
-                                    if value.startswith("http"):
+                                                    for value in values:
+                                                        if value.startswith("http"):
                                                             st.markdown(f"- [{value.split('/')[-1]}]({value})")
-                                    else:
-                                        st.markdown(f"- {value}")
+                                                        else:
+                                                            st.markdown(f"- {value}")
                                         else:
                                             st.caption("No additional details found in graph.")
-                                else:
-                                    st.info("Click on a node in the visualization to see its details here.")
+                                    else:
+                                        st.info("Click on a node in the visualization to see its details here.")
                         else:
                             st.warning("Could not generate hierarchy from JSON-LD data.")
 
@@ -843,8 +843,8 @@ elif page == "💾 Export Data":
         if not outputs:
             st.warning("No output files found in results")
         else:
-        col1, col2 = st.columns(2)
-        with col1:
+            col1, col2 = st.columns(2)
+            with col1:
                 st.subheader("📥 Downloads")
                 
                 # Group files by type
@@ -867,9 +867,9 @@ elif page == "💾 Export Data":
                         st.markdown(f"**{group_name}**")
                         for key in file_keys:
                             path = outputs.get(key)
-                if path and _P(path).exists():
+                            if path and _P(path).exists():
                                 try:
-                    with open(path, 'rb') as f:
+                                    with open(path, 'rb') as f:
                                         file_content = f.read()
                                         st.download_button(
                                             f"📄 {key}",
@@ -884,10 +884,10 @@ elif page == "💾 Export Data":
                                 st.caption(f"⚠️ {key} - File not found")
                         st.divider()
             
-        with col2:
+            with col2:
                 st.subheader("📂 File Paths")
-            for t, p in outputs.items():
-                exists = _P(p).exists() if p else False
+                for t, p in outputs.items():
+                    exists = _P(p).exists() if p else False
                     status = "✅" if exists else "❌"
                     st.text(f"{status} {t}")
                     st.code(p or 'No path', language=None)
