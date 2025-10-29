@@ -403,8 +403,6 @@ elif page == "🔬 Run Test":
                     config_path = str(cp)
                     break
 
-            st.info("🧬 Running pipeline...")
-            
             # Debug info
             with st.expander("🔍 Debug Info", expanded=False):
                 st.write(f"Genes: {st.session_state['selected_genes']}")
@@ -412,15 +410,67 @@ elif page == "🔬 Run Test":
                 st.write(f"Profile keys: {list(profile.keys())}")
 
             try:
-                # Run pipeline directly - no workers!
-                with st.spinner("Analyzing pharmacogenomics data..."):
-                    pipeline = PGxPipeline(config_path=config_path)
+                # Run pipeline with progress indicators
+                st.info("🧬 Running pipeline...")
+                
+                # Show workflow stages as they would appear
+                stages_display = st.container()
+                with stages_display:
+                    cols = st.columns(5)
+                    stage_info = [
+                        ("🧪", "Lab Prep", "DNA extraction"),
+                        ("🧬", "Sequencing", "Variant calling"),
+                        ("📝", "Annotation", "Clinical data"),
+                        ("💊", "Drug Links", "Interactions"),
+                        ("📊", "Report", "Final results")
+                    ]
+                    for col, (emoji, title, desc) in zip(cols, stage_info):
+                        with col:
+                            st.markdown(f"### {emoji}")
+                            st.markdown(f"**{title}**")
+                            st.caption(desc)
+                
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                # Create event bus with callback to update progress
+                from utils.event_bus import EventBus
+                event_bus = EventBus()
+                
+                current_progress = [0]  # Use list to allow mutation in callback
+                
+                def update_progress(event):
+                    stage_progress_map = {
+                        "lab_prep": 0.2,
+                        "ngs": 0.4,
+                        "annotation": 0.6,
+                        "enrichment": 0.8,
+                        "linking": 0.85,
+                        "report": 0.95,
+                        "export": 1.0
+                    }
                     
-                    # Run multi-gene analysis
-                    results = pipeline.run_multi_gene(
-                        gene_symbols=st.session_state['selected_genes'],
-                        patient_profile=profile
-                    )
+                    progress = stage_progress_map.get(event.stage, current_progress[0])
+                    current_progress[0] = progress
+                    progress_bar.progress(progress)
+                    
+                    message = getattr(event, 'message', f"Processing {event.stage}...")
+                    status_text.text(f"⏳ {message}")
+                
+                event_bus.subscribe(update_progress)
+                
+                # Run pipeline with event bus
+                pipeline = PGxPipeline(config_path=config_path, event_bus=event_bus)
+                
+                # Run multi-gene analysis
+                results = pipeline.run_multi_gene(
+                    gene_symbols=st.session_state['selected_genes'],
+                    patient_profile=profile
+                )
+                
+                # Complete progress
+                progress_bar.progress(1.0)
+                status_text.text("✅ Analysis complete!")
                 
                 # Show what we got
                 with st.expander("🔍 Raw Results", expanded=False):
