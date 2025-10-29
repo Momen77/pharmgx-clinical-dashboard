@@ -633,10 +633,13 @@ elif page == "🔬 Run Test":
                 col4.metric("Patient ID", results.get('patient_id', 'N/A'))
 
                 # Show whether dashboard profile used
-                cp = results.get('comprehensive_profile', {}) or {}
-                used_dashboard = cp.get('dashboard_source', False)
+                used_dashboard = results.get('dashboard_source', False)
                 if used_dashboard:
                     st.success("✅ Used dashboard patient profile")
+                    # Show patient name from profile
+                    cp = results.get('comprehensive_profile', {}) or {}
+                    patient_name = cp.get('name', 'Unknown')
+                    st.info(f"**Patient:** {patient_name}")
                 else:
                     st.warning("⚠️ Used auto-generated profile")
 
@@ -675,9 +678,15 @@ elif page == "📊 View Results":
             st.metric("Affected Drugs", results.get('affected_drugs', 0))
         
         # Profile source
-        cp = results.get('comprehensive_profile', {}) or {}
-        profile_source = "✅ Dashboard Profile" if cp.get('dashboard_source') else "⚠️ Auto-generated Profile"
+        dashboard_source = results.get('dashboard_source', False)
+        profile_source = "✅ Dashboard Profile" if dashboard_source else "⚠️ Auto-generated Profile"
         st.info(f"**Data Source:** {profile_source}")
+        
+        # Show patient name if available
+        cp = results.get('comprehensive_profile', {}) or {}
+        patient_name = cp.get('name', '')
+        if patient_name:
+            st.caption(f"Patient: {patient_name}")
         
         # Additional summary info
         with st.expander("📊 Detailed Summary", expanded=False):

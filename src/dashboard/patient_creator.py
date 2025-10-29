@@ -184,56 +184,97 @@ class PatientCreator:
                     st.error("Please fill in required fields (First Name, Last Name)")
                     return None
                 
-                # Create patient profile
+                # Create patient profile with proper structure
+                # Convert weight and height to standard units for clinical use
+                if weight_unit == "lbs":
+                    weight_kg = weight * 0.453592
+                else:
+                    weight_kg = weight
+                
+                if height_unit == "inches":
+                    height_cm = height * 2.54
+                else:
+                    height_cm = height
+                
+                # Map gender to schema.org format
+                gender_uri = f"http://schema.org/{gender}" if gender in ["Male", "Female"] else "http://schema.org/Male"
+                
+                # Create patient_id from MRN
+                patient_id = mrn.replace("MRN-", "patient_")
+                
                 patient_profile = {
-                    "demographics": {
-                        "first_name": first_name,
-                        "middle_name": middle_name,
-                        "last_name": last_name,
-                        "preferred_name": preferred_name or first_name,
-                        "date_of_birth": date_of_birth.isoformat(),
-                        "age": age,
-                        "gender": gender,
-                        "biological_sex": biological_sex,
-                        "ethnicity": ethnicity,
-                        "birthplace": {
-                            "city": birth_city,
-                            "country": birth_country
-                        },
-                        "current_location": {
-                            "address": address,
-                            "city": current_city,
-                            "country": current_country,
-                            "postal_code": postal_code
-                        },
-                        "contact": {
-                            "phone": phone,
-                            "email": email,
-                            "emergency_contact": emergency_contact,
-                            "emergency_phone": emergency_phone
-                        },
-                        "physical_measurements": {
-                            "weight": weight,
-                            "weight_unit": weight_unit,
-                            "height": height,
-                            "height_unit": height_unit,
-                            "bmi": round(bmi, 1)
-                        },
-                        "mrn": mrn,
-                        "language": language,
-                        "interpreter_needed": interpreter_needed,
-                        "insurance": {
-                            "provider": insurance_provider,
-                            "policy_number": insurance_policy
-                        },
-                        "pcp": {
-                            "name": pcp_name,
-                            "contact": pcp_contact
-                        }
-                    },
+                    "patient_id": patient_id,
+                    "dashboard_source": True,  # Flag to indicate this came from dashboard
+                    "created_at": datetime.now().isoformat(),
                     "photo": patient_photo,
                     "photo_format": "avatar" if photo_option == "Generate Avatar" else "upload",
-                    "created_at": datetime.now().isoformat()
+                    
+                    # Clinical information (structure matches auto-generated profiles)
+                    "clinical_information": {
+                        "demographics": {
+                            "@id": "http://ugent.be/person/demographics",
+                            "foaf:firstName": first_name,
+                            "foaf:familyName": last_name,
+                            "schema:givenName": first_name,
+                            "schema:familyName": last_name,
+                            "schema:additionalName": middle_name,
+                            "preferredName": preferred_name or first_name,
+                            "schema:birthDate": date_of_birth.isoformat(),
+                            "age": age,
+                            "schema:gender": gender_uri,
+                            "biological_sex": biological_sex,
+                            "ethnicity": ethnicity,
+                            "schema:birthPlace": {
+                                "gn:name": birth_city,
+                                "country": birth_country
+                            },
+                            "schema:weight": {
+                                "@type": "schema:QuantitativeValue",
+                                "schema:value": round(weight_kg, 1),
+                                "schema:unitCode": "kg",
+                                "schema:unitText": "kilograms",
+                                "original_value": weight,
+                                "original_unit": weight_unit
+                            },
+                            "schema:height": {
+                                "@type": "schema:QuantitativeValue",
+                                "schema:value": round(height_cm, 1),
+                                "schema:unitCode": "cm",
+                                "schema:unitText": "centimeters",
+                                "original_value": height,
+                                "original_unit": height_unit
+                            },
+                            "bmi": round(bmi, 1),
+                            "mrn": mrn,
+                            "current_location": {
+                                "address": address,
+                                "city": current_city,
+                                "country": current_country,
+                                "postal_code": postal_code
+                            },
+                            "contact": {
+                                "phone": phone,
+                                "email": email,
+                                "emergency_contact": emergency_contact,
+                                "emergency_phone": emergency_phone
+                            },
+                            "language": language,
+                            "interpreter_needed": interpreter_needed,
+                            "insurance": {
+                                "provider": insurance_provider,
+                                "policy_number": insurance_policy
+                            },
+                            "pcp": {
+                                "name": pcp_name,
+                                "contact": pcp_contact
+                            },
+                            "note": "Patient profile created via dashboard"
+                        },
+                        "current_conditions": [],  # Will be populated below
+                        "current_medications": [],  # Will be populated below
+                        "organ_function": {},  # Will be populated below
+                        "lifestyle_factors": {}  # Will be populated below
+                    }
                 }
                 
                 # Generate additional clinical data
@@ -241,18 +282,36 @@ class PatientCreator:
                     try:
                         # Generate lifestyle factors
                         lifestyle = self._generate_lifestyle()
-                        patient_profile["lifestyle"] = lifestyle
+                        patient_profile["clinical_information"]["lifestyle_factors"] = lifestyle
                         
                         # Generate organ function
                         organ_function = self._generate_organ_function()
-                        patient_profile["organ_function"] = organ_function
+                        patient_profile["clinical_information"]["organ_function"] = organ_function
                         
-                        # Get conditions and medications (simplified for now)
-                        patient_profile["conditions"] = []
-                        patient_profile["medications"] = []
+                        # Try to use DynamicClinicalGenerator for conditions and medications
+                        if hasattr(self.clinical_generator, 'get_conditions_by_age_lifestyle'):
+                            conditions = self.clinical_generator.get_conditions_by_age_lifestyle(age, lifestyle)
+                            patient_profile["clinical_information"]["current_conditions"] = conditions
+                            
+                            # Get medications for conditions
+                            medications = []
+                            for condition in conditions:
+                                snomed_code = condition.get("snomed:code")
+                                condition_label = condition.get("rdfs:label", "")
+                                if snomed_code:
+                                    condition_meds = self.clinical_generator.get_drugs_for_condition(snomed_code, condition_label)
+                                    medications.extend(condition_meds)
+                            patient_profile["clinical_information"]["current_medications"] = medications
+                        else:
+                            # Fallback if DynamicClinicalGenerator not available
+                            patient_profile["clinical_information"]["current_conditions"] = []
+                            patient_profile["clinical_information"]["current_medications"] = []
                         
                     except Exception as e:
                         st.warning(f"Could not generate all clinical data: {e}")
+                        # Ensure fields exist even if generation fails
+                        patient_profile["clinical_information"].setdefault("current_conditions", [])
+                        patient_profile["clinical_information"].setdefault("current_medications", [])
                 
                 # Store in session state
                 st.session_state['patient_profile'] = patient_profile
@@ -264,26 +323,177 @@ class PatientCreator:
         return None
     
     def _generate_lifestyle(self):
-        """Generate lifestyle factors"""
-        return {
-            "smoking": random.choice(["Never", "Former", "Current"]),
-            "alcohol": random.choice(["None", "Occasional", "Regular"]),
-            "grapefruit_consumption": random.choice(["None", "Occasional", "Regular"]),
-            "exercise_frequency": random.choice(["None", "Low", "Moderate", "High"])
-        }
+        """Generate lifestyle factors with SNOMED CT codes (matching auto-generated structure)"""
+        factors = []
+        
+        # Smoking status
+        smoking_choice = random.choice([
+            {
+                "@id": "http://snomed.info/id/228150001",
+                "@type": "sdisco:LifestyleFactor",
+                "snomed:code": "228150001",
+                "rdfs:label": "Non-smoker",
+                "skos:prefLabel": "Non-smoker",
+                "factor_type": "smoking",
+                "status": "never",
+                "note": "No CYP1A2 induction from smoking"
+            },
+            {
+                "@id": "http://snomed.info/id/8392000",
+                "@type": "sdisco:LifestyleFactor",
+                "snomed:code": "8392000",
+                "rdfs:label": "Former smoker",
+                "skos:prefLabel": "Former smoker",
+                "factor_type": "smoking",
+                "status": "former",
+                "quit_date": (datetime.now() - timedelta(days=random.randint(365, 3650))).strftime("%Y-%m-%d"),
+                "note": "CYP1A2 induction reverses after quitting"
+            },
+            {
+                "@id": "http://snomed.info/id/77176002",
+                "@type": "sdisco:LifestyleFactor",
+                "snomed:code": "77176002",
+                "rdfs:label": "Smoker",
+                "skos:prefLabel": "Smoker",
+                "factor_type": "smoking",
+                "status": "current",
+                "frequency": f"{random.randint(5, 30)} cigarettes/day",
+                "note": "CYP1A2 induction from smoking"
+            }
+        ])
+        factors.append(smoking_choice)
+        
+        # Alcohol consumption
+        alcohol_choice = random.choice([
+            {
+                "@id": "http://snomed.info/id/228273003",
+                "@type": "sdisco:LifestyleFactor",
+                "snomed:code": "228273003",
+                "rdfs:label": "Drinks alcohol",
+                "skos:prefLabel": "Moderate alcohol consumption",
+                "factor_type": "alcohol",
+                "frequency": f"{random.randint(1, 14)} drinks/week",
+                "note": "May affect CYP2E1 and liver function"
+            },
+            {
+                "@id": "http://snomed.info/id/228276006",
+                "@type": "sdisco:LifestyleFactor",
+                "snomed:code": "228276006",
+                "rdfs:label": "Does not drink alcohol",
+                "skos:prefLabel": "Non-drinker",
+                "factor_type": "alcohol",
+                "note": "No alcohol-related drug interactions"
+            }
+        ])
+        factors.append(alcohol_choice)
+        
+        # Exercise frequency
+        exercise_choice = random.choice([
+            {
+                "@type": "sdisco:LifestyleFactor",
+                "factor_type": "exercise",
+                "rdfs:label": "Regular exercise",
+                "frequency": f"{random.randint(2, 7)} times/week",
+                "note": "May improve drug metabolism"
+            },
+            {
+                "@type": "sdisco:LifestyleFactor",
+                "factor_type": "exercise",
+                "rdfs:label": "Sedentary lifestyle",
+                "frequency": "Minimal physical activity",
+                "note": "May affect drug distribution"
+            }
+        ])
+        factors.append(exercise_choice)
+        
+        # Grapefruit consumption (important for CYP3A4)
+        if random.random() < 0.3:  # 30% chance of grapefruit consumption
+            factors.append({
+                "@type": "sdisco:LifestyleFactor",
+                "factor_type": "diet",
+                "rdfs:label": "Regular grapefruit consumption",
+                "frequency": "Daily",
+                "note": "IMPORTANT: Inhibits CYP3A4 - affects many drugs"
+            })
+        
+        return factors
     
     def _generate_organ_function(self):
-        """Generate organ function test results"""
+        """Generate organ function test results with SNOMED CT codes (matching auto-generated structure)"""
+        test_date = (datetime.now() - timedelta(days=random.randint(1, 90))).strftime("%Y-%m-%d")
+        
+        # Kidney function - normal range: 90-120 mL/min/1.73m²
+        # Occasionally abnormal (15% chance of mild reduction)
+        if random.random() < 0.15:
+            creatinine_clearance = round(random.uniform(60, 89), 1)
+            status_kidney = "mild_reduction"
+        else:
+            creatinine_clearance = round(random.uniform(90, 120), 1)
+            status_kidney = "normal"
+        
+        serum_creatinine = round(random.uniform(0.6, 1.1), 2)
+        
+        # Liver function - normal ALT: 7-56 U/L, AST: 10-40 U/L
+        # Occasionally elevated (10% chance)
+        if random.random() < 0.10:
+            alt_value = round(random.uniform(57, 100), 0)
+            ast_value = round(random.uniform(41, 80), 0)
+            status_liver = "elevated"
+        else:
+            alt_value = round(random.uniform(10, 50), 0)
+            ast_value = round(random.uniform(15, 38), 0)
+            status_liver = "normal"
+        
+        bilirubin_total = round(random.uniform(0.3, 1.0), 2)
+        
         return {
-            "kidney": {
-                "creatinine_clearance": round(random.uniform(60, 120), 1),
-                "egfr": round(random.uniform(60, 120), 1),
-                "serum_creatinine": round(random.uniform(0.6, 1.2), 2)
+            "kidney_function": {
+                "creatinine_clearance": {
+                    "@id": "http://snomed.info/id/102001005",
+                    "snomed:code": "102001005",
+                    "rdfs:label": "Creatinine clearance test",
+                    "value": creatinine_clearance,
+                    "unit": "mL/min/1.73m²",
+                    "date": test_date,
+                    "normal_range": "90-120 mL/min/1.73m²",
+                    "status": status_kidney
+                },
+                "serum_creatinine": {
+                    "value": serum_creatinine,
+                    "unit": "mg/dL",
+                    "date": test_date,
+                    "normal_range": "0.6-1.1 mg/dL",
+                    "status": "normal" if serum_creatinine <= 1.1 else "elevated"
+                }
             },
-            "liver": {
-                "alt": round(random.uniform(10, 50), 0),
-                "ast": round(random.uniform(15, 40), 0),
-                "bilirubin": round(random.uniform(0.3, 1.0), 2)
+            "liver_function": {
+                "alt": {
+                    "@id": "http://snomed.info/id/102711005",
+                    "snomed:code": "102711005",
+                    "rdfs:label": "Alanine aminotransferase measurement",
+                    "value": alt_value,
+                    "unit": "U/L",
+                    "date": test_date,
+                    "normal_range": "7-56 U/L",
+                    "status": status_liver
+                },
+                "ast": {
+                    "@id": "http://snomed.info/id/102712005",
+                    "snomed:code": "102712005",
+                    "rdfs:label": "Aspartate aminotransferase measurement",
+                    "value": ast_value,
+                    "unit": "U/L",
+                    "date": test_date,
+                    "normal_range": "10-40 U/L",
+                    "status": status_liver
+                },
+                "bilirubin_total": {
+                    "value": bilirubin_total,
+                    "unit": "mg/dL",
+                    "date": test_date,
+                    "normal_range": "0.1-1.2 mg/dL",
+                    "status": "normal" if bilirubin_total <= 1.2 else "elevated"
+                }
             },
-            "test_date": (datetime.now() - timedelta(days=random.randint(1, 90))).isoformat()
+            "note": "Critical for drug dosing - particularly important for drugs cleared by kidney/liver"
         }

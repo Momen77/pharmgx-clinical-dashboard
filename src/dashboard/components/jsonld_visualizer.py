@@ -26,7 +26,12 @@ def get_node_label(g, node_uri):
 
 
 def jsonld_to_hierarchy(jsonld_data: dict):
-    """Converts flat JSON-LD to a hierarchical structure for D3."""
+    """Converts flat JSON-LD to a hierarchical structure for D3.
+
+    Enhancements:
+    - Adds supplemental sections for Ethnicity, Ethnicity-aware Medications, and Variant Population Context
+      so users can visually understand new patient-specific connections that are literals (not IRIs) in JSON-LD.
+    """
     g = Graph().parse(data=json.dumps(jsonld_data), format="json-ld")
 
     # Find the root node (the patient)
@@ -69,7 +74,202 @@ def jsonld_to_hierarchy(jsonld_data: dict):
             "children": children if children else None
         }
 
-    return build_children(root_node, set())
+    base = build_children(root_node, set())
+
+    # If base failed, return
+    if not isinstance(base, dict):
+        return base
+
+    # Helper: ensure children list exists
+    def ensure_children(node: dict):
+        if node.get("children") is None:
+            node["children"] = []
+        return node["children"]
+
+    # Supplemental sections extracted from original JSON (not RDF triples)
+    extra_links = []  # [{"source": uri, "target": uri, "label": str, "color": str}]
+    try:
+        ci = jsonld_data.get("clinical_information", {}) or jsonld_data.get("clinicalInformation", {})
+        demo = ci.get("demographics", {}) if isinstance(ci, dict) else {}
+        # 1) Ethnicity section
+        eth_items = []
+        # Prefer enriched ethnicity_snomed if present
+        for e in demo.get("ethnicity_snomed", []) or []:
+            label = e.get("label") or "Ethnicity"
+            uri = e.get("snomed:uri")
+            eth_items.append({
+                "name": f"{label}",
+                "uri": uri or f"pgx:ethnicity:{label}",
+                "color": "#17becf",
+                "children": None
+            })
+        # Fallback to raw labels
+        if not eth_items:
+            for label in demo.get("ethnicity", []) or []:
+                eth_items.append({
+                    "name": f"{label}",
+                    "uri": f"pgx:ethnicity:{label}",
+                    "color": "#17becf",
+                    "children": None
+                })
+        if eth_items:
+            ensure_children(base).append({
+                "name": "Ethnicity",
+                "uri": "pgx:section:ethnicity",
+                "color": "#17becf",
+                "children": eth_items
+            })
+
+        # 2) Ethnicity-aware Medication Considerations
+        adj = jsonld_data.get("ethnicity_medication_adjustments", [])
+        if isinstance(adj, list) and adj:
+            nodes = []
+            for a in adj:
+                drug = a.get("drug", "Medication")
+                uri = a.get("snomed:uri") or f"pgx:adj:{drug}"
+                child_items = []
+                for k in ("gene", "adjustment", "strength", "rationale"):
+                    v = a.get(k)
+                    if v:
+                        child_items.append({
+                            "name": f"{k}: {v}",
+                            "uri": f"pgx:adj:{drug}:{k}",
+                            "color": "#8c564b",
+                            "children": None
+                        })
+                nodes.append({
+                    "name": drug,
+                    "uri": uri,
+                    "color": "#8c564b",
+                    "children": child_items or None
+                })
+                # Link medication suggestion to the patient root as a semantic edge
+                if uri:
+                    extra_links.append({
+                        "source": str(root_node),
+                        "target": uri,
+                        "label": "suggestion",
+                        "color": "#8c564b"
+                    })
+            ensure_children(base).append({
+                "name": "Ethnicity-aware Medications",
+                "uri": "pgx:section:ethno_meds",
+                "color": "#8c564b",
+                "children": nodes
+            })
+
+        # 3) Variant Population Context (top-level summary)
+        var_items = []
+        variants = jsonld_data.get("variants", [])
+        if isinstance(variants, list) and variants:
+            # Limit to first 20 variants for readability
+            for v in variants[:20]:
+                vid = v.get("rsid") or v.get("variant_id") or v.get("id") or "Variant"
+                node_children = []
+                # Patient freq
+                ppf = v.get("patient_population_frequency")
+                if isinstance(ppf, (int, float)):
+                    node_children.append({
+                        "name": f"Patient AF: {round(ppf*100,1)}%",
+                        "uri": f"pgx:var:{vid}:patient_af",
+                        "color": "#7f7f7f",
+                        "children": None
+                    })
+                # Top pops (show at most 2 non-null highest)
+                freqs = v.get("population_frequencies") or {}
+                if isinstance(freqs, dict):
+                    non_null = [(k, freqs.get(k)) for k in freqs.keys() if isinstance(freqs.get(k), (int, float))]
+                    non_null.sort(key=lambda kv: kv[1], reverse=True)
+                    for k, val in non_null[:2]:
+                        node_children.append({
+                            "name": f"{k}: {round(val*100,1)}%",
+                            "uri": f"pgx:var:{vid}:pop:{k}",
+                            "color": "#7f7f7f",
+                            "children": None
+                        })
+                context = v.get("ethnicity_context")
+                if context:
+                    node_children.append({
+                        "name": context,
+                        "uri": f"pgx:var:{vid}:context",
+                        "color": "#7f7f7f",
+                        "children": None
+                    })
+                var_items.append({
+                    "name": str(vid),
+                    "uri": f"pgx:var:{vid}",
+                    "color": "#ff7f0e",
+                    "children": node_children or None
+                })
+                # Create extra links from variants to drugs and diseases if URIs exist
+                for d in v.get("drugs", []) or []:
+                    duri = d.get("snomed:uri")
+                    if duri:
+                        extra_links.append({
+                            "source": f"pgx:var:{vid}",
+                            "target": duri,
+                            "label": "affects",
+                            "color": "#d62728"
+                        })
+                for dis in v.get("diseases", []) or []:
+                    disuri = dis.get("snomed:uri")
+                    if disuri:
+                        extra_links.append({
+                            "source": f"pgx:var:{vid}",
+                            "target": disuri,
+                            "label": "associated",
+                            "color": "#9467bd"
+                        })
+        if var_items:
+            ensure_children(base).append({
+                "name": "Variant Population Context",
+                "uri": "pgx:section:variant_pop",
+                "color": "#7f7f7f",
+                "children": var_items
+            })
+        # Variant-linking provided links, if any
+        vlinks = (jsonld_data.get("variant_linking") or {}).get("links") or {}
+        # Expect dicts like medication_to_variant: [{"medication_uri": uri, "variant_uri": uri}]
+        try:
+            for entry in vlinks.get("drug_to_variant", []) or []:
+                s = entry.get("drug_uri") or entry.get("medication_uri")
+                t = entry.get("variant_uri")
+                if s and t:
+                    extra_links.append({
+                        "source": s,
+                        "target": t,
+                        "label": "drug-variant",
+                        "color": "#d62728"
+                    })
+            for entry in vlinks.get("medication_to_variant", []) or []:
+                s = entry.get("medication_uri")
+                t = entry.get("variant_uri")
+                if s and t:
+                    extra_links.append({
+                        "source": s,
+                        "target": t,
+                        "label": "med-variant",
+                        "color": "#d62728"
+                    })
+            for entry in vlinks.get("condition_to_disease", []) or []:
+                s = entry.get("condition_uri")
+                t = entry.get("disease_uri")
+                if s and t:
+                    extra_links.append({
+                        "source": s,
+                        "target": t,
+                        "label": "condition-disease",
+                        "color": "#9467bd"
+                    })
+        except Exception:
+            pass
+    except Exception:
+        # If any of the supplemental sections fails, still return the base tree
+        pass
+
+    # Attach extra links for the renderer to pick up
+    base["_extraLinks"] = extra_links
+    return base
 
 
 def get_node_details(jsonld_data: dict, node_uri: str):
@@ -91,6 +291,9 @@ def render_d3_visualization(d3_data: dict):
     
     # Convert Python dict to JSON string for JS
     d3_json = json.dumps(d3_data)
+    # Extract extra semantic links if present
+    extra_links = d3_data.get("_extraLinks", []) if isinstance(d3_data, dict) else []
+    extra_links_json = json.dumps(extra_links)
 
     html_template = f"""
     <!DOCTYPE html>
@@ -129,6 +332,7 @@ def render_d3_visualization(d3_data: dict):
             .separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
 
         const data = {d3_json};
+        const extraLinks = {extra_links_json};
         const root = tree(d3.hierarchy(data));
 
         const svg = d3.select("#chart").append("svg")
@@ -188,6 +392,34 @@ def render_d3_visualization(d3_data: dict):
             g.attr("transform", event.transform);
         }});
         svg.call(zoom);
+
+        // Build a URI -> node map for extra semantic links
+        const uriToNode = new Map();
+        root.descendants().forEach(d => {{
+          if (d.data && d.data.uri) {{ uriToNode.set(d.data.uri, d); }}
+        }});
+
+        // Draw extra semantic links as overlays (dashed colored lines)
+        const extra = extraLinks.filter(l => uriToNode.has(l.source) && uriToNode.has(l.target));
+        if (extra.length > 0) {{
+          const linkLayer = svg.append("g").attr("class", "extra-links");
+          linkLayer.selectAll("path")
+            .data(extra)
+            .join("path")
+              .attr("stroke", d => d.color || "#999")
+              .attr("stroke-dasharray", "4,2")
+              .attr("fill", "none")
+              .attr("opacity", 0.8)
+              .attr("d", d => {{
+                const s = uriToNode.get(d.source);
+                const t = uriToNode.get(d.target);
+                const sx = Math.cos(s.x - Math.PI / 2) * s.y;
+                const sy = Math.sin(s.x - Math.PI / 2) * s.y;
+                const tx = Math.cos(t.x - Math.PI / 2) * t.y;
+                const ty = Math.sin(t.x - Math.PI / 2) * t.y;
+                return `M ${sx},${sy} L ${tx},${ty}`;
+              }});
+        }}
 
       </script>
     </body>

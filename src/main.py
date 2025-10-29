@@ -258,9 +258,26 @@ class PGxPipeline:
         all_drugs = set()
         all_diseases = set()
         
-        # Determine patient ID
+        # Determine patient ID and profile source
+        dashboard_source = False
         if patient_profile:
-            patient_id = patient_profile.get("patient_id") or f"dashboard_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Check if this is a dashboard-created profile
+            dashboard_source = patient_profile.get("dashboard_source", False)
+            
+            # Extract patient_id from profile
+            patient_id = patient_profile.get("patient_id")
+            
+            # If no patient_id, try to get MRN from demographics
+            if not patient_id and "clinical_information" in patient_profile:
+                demographics = patient_profile["clinical_information"].get("demographics", {})
+                mrn = demographics.get("mrn")
+                if mrn:
+                    patient_id = mrn.replace("MRN-", "patient_").replace("MRN_", "patient_")
+            
+            # Final fallback
+            if not patient_id:
+                patient_id = f"dashboard_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
             print(f"Using patient profile from dashboard: {patient_id}")
         else:
             patient_id = f"comprehensive_patient_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -311,7 +328,7 @@ class PGxPipeline:
             print(f"{'='*70}")
             
             comprehensive_profile = self._create_comprehensive_profile(
-                patient_id, gene_symbols, all_variants, all_drugs, all_diseases, patient_profile
+                patient_id, gene_symbols, all_variants, all_drugs, all_diseases, patient_profile, dashboard_source
             )
             
             # Link patient profile to variants and detect conflicts
@@ -332,6 +349,55 @@ class PGxPipeline:
             
             # Add linking results to comprehensive profile
             comprehensive_profile["variant_linking"] = linking_results
+
+            # Enrich variants with patient-specific population frequency context
+            try:
+                from utils.population_frequencies import classify_population_significance, summarize_ethnicity_context
+                from utils.dosing_adjustments import suggest_ethnicity_adjustments
+                patient_ethnicity = None
+                try:
+                    demo = comprehensive_profile.get("clinical_information", {}).get("demographics", {})
+                    eth = demo.get("ethnicity")
+                    if isinstance(eth, list) and eth:
+                        patient_ethnicity = eth[0]
+                    elif isinstance(eth, str):
+                        patient_ethnicity = eth
+                except Exception:
+                    patient_ethnicity = None
+
+                for v in all_variants:
+                    freqs = v.get("population_frequencies") or {}
+                    pf = None
+                    if patient_ethnicity:
+                        pf = freqs.get(patient_ethnicity)
+                    v["patient_population_frequency"] = pf
+                    v["population_significance"] = classify_population_significance(pf)
+                    v["ethnicity_context"] = summarize_ethnicity_context(
+                        v.get("rsid") or v.get("variant_id", ""),
+                        v.get("gene", ""),
+                        patient_ethnicity,
+                        freqs,
+                    )
+
+                # Ethnicity-aware medication adjustment hints (non-binding)
+                adjustments = suggest_ethnicity_adjustments(all_variants, patient_ethnicity)
+                if adjustments:
+                    # Enrich with SNOMED CT codes where possible
+                    try:
+                        if hasattr(self, 'variant_linker') and self.variant_linker and hasattr(self.variant_linker, '_search_drug_snomed'):
+                            for adj in adjustments:
+                                dname = adj.get("drug")
+                                if not dname:
+                                    continue
+                                snomed = self.variant_linker._search_drug_snomed(dname)
+                                if snomed and snomed.get("code"):
+                                    adj["snomed:code"] = snomed["code"]
+                                    adj["snomed:uri"] = f"http://snomed.info/id/{snomed['code']}"
+                    except Exception:
+                        pass
+                    comprehensive_profile["ethnicity_medication_adjustments"] = adjustments
+            except Exception:
+                pass
             
             # Generate all output formats
             self.event_bus.emit(PipelineEvent(
@@ -390,6 +456,7 @@ class PGxPipeline:
             return {
                 "success": True,
                 "patient_id": patient_id,
+                "dashboard_source": dashboard_source,
                 "genes": gene_symbols,
                 "total_variants": len(all_variants),
                 "affected_drugs": len(all_drugs),
@@ -397,7 +464,8 @@ class PGxPipeline:
                 "duration": duration,
                 "gene_results": results,
                 "comprehensive_profile": comprehensive_profile,
-                "outputs": outputs
+                "comprehensive_outputs": outputs,  # Use "comprehensive_outputs" to avoid confusion
+                "outputs": outputs  # Keep for backward compatibility
             }
             
         except Exception as e:
@@ -442,6 +510,13 @@ class PGxPipeline:
                 print(f"Warning: Phase 3 file not found for {gene_symbol}")
             
             variants = []
+            # Lazy init of population frequency service
+            popfreq_service = None
+            try:
+                from utils.population_frequencies import PopulationFrequencyService, classify_population_significance, summarize_ethnicity_context
+                popfreq_service = PopulationFrequencyService()
+            except Exception:
+                popfreq_service = None
             for i, variant in enumerate(phase2_data.get("variants", [])):
                 # Get corresponding Phase 3 variant (with literature)
                 phase3_variant = {}
@@ -459,6 +534,19 @@ class PGxPipeline:
                     "literature": phase3_variant.get("literature", {}),
                     "raw_data": variant
                 }
+
+                # Enrich with population allele frequencies (ethnicity-aware)
+                try:
+                    if popfreq_service:
+                        rs = variant_info.get("rsid")
+                        if rs:
+                            rsid_full = rs if rs.startswith("rs") else f"rs{rs}"
+                            pf_payload = popfreq_service.get_population_frequencies(rsid_full)
+                            freqs = pf_payload.get("frequencies", {})
+                            variant_info["population_frequencies"] = freqs
+                            variant_info["population_frequency_source"] = pf_payload.get("source")
+                except Exception:
+                    pass
                 variants.append(variant_info)
             
             return variants
@@ -624,19 +712,48 @@ class PGxPipeline:
         
         return diseases
     
-    def _create_comprehensive_profile(self, patient_id: str, genes: list, variants: list, drugs: set, diseases: set, dashboard_profile: dict = None) -> dict:
+    def _create_comprehensive_profile(self, patient_id: str, genes: list, variants: list, drugs: set, diseases: set, dashboard_profile: dict = None, dashboard_source: bool = False) -> dict:
         """Create comprehensive patient profile with enhanced clinical information"""
         # Use dashboard profile if provided, otherwise generate clinical information
         if dashboard_profile and "clinical_information" in dashboard_profile:
-            print("Using patient profile from dashboard")
+            print("✅ Using patient profile from dashboard")
             clinical_info = dashboard_profile["clinical_information"]
-            # Extract patient ID from dashboard profile if available
-            if "demographics" in dashboard_profile and "mrn" in dashboard_profile["demographics"]:
-                patient_id = dashboard_profile["demographics"]["mrn"]
+            # Don't override patient_id - it was already extracted correctly in run_multi_gene
         else:
-            print("Generating clinical information")
+            print("🔄 Generating new clinical information")
             clinical_info = self._generate_clinical_information(patient_id)
         
+        # Get patient name from demographics if available
+        demographics = clinical_info.get("demographics", {})
+        first_name = demographics.get("foaf:firstName") or demographics.get("schema:givenName", "")
+        last_name = demographics.get("foaf:familyName") or demographics.get("schema:familyName", "")
+        
+        if first_name and last_name:
+            profile_name = f"{first_name} {last_name} - Pharmacogenomics Profile"
+        else:
+            profile_name = "Comprehensive Pharmacogenomics Patient Profile"
+        
+        # Enrich clinical_info demographics ethnicity with SNOMED CT codes if possible
+        try:
+            if hasattr(self, 'variant_linker') and self.variant_linker:
+                demo = clinical_info.get("demographics", {})
+                eth_list = demo.get("ethnicity")
+                if isinstance(eth_list, list) and eth_list:
+                    enriched = []
+                    for label in eth_list:
+                        snomed = self.variant_linker._search_snomed(str(label))
+                        if snomed and snomed.get("code"):
+                            enriched.append({
+                                "label": label,
+                                "snomed:code": snomed["code"],
+                                "snomed:uri": f"http://snomed.info/id/{snomed['code']}"
+                            })
+                        else:
+                            enriched.append({"label": label})
+                    clinical_info["ethnicity_snomed"] = enriched
+        except Exception:
+            pass
+
         profile = {
             "@context": {
                 "foaf": "http://xmlns.com/foaf/0.1/",
@@ -651,13 +768,22 @@ class PGxPipeline:
                 "clinpgx": "https://www.clinpgx.org/haplotype/",
                 "gn": "http://www.geonames.org/ontology#",
                 "skos": "http://www.w3.org/2004/02/skos/core#",
-                "xsd": "http://www.w3.org/2001/XMLSchema#"
+                "xsd": "http://www.w3.org/2001/XMLSchema#",
+                # JSON-LD terms for new patient-specific properties
+                "population_frequencies": "pgx:populationFrequencies",
+                "patient_population_frequency": "pgx:patientPopulationFrequency",
+                "population_significance": "pgx:populationSignificance",
+                "population_frequency_source": "pgx:populationFrequencySource",
+                "ethnicity_context": "pgx:ethnicityContext",
+                "ethnicity_medication_adjustments": "pgx:ethnicityMedicationAdjustments",
+                "ethnicity_snomed": "pgx:ethnicitySnomed"
             },
             "@id": f"http://ugent.be/person/{patient_id}",
             "@type": ["foaf:Person", "schema:Person", "schema:Patient"],
             "identifier": patient_id,
             "patient_id": patient_id,
-            "name": f"Comprehensive Pharmacogenomics Patient Profile",
+            "dashboard_source": dashboard_source,  # Flag to indicate source
+            "name": profile_name,
             "description": f"Multi-gene pharmacogenomics profile covering {len(genes)} genes with {len(variants)} variants",
             "dateCreated": datetime.now().isoformat(),
             
@@ -721,14 +847,105 @@ class PGxPipeline:
         }
     
     def _generate_demographics(self) -> dict:
-        """Generate basic demographic information with random but realistic values"""
-        # Common first names
-        first_names = ["Emma", "James", "Sophia", "William", "Olivia", "Michael", "Isabella", "David", "Jane", "John", "Maria", "Robert"]
-        last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Doe", "Wilson", "Martinez", "Anderson"]
+        """Generate comprehensive demographic information with random but realistic values including ethnicity for PGx"""
         
-        # Random selection
-        first_name = random.choice(first_names)
-        last_name = random.choice(last_names)
+        # Ethnicity-aware name and demographic generation
+        # Important: Different ethnic groups have different pharmacogenetic variant frequencies
+        ethnicity_profiles = [
+            {
+                "ethnicity": ["Caucasian/European"],
+                "weight": 0.45,  # 45% probability
+                "first_names": ["Emma", "James", "Sophia", "William", "Olivia", "Michael", "Isabella", "David"],
+                "last_names": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson"],
+                "cities": [
+                    {"id": "2800866", "name": "Brussels", "alt": "Bruxelles", "country": "Belgium"},
+                    {"id": "2950159", "name": "Berlin", "alt": "Berlin", "country": "Germany"},
+                    {"id": "2988507", "name": "Paris", "alt": "Paris", "country": "France"},
+                    {"id": "2643743", "name": "London", "alt": "London", "country": "United Kingdom"}
+                ]
+            },
+            {
+                "ethnicity": ["Asian"],
+                "weight": 0.20,
+                "first_names": ["Wei", "Yuki", "Min-ho", "Sakura", "Chen", "Hana", "Raj", "Priya"],
+                "last_names": ["Wang", "Kim", "Chen", "Tanaka", "Zhang", "Lee", "Patel", "Kumar"],
+                "cities": [
+                    {"id": "1816670", "name": "Beijing", "alt": "Beijing", "country": "China"},
+                    {"id": "1835848", "name": "Seoul", "alt": "Seoul", "country": "South Korea"},
+                    {"id": "1850147", "name": "Tokyo", "alt": "Tokyo", "country": "Japan"},
+                    {"id": "1275339", "name": "Mumbai", "alt": "Mumbai", "country": "India"}
+                ]
+            },
+            {
+                "ethnicity": ["African"],
+                "weight": 0.15,
+                "first_names": ["Amara", "Kwame", "Zara", "Kofi", "Nia", "Jabari", "Aisha", "Malik"],
+                "last_names": ["Okafor", "Mensah", "Diallo", "Nkosi", "Kamau", "Adeyemi", "Mwangi", "Banda"],
+                "cities": [
+                    {"id": "2332459", "name": "Lagos", "alt": "Lagos", "country": "Nigeria"},
+                    {"id": "184745", "name": "Nairobi", "alt": "Nairobi", "country": "Kenya"},
+                    {"id": "993800", "name": "Johannesburg", "alt": "Johannesburg", "country": "South Africa"}
+                ]
+            },
+            {
+                "ethnicity": ["Hispanic/Latino"],
+                "weight": 0.12,
+                "first_names": ["Sofia", "Diego", "Maria", "Carlos", "Isabella", "Miguel", "Valentina", "Javier"],
+                "last_names": ["Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez"],
+                "cities": [
+                    {"id": "3530597", "name": "Mexico City", "alt": "Ciudad de México", "country": "Mexico"},
+                    {"id": "3117735", "name": "Madrid", "alt": "Madrid", "country": "Spain"},
+                    {"id": "3435910", "name": "Buenos Aires", "alt": "Buenos Aires", "country": "Argentina"}
+                ]
+            },
+            {
+                "ethnicity": ["Middle Eastern"],
+                "weight": 0.05,
+                "first_names": ["Fatima", "Omar", "Layla", "Ahmed", "Zainab", "Hassan", "Amina", "Ali"],
+                "last_names": ["Al-Rashid", "Ibrahim", "Hassan", "Mansour", "Khalil", "Rahman", "Aziz", "Mahmoud"],
+                "cities": [
+                    {"id": "360630", "name": "Cairo", "alt": "Cairo", "country": "Egypt"},
+                    {"id": "292223", "name": "Dubai", "alt": "Dubai", "country": "UAE"},
+                    {"id": "281184", "name": "Beirut", "alt": "Beirut", "country": "Lebanon"}
+                ]
+            },
+            {
+                "ethnicity": ["Mixed"],
+                "weight": 0.03,
+                "first_names": ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Skyler", "Avery"],
+                "last_names": ["Santos", "Silva", "Costa", "Morales", "Nguyen", "Patel", "Anderson", "Williams"],
+                "cities": [
+                    {"id": "3448439", "name": "São Paulo", "alt": "São Paulo", "country": "Brazil"},
+                    {"id": "5128581", "name": "New York", "alt": "New York", "country": "USA"},
+                    {"id": "6167865", "name": "Toronto", "alt": "Toronto", "country": "Canada"}
+                ]
+            }
+        ]
+        
+        # Select ethnicity based on weighted probabilities
+        ethnicity_choice = random.choices(
+            ethnicity_profiles,
+            weights=[p["weight"] for p in ethnicity_profiles],
+            k=1
+        )[0]
+        
+        # Generate name based on ethnicity
+        first_name = random.choice(ethnicity_choice["first_names"])
+        last_name = random.choice(ethnicity_choice["last_names"])
+        
+        # Generate middle name occasionally
+        middle_name = ""
+        if random.random() < 0.3:  # 30% have middle name
+            middle_name = random.choice(ethnicity_choice["first_names"])
+        
+        # Preferred name (sometimes nickname)
+        preferred_name = first_name
+        if random.random() < 0.15:  # 15% use nickname
+            nicknames = {
+                "William": "Bill", "Michael": "Mike", "Robert": "Rob", "James": "Jim",
+                "Isabella": "Bella", "Alexander": "Alex", "Elizabeth": "Liz"
+            }
+            preferred_name = nicknames.get(first_name, first_name)
         
         # Random age between 25-75
         age = random.randint(25, 75)
@@ -737,27 +954,91 @@ class PGxPipeline:
         birth_day = random.randint(1, 28)  # Use 28 to avoid month-end issues
         birth_date = f"{birth_year}-{birth_month:02d}-{birth_day:02d}"
         
-        # Random gender
-        gender = random.choice(["http://schema.org/Male", "http://schema.org/Female"])
+        # Random gender and biological sex
+        gender_choice = random.choice(["Male", "Female"])
+        gender = f"http://schema.org/{gender_choice}"
+        biological_sex = gender_choice  # Usually same, but kept separate for clinical accuracy
         
-        # Random weight and height (realistic ranges)
-        if gender == "http://schema.org/Female":
+        # Random weight and height (realistic ranges based on biological sex)
+        if biological_sex == "Female":
             weight_kg = round(random.uniform(50, 90), 1)
             height_cm = round(random.uniform(150, 175), 1)
         else:
             weight_kg = round(random.uniform(60, 100), 1)
             height_cm = round(random.uniform(160, 190), 1)
         
-        # Random birthplaces (European cities)
-        birthplaces = [
-            {"id": "2800866", "name": "Brussels", "alt": "Bruxelles"},
-            {"id": "2797656", "name": "Ghent", "alt": "Gent"},
-            {"id": "2950159", "name": "Berlin", "alt": "Berlin"},
-            {"id": "2988507", "name": "Paris", "alt": "Paris"},
-            {"id": "3117735", "name": "Madrid", "alt": "Madrid"},
-            {"id": "3169070", "name": "Rome", "alt": "Roma"}
+        # Calculate BMI
+        height_m = height_cm / 100
+        bmi = round(weight_kg / (height_m ** 2), 1)
+        
+        # Select birthplace based on ethnicity
+        birthplace = random.choice(ethnicity_choice["cities"])
+        
+        # Current location (may be different from birthplace - migration)
+        if random.random() < 0.3:  # 30% migrated to different location
+            # Select random city from any profile
+            all_cities = []
+            for profile in ethnicity_profiles:
+                all_cities.extend(profile["cities"])
+            current_city = random.choice(all_cities)
+        else:
+            current_city = birthplace
+        
+        # Generate contact information
+        phone_country_codes = {
+            "Belgium": "+32", "Germany": "+49", "France": "+33", "United Kingdom": "+44",
+            "China": "+86", "South Korea": "+82", "Japan": "+81", "India": "+91",
+            "Nigeria": "+234", "Kenya": "+254", "South Africa": "+27",
+            "Mexico": "+52", "Spain": "+34", "Argentina": "+54",
+            "Egypt": "+20", "UAE": "+971", "Lebanon": "+961",
+            "Brazil": "+55", "USA": "+1", "Canada": "+1"
+        }
+        phone_code = phone_country_codes.get(current_city["country"], "+32")
+        phone = f"{phone_code} {random.randint(100, 999)} {random.randint(1000, 9999)}"
+        
+        # Email (based on name)
+        email_domains = ["gmail.com", "outlook.com", "yahoo.com", "hotmail.com", "icloud.com"]
+        email = f"{first_name.lower()}.{last_name.lower()}{random.randint(1, 99)}@{random.choice(email_domains)}"
+        
+        # Emergency contact
+        emergency_relations = ["Spouse", "Parent", "Sibling", "Child", "Friend"]
+        emergency_contact = f"{random.choice(ethnicity_choice['first_names'])} {last_name} ({random.choice(emergency_relations)})"
+        emergency_phone = f"{phone_code} {random.randint(100, 999)} {random.randint(1000, 9999)}"
+        
+        # Address in current city
+        street_number = random.randint(1, 999)
+        street_names = ["Main St", "High St", "Church St", "Market St", "Station Rd", "Park Ave", "Oak Ln", "Elm Dr"]
+        address = f"{street_number} {random.choice(street_names)}"
+        postal_code = f"{random.randint(1000, 9999)}"
+        
+        # Language (based on location)
+        languages = {
+            "Belgium": "Dutch", "Germany": "German", "France": "French", "United Kingdom": "English",
+            "China": "Mandarin", "South Korea": "Korean", "Japan": "Japanese", "India": "Hindi",
+            "Nigeria": "English", "Kenya": "Swahili", "South Africa": "English",
+            "Mexico": "Spanish", "Spain": "Spanish", "Argentina": "Spanish",
+            "Egypt": "Arabic", "UAE": "Arabic", "Lebanon": "Arabic",
+            "Brazil": "Portuguese", "USA": "English", "Canada": "English"
+        }
+        language = languages.get(current_city["country"], "English")
+        
+        # Interpreter needed (if not English/local language)
+        interpreter_needed = (language not in ["English", "Dutch", "French", "German"]) and random.random() < 0.2
+        
+        # Insurance provider (varies by region)
+        insurance_providers = [
+            "National Health Service", "Private Health Insurance", "Medicare", "Medicaid",
+            "Blue Cross", "United Healthcare", "Aetna", "Cigna", "None"
         ]
-        birthplace = random.choice(birthplaces)
+        insurance_provider = random.choice(insurance_providers)
+        insurance_policy = f"POL-{random.randint(100000, 999999)}" if insurance_provider != "None" else ""
+        
+        # Primary care physician
+        pcp_titles = ["Dr.", "Prof.", ""]
+        pcp_first = random.choice(ethnicity_choice["first_names"])
+        pcp_last = random.choice(ethnicity_choice["last_names"])
+        pcp_name = f"{random.choice(pcp_titles)} {pcp_first} {pcp_last}".strip()
+        pcp_contact = f"{phone_code} {random.randint(100, 999)} {random.randint(1000, 9999)}"
         
         return {
             "@id": "http://ugent.be/person/demographics",
@@ -765,13 +1046,41 @@ class PGxPipeline:
             "foaf:familyName": last_name,
             "schema:givenName": first_name,
             "schema:familyName": last_name,
+            "schema:additionalName": middle_name,
+            "preferredName": preferred_name,
             "schema:birthDate": birth_date,
+            "age": age,
+            "schema:gender": gender,
+            "biological_sex": biological_sex,
+            
+            # IMPORTANT: Ethnicity for pharmacogenetics
+            # Different populations have different allele frequencies for drug-metabolizing enzymes
+            "ethnicity": ethnicity_choice["ethnicity"],
+            "ethnicity_note": "Critical for interpreting pharmacogenetic variants - allele frequencies vary significantly by ancestry",
+            
             "schema:birthPlace": {
                 "@id": f"https://www.geonames.org/{birthplace['id']}",
                 "gn:name": birthplace["name"],
-                "gn:alternateName": birthplace["alt"]
+                "gn:alternateName": birthplace["alt"],
+                "country": birthplace["country"]
             },
-            "schema:gender": gender,
+            
+            # Current location
+            "current_location": {
+                "address": address,
+                "city": current_city["name"],
+                "country": current_city["country"],
+                "postal_code": postal_code
+            },
+            
+            # Contact information
+            "contact": {
+                "phone": phone,
+                "email": email,
+                "emergency_contact": emergency_contact,
+                "emergency_phone": emergency_phone
+            },
+            
             "schema:weight": {
                 "@type": "schema:QuantitativeValue",
                 "schema:value": weight_kg,
@@ -784,9 +1093,23 @@ class PGxPipeline:
                 "schema:unitCode": "cm",
                 "schema:unitText": "centimeters"
             },
-            "age": age,
+            "bmi": bmi,
+            
             "mrn": f"MRN_{str(uuid.uuid4())[:8].upper()}",
-            "note": "Randomly generated demographics for virtual patient"
+            "language": language,
+            "interpreter_needed": interpreter_needed,
+            
+            "insurance": {
+                "provider": insurance_provider,
+                "policy_number": insurance_policy
+            },
+            
+            "pcp": {
+                "name": pcp_name,
+                "contact": pcp_contact
+            },
+            
+            "note": "Auto-generated demographics with ethnicity-aware distribution for pharmacogenomic analysis"
         }
     
     def _generate_organ_function(self) -> dict:
@@ -1060,6 +1383,50 @@ class PGxPipeline:
                 if all_variants_detailed:
                     comprehensive_jsonld['variants'] = all_variants_detailed
             
+            # Merge patient-specific variant annotations into detailed variants (if present)
+            try:
+                if isinstance(comprehensive_jsonld.get('variants'), list) and isinstance(profile.get('variants'), list):
+                    # Build lookup from original enriched variants by rsid/variant_id
+                    enriched_map = {}
+                    for v in profile.get('variants', []):
+                        key = v.get('rsid') or v.get('variant_id')
+                        if not key:
+                            # Fallback: try genomic location
+                            gl = None
+                            try:
+                                glc = v.get('raw_data', {}).get('genomicLocation')
+                                if isinstance(glc, list) and glc:
+                                    gl = glc[0]
+                            except Exception:
+                                gl = None
+                            key = gl
+                        if key:
+                            enriched_map[str(key)] = v
+                    merged_variants = []
+                    for dv in comprehensive_jsonld.get('variants', []):
+                        dv_key = dv.get('rsid') or dv.get('variant_id') or dv.get('id')
+                        if not dv_key:
+                            # Fallback: attempt to use genomicLocation or similar field
+                            gl2 = dv.get('genomicLocation')
+                            if isinstance(gl2, list) and gl2:
+                                dv_key = gl2[0]
+                        ev = enriched_map.get(str(dv_key)) if dv_key else None
+                        if ev:
+                            # Attach patient-specific population context fields if missing
+                            for k in (
+                                'population_frequencies',
+                                'patient_population_frequency',
+                                'population_significance',
+                                'ethnicity_context',
+                                'population_frequency_source',
+                            ):
+                                if k not in dv and k in ev:
+                                    dv[k] = ev[k]
+                        merged_variants.append(dv)
+                    comprehensive_jsonld['variants'] = merged_variants
+            except Exception:
+                pass
+
             # Save comprehensive JSON-LD
             with open(jsonld_file, 'w', encoding='utf-8') as f:
                 json.dump(comprehensive_jsonld, f, indent=2)
@@ -1322,9 +1689,52 @@ class PGxPipeline:
             <p><strong>Gene:</strong> {variant.get('gene', 'Unknown')}</p>
             <p><strong>Clinical Significance:</strong> {variant.get('clinical_significance', 'Unknown')}</p>
             <p><strong>Drugs Affected:</strong> {len(variant.get('drugs', []))}</p>
+"""
+            # Ethnicity-aware population frequencies (if available)
+            freqs = variant.get('population_frequencies') or {}
+            patient_pf = variant.get('patient_population_frequency')
+            pop_sig = variant.get('population_significance')
+            context = variant.get('ethnicity_context')
+            if freqs or patient_pf is not None:
+                def fmt_pct(x):
+                    return f"{round(x*100, 1)}%" if isinstance(x, (int, float)) else "N/A"
+                html += """
+            <p><strong>Population Frequencies:</strong></p>
+            <ul>
+"""
+                for k in ["African", "Asian", "Caucasian/European", "Hispanic/Latino"]:
+                    v = freqs.get(k)
+                    html += f"<li>{k}: {fmt_pct(v)}</li>"
+                html += """
+            </ul>
+"""
+                if patient_pf is not None:
+                    html += f"<p><strong>Patient Ethnicity Frequency:</strong> {fmt_pct(patient_pf)} ({pop_sig or 'unknown'})</p>"
+                if context:
+                    html += f"<p><em>{context}</em></p>"
+            html += """
         </div>
 """
         
+        # Ethnicity-aware medication adjustment hints (if available)
+        adjustments = profile.get("ethnicity_medication_adjustments", [])
+        if adjustments:
+            html += """
+    </div>
+    
+    <div class="section">
+        <h2>🌍 Ethnicity-aware Medication Considerations</h2>
+"""
+            for adj in adjustments:
+                html += f"""
+        <div class="variant">
+            <h4>{adj.get('drug', 'Medication')}</h4>
+            <p><strong>Gene:</strong> {adj.get('gene', 'Unknown')}</p>
+            <p><strong>Adjustment:</strong> {adj.get('adjustment', 'N/A')} ({adj.get('strength', 'info')})</p>
+            <p>{adj.get('rationale', '')}</p>
+        </div>
+"""
+
         # Add variant linking and conflicts if available
         if "variant_linking" in profile:
             linking = profile["variant_linking"]
