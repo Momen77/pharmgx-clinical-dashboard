@@ -129,18 +129,108 @@ except Exception:
     else:
         GenePanelSelector = None
 
-# Worker & events
-# Prefer the new PipelineWorker that passes dashboard profile correctly
+# Worker & events with smart parameter handling
+PipelineWorker = None
+_worker_source = "none"
+
+# Try importing workers in order of preference
 try:
-    from utils.pipeline_worker import PipelineWorker
-except Exception:
+    from utils.pipeline_worker import PipelineWorker as _PW
+    PipelineWorker = _PW
+    _worker_source = "PipelineWorker"
+except Exception as e1:
     try:
-        from utils.background_worker import EnhancedBackgroundWorker as PipelineWorker
-    except Exception:
+        from utils.background_worker import StreamlitCompatibleWorker as _PW
+        PipelineWorker = _PW
+        _worker_source = "StreamlitCompatibleWorker"
+    except Exception as e2:
         try:
-            from utils.background_worker import StreamlitCompatibleWorker as PipelineWorker
-        except Exception:
+            from utils.background_worker import EnhancedBackgroundWorker as _PW
+            # Wrap the old worker to handle new parameters
+            import inspect
+            import threading
+            import queue as _queue_module
+            
+            class WorkerAdapter(threading.Thread):
+                """Adapter to make old worker work with new interface"""
+                def __init__(self, genes, patient_profile=None, profile=None, config_path="config.yaml", 
+                             event_queue=None, result_queue=None, cancel_event=None, demo_mode=False):
+                    super().__init__(daemon=True)
+                    self.genes = genes
+                    self.profile = patient_profile if patient_profile is not None else profile
+                    self.event_queue = event_queue or _queue_module.Queue()
+                    self.result_queue = result_queue or _queue_module.Queue()
+                    self.cancel_event = cancel_event or threading.Event()
+                    self.demo_mode = demo_mode
+                    self.result = None
+                    self.error = None
+                    self.is_complete = False
+                    
+                    # Check what parameters the old worker accepts
+                    try:
+                        sig = inspect.signature(_PW.__init__)
+                        self.old_worker_params = set(sig.parameters.keys())
+                    except:
+                        self.old_worker_params = {'genes', 'patient_profile'}
+                
+                def run(self):
+                    try:
+                        # Create worker with only the parameters it accepts
+                        worker_kwargs = {}
+                        if 'patient_profile' in self.old_worker_params:
+                            worker_kwargs['patient_profile'] = self.profile
+                        elif 'profile' in self.old_worker_params:
+                            worker_kwargs['profile'] = self.profile
+                        
+                        worker = _PW(self.genes, **worker_kwargs)
+                        
+                        # Handle demo mode manually
+                        if self.demo_mode:
+                            import time
+                            from utils.event_bus import PipelineEvent
+                            stages = [
+                                ("lab_prep", "DNA extraction & QC", 0.15),
+                                ("ngs", "Sequencing & variant calling", 0.45),
+                                ("annotation", "Clinical annotation & literature", 0.7),
+                                ("enrichment", "Drug interactions & guidelines", 0.9),
+                            ]
+                            for s, msg, p in stages:
+                                if self.cancel_event.is_set():
+                                    break
+                                self.event_queue.put(PipelineEvent(s, "processing", msg, p))
+                                time.sleep(0.6)
+                            
+                            self.result = {
+                                "success": True,
+                                "genes": list(self.genes),
+                                "patient_id": "DEMO",
+                                "total_variants": 12,
+                                "affected_drugs": 2,
+                                "comprehensive_profile": {"patient_id": "DEMO", "dashboard_source": True},
+                                "comprehensive_outputs": {"Comprehensive JSON-LD": "output/demo/DEMO_demo.jsonld"}
+                            }
+                        else:
+                            # Run the old worker
+                            worker.start()
+                            worker.join()
+                            self.result = worker.get_result() if hasattr(worker, 'get_result') else worker.result
+                        
+                        if self.result:
+                            self.result_queue.put(self.result)
+                    except Exception as e:
+                        self.error = e
+                        self.result_queue.put({"success": False, "error": str(e)})
+                    finally:
+                        self.is_complete = True
+                
+                def is_alive(self):
+                    return super().is_alive() and not self.is_complete
+            
+            PipelineWorker = WorkerAdapter
+            _worker_source = "EnhancedBackgroundWorker (adapted)"
+        except Exception as e3:
             PipelineWorker = None
+            _worker_source = f"none (errors: {e1}, {e2}, {e3})"
 
 try:
     from utils.event_bus import PipelineEvent
@@ -276,78 +366,101 @@ elif page == "🔬 Run Test":
         with st.expander("Profile to pass", expanded=False):
             st.json(profile)
 
-        # Create worker and storyboard
-        if PipelineWorker is None or Storyboard is None or consume_events is None:
-            st.error("Runtime modules missing (worker/animation)")
-        else:
-            import queue as _q
-            import threading
-
-            event_q = _q.Queue()
-            result_q = _q.Queue()
-            cancel_flag = threading.Event()
-
-            # Resolve config
-            config_path = "config.yaml"
-            for cp in [
-                _PROJECT_ROOT / "config.yaml",
-                _SRC_DIR.parent / "config.yaml",
-                _DASHBOARD_DIR.parent / "config.yaml",
-                Path("config.yaml"),
-            ]:
-                if cp.exists():
-                    config_path = str(cp)
-                    break
-
-            storyboard = Storyboard()
-            st.info("Pipeline running... watch the animation above")
-
-            worker = PipelineWorker(
-                genes=st.session_state['selected_genes'],
-                patient_profile=profile,
-                config_path=config_path,
-                event_queue=event_q,
-                result_queue=result_q,
-                cancel_event=cancel_flag,
-                demo_mode=demo_mode,
+        # Show test summary
+        st.divider()
+        st.subheader("Test Summary")
+        summary_col1, summary_col2 = st.columns(2)
+        with summary_col1:
+            st.write(f"**Patient:** {profile.get('demographics', {}).get('first_name', 'N/A')} {profile.get('demographics', {}).get('last_name', 'N/A')}")
+            st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
+        with summary_col2:
+            st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
+            st.write(f"**Mode:** {'Demo (simulated)' if demo_mode else 'Real pipeline'}")
+        
+        # Add a button to start the test
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            run_test_button = st.button(
+                "🧬 Run Pharmacogenetic Test",
+                type="primary",
+                width='stretch',
+                key="run_test_main_button"
             )
-            worker.start()
 
-            cancel_col, status_col = st.columns([1, 3])
-            with cancel_col:
-                if st.button("Cancel Run", type="secondary"):
-                    cancel_flag.set()
-                    st.warning("Cancelling...")
-            with status_col:
-                consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
-
-            # Collect results
-            results = result_q.get() if not result_q.empty() else {"success": False, "error": "No result"}
-            if results.get('success'):
-                st.session_state['test_results'] = results
-                st.session_state['test_complete'] = True
-                st.success("✅ Test Complete")
-
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Variants Found", results.get('total_variants', 0))
-                col2.metric("Genes Analyzed", len(results.get('genes', [])))
-                col3.metric("Affected Drugs", results.get('affected_drugs', 0))
-                col4.metric("Patient ID", results.get('patient_id', 'N/A'))
-
-                # Show whether dashboard profile used
-                cp = results.get('comprehensive_profile', {}) or {}
-                used_dashboard = cp.get('dashboard_source', False)
-                if used_dashboard:
-                    st.success("✅ Used dashboard patient profile")
-                else:
-                    st.warning("⚠️ Used auto-generated profile")
-
-                if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
-                    st.subheader("Generated Files")
-                    for t, p in results['comprehensive_outputs'].items():
-                        st.text(f"• {t}: {p}")
+        # Only create and run worker if button is clicked
+        if run_test_button:
+            # Create worker and storyboard
+            if PipelineWorker is None or Storyboard is None or consume_events is None:
+                st.error("Runtime modules missing (worker/animation)")
             else:
-                st.error(f"Test failed: {results.get('error')}')")
+                import queue as _q
+                import threading
+
+                event_q = _q.Queue()
+                result_q = _q.Queue()
+                cancel_flag = threading.Event()
+
+                # Resolve config
+                config_path = "config.yaml"
+                for cp in [
+                    _PROJECT_ROOT / "config.yaml",
+                    _SRC_DIR.parent / "config.yaml",
+                    _DASHBOARD_DIR.parent / "config.yaml",
+                    Path("config.yaml"),
+                ]:
+                    if cp.exists():
+                        config_path = str(cp)
+                        break
+
+                storyboard = Storyboard()
+                st.info("Pipeline running... watch the animation above")
+
+                worker = PipelineWorker(
+                    genes=st.session_state['selected_genes'],
+                    patient_profile=profile,
+                    config_path=config_path,
+                    event_queue=event_q,
+                    result_queue=result_q,
+                    cancel_event=cancel_flag,
+                    demo_mode=demo_mode,
+                )
+                worker.start()
+
+                cancel_col, status_col = st.columns([1, 3])
+                with cancel_col:
+                    if st.button("Cancel Run", type="secondary"):
+                        cancel_flag.set()
+                        st.warning("Cancelling...")
+                with status_col:
+                    consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
+
+                # Collect results
+                results = result_q.get() if not result_q.empty() else {"success": False, "error": "No result"}
+                if results.get('success'):
+                    st.session_state['test_results'] = results
+                    st.session_state['test_complete'] = True
+                    st.success("✅ Test Complete")
+
+                    col1, col2, col3, col4 = st.columns(4)
+                    col1.metric("Variants Found", results.get('total_variants', 0))
+                    col2.metric("Genes Analyzed", len(results.get('genes', [])))
+                    col3.metric("Affected Drugs", results.get('affected_drugs', 0))
+                    col4.metric("Patient ID", results.get('patient_id', 'N/A'))
+
+                    # Show whether dashboard profile used
+                    cp = results.get('comprehensive_profile', {}) or {}
+                    used_dashboard = cp.get('dashboard_source', False)
+                    if used_dashboard:
+                        st.success("✅ Used dashboard patient profile")
+                    else:
+                        st.warning("⚠️ Used auto-generated profile")
+
+                    if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
+                        st.subheader("Generated Files")
+                        for t, p in results['comprehensive_outputs'].items():
+                            st.text(f"• {t}: {p}")
+                else:
+                    st.error(f"Test failed: {results.get('error')}')")
 
 elif page == "📊 View Report":
     st.title("📊 Clinical Report")
@@ -445,6 +558,8 @@ elif page == "🛠️ Debug":
         "dashboard_dir": str(_DASHBOARD_DIR),
         "PGxPipeline_imported": PGxPipeline is not None,
         "import_errors": _import_errors,
+        "PipelineWorker_source": _worker_source,
+        "PipelineWorker_available": PipelineWorker is not None,
     })
     st.subheader("sys.path (first 10)")
     st.code("\n".join(sys.path[:10]), language="text")
