@@ -133,10 +133,14 @@ except Exception:
 # Prefer the new PipelineWorker that passes dashboard profile correctly
 try:
     from utils.pipeline_worker import PipelineWorker
-except Exception:
+    st.write("✅ Using PipelineWorker")
+except Exception as e:
+    st.write(f"❌ PipelineWorker import failed: {e}")
     try:
         from utils.background_worker import EnhancedBackgroundWorker as PipelineWorker
-    except Exception:
+        st.write("✅ Using EnhancedBackgroundWorker as fallback")
+    except Exception as e2:
+        st.write(f"❌ EnhancedBackgroundWorker import also failed: {e2}")
         PipelineWorker = None
 
 try:
@@ -301,7 +305,7 @@ elif page == "🔬 Run Test":
 
             worker = PipelineWorker(
                 genes=st.session_state['selected_genes'],
-                profile=profile,
+                patient_profile=profile,
                 config_path=config_path,
                 event_queue=event_q,
                 result_queue=result_q,

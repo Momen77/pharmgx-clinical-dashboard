@@ -28,12 +28,14 @@ class PipelineWorker(threading.Thread):
     Dashboard-compatible Pipeline Worker that ensures patient_profile is always JSON-LD canonical.
     """
 
-    def __init__(self, genes, profile=None, config_path="config.yaml", 
+    def __init__(self, genes, profile=None, patient_profile=None, config_path="config.yaml", 
                  event_queue=None, result_queue=None, cancel_event=None, demo_mode=False):
         super().__init__(daemon=True)
         self.genes = genes
-        self.raw_profile = profile or {}
-        self.profile = normalize_dashboard_profile_to_jsonld(self.raw_profile) if profile else None
+        # Accept both parameter names for compatibility
+        provided_profile = profile if profile is not None else patient_profile
+        self.raw_profile = provided_profile or {}
+        self.profile = normalize_dashboard_profile_to_jsonld(self.raw_profile) if provided_profile else None
         self.config_path = config_path
         self.event_queue = event_queue or queue.Queue()
         self.result_queue = result_queue or queue.Queue()
