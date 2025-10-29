@@ -344,8 +344,6 @@ elif page == "🔬 Run Test":
         st.warning("Please select genes to test")
 
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
-        demo_mode = st.checkbox("Demo mode (simulated pipeline)", value=True)
-
         mode, enrich = render_profile_controls()
         manual_conditions, manual_meds, manual_labs = [], [], {}
         if enrich == "Manual (enter now)":
@@ -375,7 +373,7 @@ elif page == "🔬 Run Test":
             st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
         with summary_col2:
             st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
-            st.write(f"**Mode:** {'Demo (simulated)' if demo_mode else 'Real pipeline'}")
+            st.write(f"**Estimated time:** ~2-5 minutes")
         
         # Add a button to start the test
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -413,18 +411,30 @@ elif page == "🔬 Run Test":
                         break
 
                 storyboard = Storyboard()
-                st.info("Pipeline running... watch the animation above")
+                st.info("🧬 Pipeline running... watch the animation above")
+                
+                # Debug info
+                with st.expander("🔍 Debug Info", expanded=False):
+                    st.write(f"Worker source: {_worker_source}")
+                    st.write(f"Genes: {st.session_state['selected_genes']}")
+                    st.write(f"Config path: {config_path}")
 
-                worker = PipelineWorker(
-                    genes=st.session_state['selected_genes'],
-                    patient_profile=profile,
-                    config_path=config_path,
-                    event_queue=event_q,
-                    result_queue=result_q,
-                    cancel_event=cancel_flag,
-                    demo_mode=demo_mode,
-                )
-                worker.start()
+                try:
+                    worker = PipelineWorker(
+                        genes=st.session_state['selected_genes'],
+                        patient_profile=profile,
+                        config_path=config_path,
+                        event_queue=event_q,
+                        result_queue=result_q,
+                        cancel_event=cancel_flag,
+                        demo_mode=False,  # Always run real pipeline
+                    )
+                    worker.start()
+                except Exception as e:
+                    st.error(f"Failed to create worker: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+                    st.stop()
 
                 cancel_col, status_col = st.columns([1, 3])
                 with cancel_col:
@@ -434,8 +444,31 @@ elif page == "🔬 Run Test":
                 with status_col:
                     consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
 
+                # Wait for worker to complete
+                st.info("⏳ Waiting for pipeline to complete...")
+                worker.join(timeout=300)  # 5 minute timeout
+                
                 # Collect results
-                results = result_q.get() if not result_q.empty() else {"success": False, "error": "No result"}
+                st.info("📦 Collecting results...")
+                if not result_q.empty():
+                    results = result_q.get()
+                    st.success(f"✅ Got result from queue: {type(results)}")
+                else:
+                    st.warning("⚠️ Result queue is empty, checking worker attributes...")
+                    # Check if worker has error or result attributes
+                    if hasattr(worker, 'error') and worker.error:
+                        results = {"success": False, "error": str(worker.error)}
+                        st.error(f"Worker has error: {worker.error}")
+                    elif hasattr(worker, 'result') and worker.result:
+                        results = worker.result
+                        st.info(f"Got result from worker.result: {type(results)}")
+                    else:
+                        results = {"success": False, "error": "No result returned from worker"}
+                        st.error("❌ No result found in queue or worker attributes")
+                
+                # Show what we got
+                with st.expander("🔍 Raw Results", expanded=False):
+                    st.json(results)
                 if results.get('success'):
                     st.session_state['test_results'] = results
                     st.session_state['test_complete'] = True
