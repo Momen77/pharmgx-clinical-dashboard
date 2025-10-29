@@ -1,456 +1,289 @@
-"""
-D3.js JSON-LD Visualizer for Streamlit
-Renders a JSON-LD graph as an interactive radial tree.
-
-IMPROVEMENTS:
-- Added a pre-processing function `enrich_jsonld_data` to dynamically build
-  links between entities (variants, drugs, conditions).
-- Injected sample ethnicity, population frequency, and ethnicity-aware medication
-  data into the JSON-LD to showcase the visualizer's full potential.
-- This makes the visualization more interconnected and clinically relevant,
-  revealing relationships that were previously hidden in the data structure.
-"""
 import streamlit as st
 import streamlit.components.v1 as components
 import json
-from rdflib import Graph, URIRef
 from collections import defaultdict
-import copy
 
-# --- NEW: Data Enrichment Function ---
-def enrich_jsonld_data(jsonld_data: dict):
+def get_best_label(node_obj, default_text="Unnamed"):
     """
-    Pre-processes the JSON-LD to make implicit relationships explicit and adds synthetic data.
-
-    This function enriches the data in two ways:
-    1.  Adds sample data for ethnicity, population frequencies, and ethnicity-aware
-        medication advice. This demonstrates features your visualizer can already handle
-        but which were missing in the source file.
-    2.  Scans the 'variants' and 'clinical_information' sections to build explicit links
-        (e.g., variant <-> drug) and populates the 'variant_linking' section, which was
-        originally empty.
+    Finds the best human-readable label from a JSON object.
+    It checks for common labeling properties in a specific order.
     """
-    # Use a deep copy to avoid modifying the original uploaded data
-    data = copy.deepcopy(jsonld_data)
+    if not isinstance(node_obj, dict):
+        return str(node_obj)
 
-    # --- 1. Add Synthetic Data for Demonstration ---
-    st.info("ℹ️ Synthetic data for ethnicity and population frequency has been added to demonstrate visualization features.")
-
-    # Add ethnicity to demographics
-    if 'demographics' in data.get('clinical_information', {}):
-        data['clinical_information']['demographics']['ethnicity_snomed'] = [
-            {
-                "label": "Northern European",
-                "snomed:uri": "http://snomed.info/id/160303001",
-                "snomed:code": "160303001"
-            }
-        ]
-
-    # Add ethnicity-aware medication adjustments
-    data['ethnicity_medication_adjustments'] = [
-        {
-            "drug": "Carbamazepine",
-            "snomed:uri": "http://snomed.info/id/372555009",
-            "gene": "HLA-B",
-            "adjustment": "Consider alternative therapy",
-            "strength": "Strong",
-            "rationale": "Increased risk of SJS/TEN in patients of Asian ancestry with HLA-B*15:02 allele."
-        }
+    # Prioritized list of keys to check for a label
+    label_keys = [
+        "skos:prefLabel",
+        "rdfs:label",
+        "schema:name",
+        "name",
+        "identifier"
     ]
+    for key in label_keys:
+        if node_obj.get(key):
+            return node_obj[key]
+    
+    # Fallback if no prioritized key is found
+    return default_text
 
-    # Add population frequency data to the first few variants
-    for i, variant in enumerate(data.get('variants', [])):
-        if i < 3:
-            variant['patient_population_frequency'] = 0.18
-            variant['population_frequencies'] = { "AFR": 0.05, "AMR": 0.12, "EAS": 0.25, "EUR": 0.18, "SAS": 0.22 }
-            variant['ethnicity_context'] = "Context based on patient's inferred ancestry."
-        else:
-            break
+def jsonld_to_force_graph_data(jsonld_data: dict):
+    """
+    Transforms the nested JSON-LD into a flat nodes/links structure
+    suitable for a D3.js force-directed graph.
+    """
+    nodes = []
+    links = []
+    seen_nodes = set()
 
-    # --- 2. Build Explicit Links from Existing Data ---
-    links = defaultdict(list)
-    variants = data.get('variants', [])
-    medications = data.get('clinical_information', {}).get('current_medications', [])
-    conditions = data.get('clinical_information', {}).get('current_conditions', [])
+    # Helper to add a node if it hasn't been seen
+    def add_node(node_id, label, node_type, data_obj={}):
+        if node_id not in seen_nodes:
+            seen_nodes.add(node_id)
+            node_color_map = {
+                "Patient": "#1f77b4",
+                "Gene": "#2ca02c",
+                "Variant": "#ff7f0e",
+                "Drug": "#d62728",
+                "Condition": "#9467bd",
+                "Lifestyle": "#8c564b"
+            }
+            nodes.append({
+                "id": node_id,
+                "label": label,
+                "type": node_type,
+                "color": node_color_map.get(node_type, "#7f7f7f")
+            })
 
-    # Create a consistent map of variant IDs to their URIs for linking
-    variant_uri_map = {
-        (v.get("rsid") or v.get("variant_id")): f'pgx:var:{(v.get("rsid") or v.get("variant_id"))}'
-        for v in variants if v.get("rsid") or v.get("variant_id")
-    }
+    # 1. Process the root Patient node
+    patient_id = jsonld_data.get('@id')
+    patient_name = jsonld_data.get('name', 'Patient')
+    add_node(patient_id, patient_name, "Patient", jsonld_data)
 
-    # a) Link patient's current medications to relevant variants
-    for med in medications:
-        med_uri = med.get('@id')
-        med_name = med.get('schema:name', '').lower()
-        if not med_uri: continue
-        for v in variants:
-            variant_id = v.get("rsid") or v.get("variant_id")
-            if not variant_id: continue
-            for drug in v.get('drugs', []):
-                if drug.get('name', '').lower() == med_name:
-                    variant_uri = variant_uri_map.get(variant_id)
-                    if variant_uri:
-                        links['medication_to_variant'].append({
-                            "medication_uri": med_uri,
-                            "variant_uri": variant_uri
-                        })
-                        break # Go to next variant
+    # 2. Process Clinical Information
+    if clinical_info := jsonld_data.get('clinical_information'):
+        # Conditions
+        for condition in clinical_info.get('current_conditions', []):
+            cond_id = condition.get('@id')
+            cond_label = get_best_label(condition, "Condition")
+            add_node(cond_id, cond_label, "Condition", condition)
+            links.append({"source": patient_id, "target": cond_id, "label": "has_condition"})
 
-    # Inject the generated links back into the data structure
-    if 'variant_linking' not in data: data['variant_linking'] = {}
-    if 'links' not in data['variant_linking']: data['variant_linking']['links'] = {}
-    data['variant_linking']['links'].update(links)
+        # Medications
+        for med in clinical_info.get('current_medications', []):
+            med_id = med.get('@id')
+            med_label = get_best_label(med, "Medication")
+            add_node(med_id, med_label, "Drug", med)
+            links.append({"source": patient_id, "target": med_id, "label": "takes_medication"})
+            # Link medication to the condition it treats
+            if treats := med.get('treats_condition', {}):
+                treats_id = f"http://snomed.info/id/{treats.get('snomed:code')}"
+                if treats_id in seen_nodes:
+                    links.append({"source": med_id, "target": treats_id, "label": "treats"})
 
-    return data
+        # Lifestyle Factors
+        for factor in clinical_info.get('lifestyle_factors', []):
+            factor_id = factor.get('@id', f"lifestyle:{factor.get('rdfs:label')}")
+            factor_label = get_best_label(factor, "Lifestyle Factor")
+            add_node(factor_id, factor_label, "Lifestyle", factor)
+            links.append({"source": patient_id, "target": factor_id, "label": "has_lifestyle_factor"})
 
-
-# --- Original Functions (Unchanged) ---
-def get_node_label(g, node_uri):
-    """Finds a human-readable label for a given node URI."""
-    for prop in [
-        URIRef("http://www.w3.org/2000/01/rdf-schema#label"),
-        URIRef("http://schema.org/name"),
-        URIRef("http://xmlns.com/foaf/0.1/name"),
-        URIRef("http://schema.org/identifier"),
-    ]:
-        label = g.value(subject=node_uri, predicate=prop)
-        if label:
-            return str(label)
-    return str(node_uri).split('/')[-1].split('#')[-1]
-
-
-def jsonld_to_hierarchy(jsonld_data: dict):
-    """Converts flat JSON-LD to a hierarchical structure for D3."""
-    g = Graph().parse(data=json.dumps(jsonld_data), format="json-ld")
-
-    root_node = None
-    for s, p, o in g:
-        if (p, o) == (URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"), URIRef("http://xmlns.com/foaf/0.1/Person")):
-            root_node = s
-            break
-
-    if not root_node:
-        return {"name": "No Patient Root Found", "children": []}
-
-    def build_children(node_uri, visited):
-        if node_uri in visited:
-            return None
-        visited.add(node_uri)
-
-        children = []
-        for _, p, o in g.triples((node_uri, None, None)):
-            if isinstance(o, URIRef):
-                child_node = build_children(o, visited.copy())
-                if child_node:
-                    children.append(child_node)
-
-        node_type = str(g.value(subject=node_uri, predicate=URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")) or "")
-        node_label = get_node_label(g, node_uri)
-
-        color = "#1f77b4" # Default blue
-        if "Gene" in node_type: color = "#2ca02c"
-        if "Variant" in node_type: color = "#ff7f0e"
-        if "Medication" in node_type or "drug" in node_label.lower(): color = "#d62728"
-        if "Disease" in node_type or "Condition" in node_type or "disease" in node_label.lower(): color = "#9467bd"
-
-        return {
-            "name": node_label,
-            "uri": str(node_uri),
-            "color": color,
-            "children": children if children else None
-        }
-
-    base = build_children(root_node, set())
-
-    if not isinstance(base, dict):
-        return base
-
-    def ensure_children(node: dict):
-        if node.get("children") is None:
-            node["children"] = []
-        return node["children"]
-
-    extra_links = []
-    try:
-        ci = jsonld_data.get("clinical_information", {})
-        demo = ci.get("demographics", {})
+    # 3. Process Variants
+    gene_map = {} # To store gene nodes
+    for variant in jsonld_data.get('variants', []):
+        variant_id = variant.get('rsid') or variant.get('variant_id')
+        if not variant_id: continue
         
-        # 1) Ethnicity section
-        eth_items = []
-        for e in demo.get("ethnicity_snomed", []):
-            label = e.get("label") or "Ethnicity"
-            uri = e.get("snomed:uri")
-            eth_items.append({"name": f"{label}", "uri": uri or f"pgx:ethnicity:{label}", "color": "#17becf", "children": None})
-        if eth_items:
-            ensure_children(base).append({"name": "Ethnicity", "uri": "pgx:section:ethnicity", "color": "#17becf", "children": eth_items})
+        variant_node_id = f"variant:{variant_id}"
+        variant_label = f"{variant.get('gene', '')} {variant_id}"
+        add_node(variant_node_id, variant_label, "Variant", variant)
 
-        # 2) Ethnicity-aware Medication Considerations
-        adj = jsonld_data.get("ethnicity_medication_adjustments", [])
-        if adj:
-            nodes = []
-            for a in adj:
-                drug = a.get("drug", "Medication")
-                uri = a.get("snomed:uri") or f"pgx:adj:{drug}"
-                child_items = []
-                for k in ("gene", "adjustment", "strength", "rationale"):
-                    if v := a.get(k):
-                        child_items.append({"name": f"{k}: {v}", "uri": f"pgx:adj:{drug}:{k}", "color": "#8c564b", "children": None})
-                nodes.append({"name": drug, "uri": uri, "color": "#8c564b", "children": child_items or None})
-                if uri:
-                    extra_links.append({"source": str(root_node), "target": uri, "label": "suggestion", "color": "#8c564b"})
-            ensure_children(base).append({"name": "Ethnicity-aware Meds", "uri": "pgx:section:ethno_meds", "color": "#8c564b", "children": nodes})
+        # Link Variant to its Gene
+        gene_symbol = variant.get('gene')
+        if gene_symbol:
+            if gene_symbol not in gene_map:
+                gene_id = f"gene:{gene_symbol}"
+                add_node(gene_id, gene_symbol, "Gene")
+                gene_map[gene_symbol] = gene_id
+            links.append({"source": gene_map[gene_symbol], "target": variant_node_id, "label": "has_variant"})
 
-        # 3) Variant Population Context
-        var_items = []
-        variants = jsonld_data.get("variants", [])
-        if variants:
-            for v in variants[:20]: # Limit for readability
-                vid = v.get("rsid") or v.get("variant_id") or "Variant"
-                v_uri = f"pgx:var:{vid}"
-                node_children = []
-                if (ppf := v.get("patient_population_frequency")) is not None:
-                    node_children.append({"name": f"Patient AF: {round(ppf*100,1)}%", "uri": f"{v_uri}:patient_af", "color": "#7f7f7f", "children": None})
-                if (freqs := v.get("population_frequencies")):
-                    non_null = sorted([(k, v) for k, v in freqs.items() if isinstance(v, (int, float))], key=lambda item: item[1], reverse=True)
-                    for k, val in non_null[:2]:
-                        node_children.append({"name": f"{k}: {round(val*100,1)}%", "uri": f"{v_uri}:pop:{k}", "color": "#7f7f7f", "children": None})
-                if (context := v.get("ethnicity_context")):
-                    node_children.append({"name": context, "uri": f"{v_uri}:context", "color": "#7f7f7f", "children": None})
+        # Link Variant to affected Drugs
+        for drug in variant.get('drugs', []):
+            drug_id = drug.get('snomed:uri')
+            drug_label = drug.get('name')
+            if drug_id and drug_label:
+                add_node(drug_id, drug_label, "Drug", drug)
+                links.append({"source": variant_node_id, "target": drug_id, "label": "affects_drug"})
                 
-                if node_children:
-                    var_items.append({"name": str(vid), "uri": v_uri, "color": "#ff7f0e", "children": node_children})
-                
-                # Create extra links from variants to drugs and diseases
-                for d in v.get("drugs", []) or []:
-                    if duri := d.get("snomed:uri"):
-                        extra_links.append({"source": v_uri, "target": duri, "label": "affects", "color": "#d62728"})
-                for dis in v.get("diseases", []) or []:
-                    if disuri := dis.get("snomed:uri"):
-                        extra_links.append({"source": v_uri, "target": disuri, "label": "associated", "color": "#9467bd"})
-            if var_items:
-                ensure_children(base).append({"name": "Variant Population Context", "uri": "pgx:section:variant_pop", "color": "#7f7f7f", "children": var_items})
-
-        # 4) Links from the pre-processing step
-        vlinks = (jsonld_data.get("variant_linking") or {}).get("links") or {}
-        for entry in vlinks.get("medication_to_variant", []):
-            if (s := entry.get("medication_uri")) and (t := entry.get("variant_uri")):
-                extra_links.append({"source": s, "target": t, "label": "med-variant", "color": "#e377c2"})
-
-    except Exception as e:
-        st.warning(f"Could not build all supplemental sections: {e}")
-
-    base["_extraLinks"] = extra_links
-    return base
+    return {"nodes": nodes, "links": links}
 
 
-def render_d3_visualization(d3_data: dict):
-    """Renders the D3.js radial tree in Streamlit."""
-    d3_json = json.dumps(d3_data)
-    extra_links = d3_data.get("_extraLinks", []) if isinstance(d3_data, dict) else []
-    extra_links_json = json.dumps(extra_links)
+def render_force_graph(graph_data: dict):
+    """Renders the D3.js force-directed graph in Streamlit."""
+    
+    graph_json = json.dumps(graph_data)
 
     html_template = f"""
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <style>
-        body {{ margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #1f2a37; background: transparent; }}
-        #container {{ display: grid; grid-template-columns: 260px 1fr; gap: 16px; padding: 8px; }}
-        #sidebar {{ background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }}
-        #legend h3, #controls h3 {{ font-size: 14px; margin: 0 0 8px 0; color: #374151; }}
-        .legend-item {{ display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; color: #4b5563; }}
-        .legend-swatch {{ width: 14px; height: 14px; border-radius: 3px; }}
-        .legend-swatch.dashed {{ width: 28px; height: 0; border-bottom: 3px dashed #9ca3af; border-radius: 0; }}
-        .control-item {{ display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; color: #4b5563; }}
-        #chart-wrapper {{ background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); padding: 8px; }}
-        #chart {{ width: 100%; height: 900px; }}
-        .node circle {{ cursor: pointer; stroke: #1f2937; stroke-width: 1px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.08)); }}
-        .node circle:hover {{ stroke-width: 2.5px; stroke: #4f46e5; }}
-        .node text {{ font: 12px sans-serif; cursor: pointer; fill: #111827; }}
-        .link {{ fill: none; stroke: #e5e7eb; stroke-width: 1.5px; }}
-        .extra-links path {{ filter: drop-shadow(0 0 1px rgba(0,0,0,.08)); }}
-        #tooltip {{ position: fixed; pointer-events: none; background: #111827; color: #f9fafb; padding: 6px 10px; border-radius: 6px; font-size: 12px; opacity: 0; transition: opacity .15s ease; z-index: 10; }}
-      </style>
+        <meta charset="utf-8">
+        <style>
+            body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
+            #container {{ display: flex; }}
+            #chart {{ flex-grow: 1; height: 800px; border: 1px solid #ddd; border-radius: 8px; }}
+            #legend {{ width: 200px; padding: 10px; background-color: #f9f9f9; border-left: 1px solid #ddd; }}
+            .legend-item {{ display: flex; align-items: center; margin-bottom: 5px; font-size: 14px; }}
+            .legend-swatch {{ width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }}
+            .link {{ stroke: #999; stroke-opacity: 0.6; }}
+            .node circle {{ stroke: #fff; stroke-width: 1.5px; cursor: pointer; }}
+            .node text {{ pointer-events: none; font-size: 10px; fill: #333; }}
+            .node:hover circle {{ stroke-width: 3px; stroke: black; }}
+            #tooltip {{
+                position: absolute;
+                text-align: center;
+                padding: 8px;
+                font: 12px sans-serif;
+                background: lightsteelblue;
+                border: 0px;
+                border-radius: 8px;
+                pointer-events: none;
+                opacity: 0;
+            }}
+        </style>
     </head>
     <body>
-      <div id="container">
-        <div id="sidebar">
-          <div id="legend">
-            <h3>Legend</h3>
-            <div class="legend-item"><span class="legend-swatch" style="background:#1f77b4"></span> Patient / Default</div>
-            <div class="legend-item"><span class="legend-swatch" style="background:#2ca02c"></span> Gene</div>
-            <div class="legend-item"><span class="legend-swatch" style="background:#ff7f0e"></span> Variant</div>
-            <div class="legend-item"><span class="legend-swatch" style="background:#d62728"></span> Drug</div>
-            <div class="legend-item"><span class="legend-swatch" style="background:#9467bd"></span> Disease / Condition</div>
-            <div class="legend-item"><span class="legend-swatch" style="background:#17becf"></span> Ethnicity</div>
-            <div class="legend-item"><span class="legend-swatch" style="background:#8c564b"></span> Med Suggestion</div>
-            <div class="legend-item"><span class="legend-swatch" style="background:#7f7f7f"></span> Population Data</div>
-            <div class="legend-item"><span class="legend-swatch dashed" style="border-color: #e377c2"></span> Patient Med → Variant</div>
-            <div class="legend-item"><span class="legend-swatch dashed" style="border-color: #d62728"></span> Variant → Drug</div>
-            <div class="legend-item"><span class="legend-swatch dashed" style="border-color: #9467bd"></span> Variant → Disease</div>
-          </div>
-          <div id="controls" style="margin-top:14px;">
-            <h3>Overlays</h3>
-            <label class="control-item"><input type="checkbox" id="toggle-med-variant" checked> Patient Med → Variant</label>
-            <label class="control-item"><input type="checkbox" id="toggle-affects" checked> Variant → Drug</label>
-            <label class="control-item"><input type="checkbox" id="toggle-associated" checked> Variant → Disease</label>
-            <label class="control-item"><input type="checkbox" id="toggle-suggestion" checked> Patient → Suggestion</label>
-          </div>
+        <div id="container">
+            <div id="chart"></div>
+            <div id="legend">
+                <h3>Legend</h3>
+                <div class="legend-item"><span class="legend-swatch" style="background:#1f77b4"></span> Patient</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#2ca02c"></span> Gene</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#ff7f0e"></span> Variant</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#d62728"></span> Drug</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#9467bd"></span> Condition</div>
+                <div class="legend-item"><span class="legend-swatch" style="background:#8c564b"></span> Lifestyle</div>
+            </div>
         </div>
-        <div id="chart-wrapper"><div id="chart"></div></div>
-      </div>
-      <div id="tooltip"></div>
-      <script src="https://d3js.org/d3.v7.min.js"></script>
-      <script>
-        const width = 900, height = 900, cx = width * 0.5, cy = height * 0.5;
-        const radius = Math.min(width, height) / 2 - 80;
-        const tree = d3.tree().size([2 * Math.PI, radius]).separation((a, b) => (a.parent == b.parent ? 1 : 2) / a.depth);
-        const data = {d3_json};
-        const extraLinks = {extra_links_json};
-        const svg = d3.select("#chart").append("svg").attr("viewBox", [-cx, -cy, width, height]).attr("style", "width: 100%; height: auto;");
-        const g = svg.append("g");
-        const root = d3.hierarchy(data);
-        root.descendants().forEach(d => {{ (d.id = d.data.uri); (d._children = d.children); }});
-        
-        const linkLayerTree = g.append("g").attr("class", "tree-links");
-        const linkLayerExtra = g.append("g").attr("class", "extra-links");
-        const nodeLayer = g.append("g").attr("class", "tree-nodes");
-        
-        function update(source) {{
-          const duration = 250;
-          const nodes = root.descendants().reverse();
-          const links = root.links();
-          tree(root);
+        <div id="tooltip"></div>
 
-          let left = root;
-          let right = root;
-          root.eachBefore(node => {{
-            if (node.x < left.x) left = node;
-            if (node.x > right.x) right = node;
-          }});
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script>
+            const graphData = {graph_json};
+            const width = document.getElementById('chart').clientWidth;
+            const height = 800;
 
-          const transition = svg.transition().duration(duration);
-          
-          const link = linkLayerTree.selectAll("path").data(links, d => d.target.id);
-          link.join(
-            enter => enter.append("path")
-                .attr("d", d3.linkRadial().angle(d => source.x0).radius(d => source.y0))
-                .attr("fill", "none").attr("stroke", "#e5e7eb").attr("stroke-width", 1.5),
-            update => update,
-            exit => exit.transition(transition).remove()
-                .attr("d", d3.linkRadial().angle(d => source.x).radius(d => source.y))
-          ).transition(transition)
-            .attr("d", d3.linkRadial().angle(d => d.x).radius(d => d.y));
+            const svg = d3.select("#chart").append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .attr("viewBox", [0, 0, width, height]);
 
-          const node = nodeLayer.selectAll("g").data(nodes, d => d.id);
-          const nodeEnter = node.enter().append("g")
-            .attr("transform", d => `rotate(${{(source.x0 * 180 / Math.PI) - 90}}) translate(${{source.y0}},0)`)
-            .on("click", (event, d) => {{
-              d.children = d.children ? null : d._children;
-              update(d);
+            const tooltip = d3.select("#tooltip");
+
+            const simulation = d3.forceSimulation(graphData.nodes)
+                .force("link", d3.forceLink(graphData.links).id(d => d.id).distance(70))
+                .force("charge", d3.forceManyBody().strength(-200))
+                .force("center", d3.forceCenter(width / 2, height / 2));
+
+            const link = svg.append("g")
+                .attr("class", "links")
+                .selectAll("line")
+                .data(graphData.links)
+                .enter().append("line")
+                .attr("class", "link");
+
+            const node = svg.append("g")
+                .attr("class", "nodes")
+                .selectAll("g")
+                .data(graphData.nodes)
+                .enter().append("g")
+                .attr("class", "node")
+                .call(drag(simulation));
+            
+            node.append("circle")
+                .attr("r", d => d.type === 'Patient' ? 12 : 8)
+                .attr("fill", d => d.color);
+
+            node.append("text")
+                .text(d => d.label)
+                .attr("x", 12)
+                .attr("y", 4);
+
+            node.on("mouseover", (event, d) => {{
+                tooltip.transition().duration(200).style("opacity", .9);
+                tooltip.html(`<strong>Type:</strong> ${{d.type}}<br/><strong>ID:</strong> ${{d.id}}`)
+                    .style("left", (event.pageX + 5) + "px")
+                    .style("top", (event.pageY - 28) + "px");
             }})
-            .on("mouseenter", (event, d) => {{
-                const tip = document.getElementById('tooltip');
-                tip.innerHTML = `<div style="font-weight:600;margin-bottom:2px;">${{d.data.name}}</div><div style="opacity:.8;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${{d.data.uri}}</div>`;
-                tip.style.opacity = 1;
-            }})
-            .on("mousemove", (event) => {{
-                const tip = document.getElementById('tooltip');
-                tip.style.left = (event.clientX + 10) + 'px';
-                tip.style.top = (event.clientY + 10) + 'px';
-            }})
-            .on("mouseleave", () => {{ document.getElementById('tooltip').style.opacity = 0; }});
+            .on("mouseout", (d) => {{
+                tooltip.transition().duration(500).style("opacity", 0);
+            }});
 
-          nodeEnter.append("circle").attr("r", 4.5).attr("fill", d => d.data.color || (d._children ? "#555" : "#999"));
-          nodeEnter.append("text")
-            .attr("dy", "0.31em")
-            .attr("x", d => d.x < Math.PI === !d._children ? 6 : -6)
-            .attr("text-anchor", d => d.x < Math.PI === !d._children ? "start" : "end")
-            .attr("transform", d => d.x >= Math.PI ? "rotate(180)" : null)
-            .text(d => d.data.name).clone(true).lower().attr("stroke", "white").attr("stroke-width", 2);
+            simulation.on("tick", () => {{
+                link
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
 
-          node.merge(nodeEnter).transition(transition)
-            .attr("transform", d => `rotate(${{(d.x * 180 / Math.PI) - 90}}) translate(${{d.y}},0)`)
-            .select("circle").attr("fill", d => d.data.color || (d._children ? "#555" : "#999"));
-          
-          node.exit().transition(transition).remove()
-            .attr("transform", d => `rotate(${{(source.x * 180 / Math.PI) - 90}}) translate(${{source.y}},0)`);
+                node
+                    .attr("transform", d => `translate(${{d.x}}, ${{d.y}})`);
+            }});
 
-          root.eachBefore(d => {{ d.x0 = d.x; d.y0 = d.y; }});
-          drawExtraLinks();
-        }}
-        
-        function drawExtraLinks() {{
-            const uriToNode = new Map(root.descendants().map(d => [d.id, d]));
-            const isVisible = (uri) => uriToNode.has(uri) && uriToNode.get(uri).y > 0;
-            const linkVisibility = {{
-                "affects": document.getElementById('toggle-affects')?.checked,
-                "associated": document.getElementById('toggle-associated')?.checked,
-                "suggestion": document.getElementById('toggle-suggestion')?.checked,
-                "med-variant": document.getElementById('toggle-med-variant')?.checked
-            }};
-            const filtered = extraLinks.filter(l => linkVisibility[l.label] && isVisible(l.source) && isVisible(l.target));
+            function drag(simulation) {{
+                function dragstarted(event) {{
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    event.subject.fx = event.subject.x;
+                    event.subject.fy = event.subject.y;
+                }}
+                function dragged(event) {{
+                    event.subject.fx = event.x;
+                    event.subject.fy = event.y;
+                }}
+                function dragended(event) {{
+                    if (!event.active) simulation.alphaTarget(0);
+                    event.subject.fx = null;
+                    event.subject.fy = null;
+                }}
+                return d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended);
+            }}
 
-            linkLayerExtra.selectAll("path").data(filtered, d => d.source + '-' + d.target)
-                .join("path")
-                    .attr("stroke", d => d.color || "#999")
-                    .attr("stroke-dasharray", "6,3").attr("fill", "none").attr("opacity", 0.9)
-                    .attr("d", d => {{
-                        const s = uriToNode.get(d.source), t = uriToNode.get(d.target);
-                        const sx = Math.cos(s.x - Math.PI / 2) * s.y, sy = Math.sin(s.x - Math.PI / 2) * s.y;
-                        const tx = Math.cos(t.x - Math.PI / 2) * t.y, ty = Math.sin(t.x - Math.PI / 2) * t.y;
-                        return `M ${{sx}},${{sy}} L ${{tx}},${{ty}}`;
-                    }});
-        }}
-        
-        ['toggle-affects', 'toggle-associated', 'toggle-suggestion', 'toggle-med-variant'].forEach(id => {{
-            const el = document.getElementById(id);
-            if (el) el.addEventListener('change', drawExtraLinks);
-        }});
-        
-        root.x0 = cy; root.y0 = 0;
-        update(root);
-
-        svg.call(d3.zoom().on("zoom", (event) => g.attr("transform", event.transform)));
-      </script>
+        </script>
     </body>
     </html>
     """
-    components.html(html_template, height=920, scrolling=False)
-
+    components.html(html_template, height=820)
 
 # --- Streamlit App Main Logic ---
-st.set_page_config(layout="wide", page_title="PGx JSON-LD Visualizer")
+st.set_page_config(layout="wide", page_title="PGx Network Visualizer")
 
 st.title("Interactive Pharmacogenomics (PGx) Patient Profile")
 st.write(
-    "This tool visualizes a patient's PGx profile from a JSON-LD file as an interactive radial tree. "
-    "Click nodes to expand or collapse them. The visualization is enriched with dynamic links to show "
-    "how the patient's current medications relate to their genetic variants."
+    "This tool visualizes a patient's PGx profile from a JSON-LD file as an interactive **force-directed graph**. "
+    "This network view helps uncover relationships between the patient's conditions, medications, and genetic variants. "
+    "Drag nodes to rearrange the graph."
 )
 
-uploaded_file = st.file_uploader("Upload your comprehensive JSON-LD file", type="jsonld")
+uploaded_file = st.file_uploader("Upload your comprehensive JSON-LD file", type=["json", "jsonld"])
 
 if uploaded_file is not None:
     try:
         # Load the original data
         json_data = json.load(uploaded_file)
 
-        # Pre-process the data to add links and synthetic info
-        enriched_data = enrich_jsonld_data(json_data)
-
-        # Convert to D3-compatible hierarchy
-        hierarchy_data = jsonld_to_hierarchy(enriched_data)
-
-        if hierarchy_data and hierarchy_data.get("name") != "No Patient Root Found":
+        # Transform data for the force-directed graph
+        graph_data = jsonld_to_force_graph_data(json_data)
+        
+        if graph_data and graph_data["nodes"]:
             # Render the D3 visualization
-            render_d3_visualization(hierarchy_data)
+            render_force_graph(graph_data)
         else:
-            st.error("Could not find a root patient node (`foaf:Person`) in the JSON-LD file.")
+            st.error("Could not parse the JSON-LD file to generate graph data.")
 
     except json.JSONDecodeError:
         st.error("Invalid JSON file. Please upload a valid JSON-LD file.")
     except Exception as e:
         st.error(f"An error occurred while processing the file: {e}")
+        st.exception(e) # Provides a full traceback for debugging
