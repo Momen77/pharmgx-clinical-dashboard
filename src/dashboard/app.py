@@ -143,6 +143,21 @@ try:
 except Exception:
     PipelineEvent = None
 
+# Visualization component
+try:
+    from components.jsonld_visualizer import (
+        jsonld_to_hierarchy,
+        render_d3_visualization,
+        get_node_details,
+    )
+except Exception:
+    jsonld_to_hierarchy = None
+    render_d3_visualization = None
+    get_node_details = None
+
+# For handling clicks from the D3 component
+import streamlit.components.v1 as components
+
 # =========================
 # Streamlit page config
 # =========================
@@ -243,17 +258,15 @@ elif page == "🔬 Run Test":
             manual_conditions, manual_meds, manual_labs = render_manual_enrichment_forms()
 
         # Prepare profile copy to pass to worker
-        profile = dict(st.session_state.get('patient_profile') or {})
+        profile = (st.session_state.get('patient_profile') or {}).copy()
         if enrich == "Auto (by age/lifestyle)":
-            profile.setdefault('auto_enrichment', True)
+            profile['auto_enrichment'] = True
         elif enrich == "Manual (enter now)":
-            profile.setdefault('manual_enrichment', {})
-            if manual_conditions:
-                profile['manual_enrichment']['conditions'] = manual_conditions
-            if manual_meds:
-                profile['manual_enrichment']['medications'] = manual_meds
-            if manual_labs:
-                profile['manual_enrichment']['labs'] = manual_labs
+            profile['manual_enrichment'] = {
+                "conditions": manual_conditions,
+                "medications": manual_meds,
+                "labs": manual_labs,
+            }
 
         # Show passed profile for transparency
         with st.expander("Profile to pass", expanded=False):
@@ -355,6 +368,41 @@ elif page == "📊 View Report":
             st.header("Generated Files")
             for t, p in results['comprehensive_outputs'].items():
                 st.text(f"{t}: {p}")
+        
+        # Interactive Visualization Section
+        st.header("Interactive Knowledge Graph")
+        if render_d3_visualization is None:
+            st.error("Visualization component is not available.")
+        else:
+            jsonld_path_str = (results.get('comprehensive_outputs', {}) or {}).get('JSON-LD')
+            if jsonld_path_str and Path(jsonld_path_str).exists():
+                with open(jsonld_path_str, 'r', encoding='utf-8') as f:
+                    jsonld_data = json.load(f)
+
+                with st.spinner("Generating interactive graph..."):
+                    hierarchy_data = jsonld_to_hierarchy(jsonld_data)
+                    if hierarchy_data:
+                        render_d3_visualization(hierarchy_data)
+                    else:
+                        st.warning("Could not generate hierarchy from JSON-LD data.")
+
+                # Handle clicks from the visualization
+                clicked_node_uri = st.query_params.get("clicked_node_uri")
+                if clicked_node_uri and get_node_details:
+                    with st.expander(f"🔍 Details for: **{clicked_node_uri.split('/')[-1]}**", expanded=True):
+                        details = get_node_details(jsonld_data, clicked_node_uri)
+                        if not details:
+                            st.write("No further details found for this node.")
+                        else:
+                            for prop, values in details.items():
+                                st.markdown(f"**{prop}:**")
+                                for value in values:
+                                    if value.startswith("http"):
+                                        st.markdown(f"- <{value}>")
+                                    else:
+                                        st.markdown(f"- {value}")
+            else:
+                st.warning("Comprehensive JSON-LD file not found. Cannot render visualization.")
 
 elif page == "💾 Export Data":
     st.title("💾 Export Data")
