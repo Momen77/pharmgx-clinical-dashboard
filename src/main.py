@@ -264,15 +264,17 @@ class PGxPipeline:
             # Check if this is a dashboard-created profile
             dashboard_source = patient_profile.get("dashboard_source", False)
             
-            # Extract patient_id from profile
-            patient_id = patient_profile.get("patient_id")
-            
-            # If no patient_id, try to get MRN from demographics
-            if not patient_id and "clinical_information" in patient_profile:
-                demographics = patient_profile["clinical_information"].get("demographics", {})
-                mrn = demographics.get("mrn")
-                if mrn:
-                    patient_id = mrn.replace("MRN-", "patient_").replace("MRN_", "patient_")
+            # Prefer MRN as the canonical identifier for patient_id
+            patient_id = None
+            demographics = (patient_profile.get("clinical_information", {}) or {}).get("demographics", {})
+            mrn = demographics.get("mrn")
+            if isinstance(mrn, str) and mrn.strip():
+                patient_id = mrn.strip()  # keep MRN format as-is (e.g., MRN-12345)
+            else:
+                # Fallback to explicit patient_id if present
+                patient_id = patient_profile.get("patient_id")
+                
+            # If still missing, final fallback
             
             # Final fallback
             if not patient_id:
@@ -725,6 +727,9 @@ class PGxPipeline:
         
         # Get patient name from demographics if available
         demographics = clinical_info.get("demographics", {})
+        # Prefer MRN as canonical identifier for entity id
+        mrn_value = demographics.get("mrn")
+        canonical_id = mrn_value if isinstance(mrn_value, str) and mrn_value.strip() else patient_id
         first_name = demographics.get("foaf:firstName") or demographics.get("schema:givenName", "")
         last_name = demographics.get("foaf:familyName") or demographics.get("schema:familyName", "")
         
@@ -753,7 +758,7 @@ class PGxPipeline:
                     clinical_info["ethnicity_snomed"] = enriched
         except Exception:
             pass
-
+        
         profile = {
             "@context": {
                 "foaf": "http://xmlns.com/foaf/0.1/",
@@ -778,10 +783,11 @@ class PGxPipeline:
                 "ethnicity_medication_adjustments": "pgx:ethnicityMedicationAdjustments",
                 "ethnicity_snomed": "pgx:ethnicitySnomed"
             },
-            "@id": f"http://ugent.be/person/{patient_id}",
+            "@id": f"http://ugent.be/person/{canonical_id}",
             "@type": ["foaf:Person", "schema:Person", "schema:Patient"],
-            "identifier": patient_id,
-            "patient_id": patient_id,
+            "identifier": canonical_id,
+            "other_identifiers": {"legacy_patient_id": patient_id} if canonical_id != patient_id else None,
+            "patient_id": canonical_id,
             "dashboard_source": dashboard_source,  # Flag to indicate source
             "name": profile_name,
             "description": f"Multi-gene pharmacogenomics profile covering {len(genes)} genes with {len(variants)} variants",
@@ -1426,7 +1432,7 @@ class PGxPipeline:
                     comprehensive_jsonld['variants'] = merged_variants
             except Exception:
                 pass
-
+            
             # Save comprehensive JSON-LD
             with open(jsonld_file, 'w', encoding='utf-8') as f:
                 json.dump(comprehensive_jsonld, f, indent=2)
@@ -1734,7 +1740,7 @@ class PGxPipeline:
             <p>{adj.get('rationale', '')}</p>
         </div>
 """
-
+        
         # Add variant linking and conflicts if available
         if "variant_linking" in profile:
             linking = profile["variant_linking"]
