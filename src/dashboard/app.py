@@ -133,14 +133,10 @@ except Exception:
 # Prefer the new PipelineWorker that passes dashboard profile correctly
 try:
     from utils.pipeline_worker import PipelineWorker
-    st.write("✅ Using PipelineWorker")
-except Exception as e:
-    st.write(f"❌ PipelineWorker import failed: {e}")
+except Exception:
     try:
         from utils.background_worker import EnhancedBackgroundWorker as PipelineWorker
-        st.write("✅ Using EnhancedBackgroundWorker as fallback")
-    except Exception as e2:
-        st.write(f"❌ EnhancedBackgroundWorker import also failed: {e2}")
+    except Exception:
         PipelineWorker = None
 
 try:

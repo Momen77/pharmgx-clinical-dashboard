@@ -57,12 +57,17 @@ except ImportError:
 class EnhancedBackgroundWorker(threading.Thread):
     """Enhanced background worker that properly handles patient profiles and generates all output formats."""
     
-    def __init__(self, genes: list, patient_profile: Optional[Dict[str, Any]] = None, profile: Optional[Dict[str, Any]] = None):
+    def __init__(self, genes: list, patient_profile: Optional[Dict[str, Any]] = None, profile: Optional[Dict[str, Any]] = None, 
+                 config_path: str = "config.yaml", event_queue=None, result_queue=None, cancel_event=None, demo_mode=False):
         super().__init__(daemon=True)
         self.genes = genes
         # Accept both parameter names for compatibility with different callers
         self.profile = patient_profile if patient_profile is not None else profile
-        self.event_queue = queue.Queue()
+        self.config_path = config_path
+        self.event_queue = event_queue or queue.Queue()
+        self.result_queue = result_queue or queue.Queue()
+        self.cancel_event = cancel_event or threading.Event()
+        self.demo_mode = demo_mode
         self.result = None
         self.error = None
         self.is_complete = False
@@ -98,55 +103,11 @@ class EnhancedBackgroundWorker(threading.Thread):
             
             print(f"[WORKER] Starting pipeline for genes: {self.genes}")
             
-            # Initialize pipeline
-            pipeline = PGxPipeline(event_bus=self.event_bus)
-            
-            # Run analysis based on number of genes
-            if len(self.genes) == 1:
-                # Single gene analysis
-                gene = self.genes[0]
-                print(f"[WORKER] Running single gene analysis for: {gene}")
-                
-                self.event_queue.put(PipelineEvent(
-                    stage="ngs",
-                    substage="single_gene",
-                    message=f"Analyzing gene {gene}...",
-                    progress=0.3
-                ))
-                
-                self.result = pipeline.run_single_gene(
-                    gene_symbol=gene,
-                    patient_profile=self.profile
-                )
+            if self.demo_mode:
+                self._run_demo()
             else:
-                # Multi-gene analysis  
-                print(f"[WORKER] Running multi-gene analysis for: {self.genes}")
+                self._run_real()
                 
-                self.event_queue.put(PipelineEvent(
-                    stage="ngs",
-                    substage="multi_gene",
-                    message=f"Analyzing {len(self.genes)} genes...",
-                    progress=0.3
-                ))
-                
-                # Check if pipeline has run_multi_gene method with patient_profile parameter
-                try:
-                    import inspect
-                    sig = inspect.signature(pipeline.run_multi_gene)
-                    if 'patient_profile' in sig.parameters:
-                        self.result = pipeline.run_multi_gene(
-                            gene_symbols=self.genes,
-                            patient_profile=self.profile
-                        )
-                    else:
-                        # Fallback for older pipeline versions
-                        self.result = pipeline.run_multi_gene(self.genes)
-                        print("[WORKER] Warning: Pipeline doesn't support patient_profile parameter")
-                except Exception as e:
-                    print(f"[WORKER] Error checking pipeline signature: {e}")
-                    # Simple fallback
-                    self.result = pipeline.run_multi_gene(self.genes)
-            
             # Emit completion event
             self.event_queue.put(PipelineEvent(
                 stage="report",
@@ -155,12 +116,8 @@ class EnhancedBackgroundWorker(threading.Thread):
                 progress=1.0
             ))
             
-            print(f"[WORKER] Pipeline completed successfully")
-            
-            # Add output summary to result if available
-            if isinstance(self.result, dict) and 'outputs' in self.result:
-                output_types = list(self.result['outputs'].keys())
-                print(f"[WORKER] Generated outputs: {output_types}")
+            if self.result:
+                self.result_queue.put(self.result)
             
         except Exception as e:
             self.error = e
@@ -172,9 +129,97 @@ class EnhancedBackgroundWorker(threading.Thread):
                 message=f"Pipeline error: {str(e)}",
                 progress=0.0
             ))
+            self.result_queue.put({"success": False, "error": str(e)})
         finally:
             self.is_complete = True
             print(f"[WORKER] Worker thread completed")
+    
+    def _run_real(self):
+        """Run the real pipeline."""
+        # Initialize pipeline
+        pipeline = PGxPipeline(config_path=self.config_path, event_bus=self.event_bus)
+        
+        # Run analysis based on number of genes
+        if len(self.genes) == 1:
+            # Single gene analysis
+            gene = self.genes[0]
+            print(f"[WORKER] Running single gene analysis for: {gene}")
+            
+            self.event_queue.put(PipelineEvent(
+                stage="ngs",
+                substage="single_gene",
+                message=f"Analyzing gene {gene}...",
+                progress=0.3
+            ))
+            
+            self.result = pipeline.run_single_gene(
+                gene_symbol=gene,
+                patient_profile=self.profile
+            )
+        else:
+            # Multi-gene analysis  
+            print(f"[WORKER] Running multi-gene analysis for: {self.genes}")
+            
+            self.event_queue.put(PipelineEvent(
+                stage="ngs",
+                substage="multi_gene",
+                message=f"Analyzing {len(self.genes)} genes...",
+                progress=0.3
+            ))
+            
+            # Check if pipeline has run_multi_gene method with patient_profile parameter
+            try:
+                import inspect
+                sig = inspect.signature(pipeline.run_multi_gene)
+                if 'patient_profile' in sig.parameters:
+                    self.result = pipeline.run_multi_gene(
+                        gene_symbols=self.genes,
+                        patient_profile=self.profile
+                    )
+                else:
+                    # Fallback for older pipeline versions
+                    self.result = pipeline.run_multi_gene(self.genes)
+                    print("[WORKER] Warning: Pipeline doesn't support patient_profile parameter")
+            except Exception as e:
+                print(f"[WORKER] Error checking pipeline signature: {e}")
+                # Simple fallback
+                self.result = pipeline.run_multi_gene(self.genes)
+        
+        print(f"[WORKER] Pipeline completed successfully")
+        
+        # Add output summary to result if available
+        if isinstance(self.result, dict) and 'outputs' in self.result:
+            output_types = list(self.result['outputs'].keys())
+            print(f"[WORKER] Generated outputs: {output_types}")
+    
+    def _run_demo(self):
+        """Run demo mode with simulated pipeline stages."""
+        import time
+        # Emit staged events
+        stages = [
+            ("lab_prep", "DNA extraction & QC", 0.15),
+            ("ngs", "Sequencing & variant calling", 0.45),
+            ("annotation", "Clinical annotation & literature", 0.7),
+            ("enrichment", "Drug interactions & guidelines", 0.9),
+        ]
+        for s, msg, p in stages:
+            if self.cancel_event.is_set():
+                break
+            self.event_queue.put(PipelineEvent(s, "processing", msg, p))
+            time.sleep(0.6)
+
+        # Build a demo result
+        self.result = {
+            "success": True,
+            "genes": list(self.genes),
+            "patient_id": "DEMO",
+            "total_variants": 12,
+            "affected_drugs": 2,
+            "comprehensive_profile": {"patient_id": "DEMO", "dashboard_source": True},
+            "comprehensive_outputs": {
+                "Comprehensive JSON-LD": "output/demo/DEMO_demo.jsonld"
+            }
+        }
     
     def is_alive(self) -> bool:
         """Check if worker is still running."""
