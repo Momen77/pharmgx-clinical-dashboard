@@ -46,12 +46,12 @@ class GenePanelSelector:
         # Quick action buttons
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("📋 Select Common Panel", key="select_common_panel", use_container_width=True):
+            if st.button("📋 Select Common Panel", key="select_common_panel", width='stretch'):
                 st.session_state['selected_genes'] = COMMON_PANEL.copy()
                 st.rerun()
         
         with col2:
-            if st.button("✨ Select All Clinically Actionable", key="select_all_actionable", use_container_width=True):
+            if st.button("✨ Select All Clinically Actionable", key="select_all_actionable", width='stretch'):
                 all_genes = []
                 for panel in GENE_PANELS.values():
                     all_genes.extend(panel["genes"])
@@ -59,7 +59,7 @@ class GenePanelSelector:
                 st.rerun()
         
         with col3:
-            if st.button("🔄 Clear Selection", key="clear_selection", use_container_width=True):
+            if st.button("🔄 Clear Selection", key="clear_selection", width='stretch'):
                 st.session_state['selected_genes'] = []
                 st.rerun()
         
@@ -144,7 +144,7 @@ class GenePanelSelector:
             test_button = st.button(
                 "🧬 Run Pharmacogenetic Test",
                 type="primary",
-                use_container_width=True,
+                width='stretch',
                 key="run_test_button"
             )
         

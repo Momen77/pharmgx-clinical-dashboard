@@ -57,10 +57,11 @@ except ImportError:
 class EnhancedBackgroundWorker(threading.Thread):
     """Enhanced background worker that properly handles patient profiles and generates all output formats."""
     
-    def __init__(self, genes: list, patient_profile: Optional[Dict[str, Any]] = None):
+    def __init__(self, genes: list, patient_profile: Optional[Dict[str, Any]] = None, profile: Optional[Dict[str, Any]] = None):
         super().__init__(daemon=True)
         self.genes = genes
-        self.profile = patient_profile
+        # Accept both parameter names for compatibility with different callers
+        self.profile = patient_profile if patient_profile is not None else profile
         self.event_queue = queue.Queue()
         self.result = None
         self.error = None
@@ -71,8 +72,8 @@ class EnhancedBackgroundWorker(threading.Thread):
         self.event_bus.subscribe(self._on_pipeline_event)
         
         print(f"[WORKER] Initialized with genes: {genes}")
-        if patient_profile:
-            print(f"[WORKER] Using patient profile: {patient_profile.get('patient_id', 'Unknown')}")
+        if self.profile:
+            print(f"[WORKER] Using patient profile: {self.profile.get('patient_id', 'Unknown')}")
         else:
             print("[WORKER] No patient profile provided, will generate synthetic data")
         

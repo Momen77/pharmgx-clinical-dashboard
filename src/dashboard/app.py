@@ -3,6 +3,7 @@ Main Streamlit Dashboard Application
 Clinical Pharmacogenomics Testing Dashboard - FULL APP RESTORED with robust imports
 """
 import streamlit as st
+import json
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -179,7 +180,7 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", use_container_width=True)
+    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", width='stretch')
     st.title("Navigation")
     page = st.radio(
         "Select Page",
