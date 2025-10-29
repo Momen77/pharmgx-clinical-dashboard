@@ -31,7 +31,7 @@ except Exception as e:
 
         _import_errors.append(f"main: {e2}")
         import importlib.util
-        main_path = _SRC_DIR / "main.py"
+        main_path = _SRC_DIR.parent / "main.py"
         if main_path.exists():
             spec = importlib.util.spec_from_file_location("main", main_path)
             mod = importlib.util.module_from_spec(spec)
