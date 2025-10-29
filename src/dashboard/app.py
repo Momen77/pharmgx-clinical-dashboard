@@ -137,7 +137,10 @@ except Exception:
     try:
         from utils.background_worker import EnhancedBackgroundWorker as PipelineWorker
     except Exception:
-        PipelineWorker = None
+        try:
+            from utils.background_worker import StreamlitCompatibleWorker as PipelineWorker
+        except Exception:
+            PipelineWorker = None
 
 try:
     from utils.event_bus import PipelineEvent
