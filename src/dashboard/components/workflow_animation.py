@@ -73,6 +73,10 @@ def _inject_enhanced_css():
             border-color: #22c55e;
         }
         
+        .wf-stage.hidden {
+            display: none;
+        }
+        
         .wf-stage-icon {
             font-size: 2rem;
             text-align: center;
@@ -344,8 +348,10 @@ class EnhancedStoryboardV2:
                 css_class = "wf-stage"
                 if stage_id == self.stage:
                     css_class += " active"
-                elif self._is_stage_done(stage_id):
-                    css_class += " done"
+                elif self._is_stage_done(stage_id) and self.stage != "report":
+                    css_class += " hidden" # Hide completed stages
+                elif self._is_stage_done(stage_id) and self.stage == "report":
+                    css_class += " done" # Show all as done on the final stage
                 
                 stage_html = f"""
                 <div class='{css_class}'>

@@ -179,7 +179,7 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", width=200)
+    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", use_container_width=True)
     st.title("Navigation")
     page = st.radio(
         "Select Page",
@@ -272,13 +272,6 @@ elif page == "🔬 Run Test":
         with st.expander("Profile to pass", expanded=False):
             st.json(profile)
 
-        run_button = st.button(
-            "🔬 Run Pharmacogenetic Test",
-            type="primary",
-            key="run_test_button",
-            use_container_width=True
-        )
-
         # Create worker and storyboard
         if PipelineWorker is None or Storyboard is None or consume_events is None:
             st.error("Runtime modules missing (worker/animation)")
@@ -302,56 +295,55 @@ elif page == "🔬 Run Test":
                     config_path = str(cp)
                     break
 
-            if run_button:
-                storyboard = Storyboard()
-                st.info("Pipeline running... watch the animation above")
+            storyboard = Storyboard()
+            st.info("Pipeline running... watch the animation above")
 
-                worker = PipelineWorker(
-                    genes=st.session_state['selected_genes'],
-                    profile=profile,
-                    config_path=config_path,
-                    event_queue=event_q,
-                    result_queue=result_q,
-                    cancel_event=cancel_flag,
-                    demo_mode=demo_mode,
-                )
-                worker.start()
+            worker = PipelineWorker(
+                genes=st.session_state['selected_genes'],
+                profile=profile,
+                config_path=config_path,
+                event_queue=event_q,
+                result_queue=result_q,
+                cancel_event=cancel_flag,
+                demo_mode=demo_mode,
+            )
+            worker.start()
 
-                cancel_col, status_col = st.columns([1, 3])
-                with cancel_col:
-                    if st.button("Cancel Run", type="secondary"):
-                        cancel_flag.set()
-                        st.warning("Cancelling...")
-                with status_col:
-                    consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
+            cancel_col, status_col = st.columns([1, 3])
+            with cancel_col:
+                if st.button("Cancel Run", type="secondary"):
+                    cancel_flag.set()
+                    st.warning("Cancelling...")
+            with status_col:
+                consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
 
-                # Collect results
-                results = result_q.get() if not result_q.empty() else {"success": False, "error": "No result"}
-                if results.get('success'):
-                    st.session_state['test_results'] = results
-                    st.session_state['test_complete'] = True
-                    st.success("✅ Test Complete")
+            # Collect results
+            results = result_q.get() if not result_q.empty() else {"success": False, "error": "No result"}
+            if results.get('success'):
+                st.session_state['test_results'] = results
+                st.session_state['test_complete'] = True
+                st.success("✅ Test Complete")
 
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("Variants Found", results.get('total_variants', 0))
-                    col2.metric("Genes Analyzed", len(results.get('genes', [])))
-                    col3.metric("Affected Drugs", results.get('affected_drugs', 0))
-                    col4.metric("Patient ID", results.get('patient_id', 'N/A'))
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Variants Found", results.get('total_variants', 0))
+                col2.metric("Genes Analyzed", len(results.get('genes', [])))
+                col3.metric("Affected Drugs", results.get('affected_drugs', 0))
+                col4.metric("Patient ID", results.get('patient_id', 'N/A'))
 
-                    # Show whether dashboard profile used
-                    cp = results.get('comprehensive_profile', {}) or {}
-                    used_dashboard = cp.get('dashboard_source', False)
-                    if used_dashboard:
-                        st.success("✅ Used dashboard patient profile")
-                    else:
-                        st.warning("⚠️ Used auto-generated profile")
-
-                    if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
-                        st.subheader("Generated Files")
-                        for t, p in results['comprehensive_outputs'].items():
-                            st.text(f"• {t}: {p}")
+                # Show whether dashboard profile used
+                cp = results.get('comprehensive_profile', {}) or {}
+                used_dashboard = cp.get('dashboard_source', False)
+                if used_dashboard:
+                    st.success("✅ Used dashboard patient profile")
                 else:
-                    st.error(f"Test failed: {results.get('error')}")
+                    st.warning("⚠️ Used auto-generated profile")
+
+                if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
+                    st.subheader("Generated Files")
+                    for t, p in results['comprehensive_outputs'].items():
+                        st.text(f"• {t}: {p}")
+            else:
+                st.error(f"Test failed: {results.get('error')}')")
 
 elif page == "📊 View Report":
     st.title("📊 Clinical Report")
@@ -431,12 +423,12 @@ elif page == "💾 Export Data":
             ]:
                 path = outputs.get(label_key)
                 if path and _P(path).exists():
-                    with open(path, 'rb') as fp:
-                        st.download_button(f"Download {label_key}", fp.read(), file_name=_P(path).name)
+                    with open(path, 'rb') as f:
+                        st.download_button(f"Download {label_key}", f.read(), file_name=_P(path).name)
         with col2:
             st.subheader("Paths")
             for t, p in outputs.items():
-                exists = _P(p).exists() if p and isinstance(p, (str, _P)) else False
+                exists = _P(p).exists() if p else False
                 st.text(f"{'✅' if exists else '❌'} {t}")
                 st.code(p or '', language=None)
 
