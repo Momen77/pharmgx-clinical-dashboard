@@ -385,115 +385,80 @@ elif page == "🔬 Run Test":
                 key="run_test_main_button"
             )
 
-        # Only create and run worker if button is clicked
+        # Only run pipeline if button is clicked
         if run_test_button:
-            # Create worker and storyboard
-            if PipelineWorker is None or Storyboard is None or consume_events is None:
-                st.error("Runtime modules missing (worker/animation)")
-            else:
-                import queue as _q
-                import threading
+            if PGxPipeline is None:
+                st.error("PGxPipeline not available - check imports")
+                st.stop()
+            
+            # Resolve config
+            config_path = "config.yaml"
+            for cp in [
+                _PROJECT_ROOT / "config.yaml",
+                _SRC_DIR.parent / "config.yaml",
+                _DASHBOARD_DIR.parent / "config.yaml",
+                Path("config.yaml"),
+            ]:
+                if cp.exists():
+                    config_path = str(cp)
+                    break
 
-                event_q = _q.Queue()
-                result_q = _q.Queue()
-                cancel_flag = threading.Event()
+            st.info("🧬 Running pipeline...")
+            
+            # Debug info
+            with st.expander("🔍 Debug Info", expanded=False):
+                st.write(f"Genes: {st.session_state['selected_genes']}")
+                st.write(f"Config path: {config_path}")
+                st.write(f"Profile keys: {list(profile.keys())}")
 
-                # Resolve config
-                config_path = "config.yaml"
-                for cp in [
-                    _PROJECT_ROOT / "config.yaml",
-                    _SRC_DIR.parent / "config.yaml",
-                    _DASHBOARD_DIR.parent / "config.yaml",
-                    Path("config.yaml"),
-                ]:
-                    if cp.exists():
-                        config_path = str(cp)
-                        break
-
-                storyboard = Storyboard()
-                st.info("🧬 Pipeline running... watch the animation above")
-                
-                # Debug info
-                with st.expander("🔍 Debug Info", expanded=False):
-                    st.write(f"Worker source: {_worker_source}")
-                    st.write(f"Genes: {st.session_state['selected_genes']}")
-                    st.write(f"Config path: {config_path}")
-
-                try:
-                    worker = PipelineWorker(
-                        genes=st.session_state['selected_genes'],
-                        patient_profile=profile,
-                        config_path=config_path,
-                        event_queue=event_q,
-                        result_queue=result_q,
-                        cancel_event=cancel_flag,
-                        demo_mode=False,  # Always run real pipeline
+            try:
+                # Run pipeline directly - no workers!
+                with st.spinner("Analyzing pharmacogenomics data..."):
+                    pipeline = PGxPipeline(config_path=config_path)
+                    
+                    # Run multi-gene analysis
+                    results = pipeline.run_multi_gene(
+                        gene_symbols=st.session_state['selected_genes'],
+                        patient_profile=profile
                     )
-                    worker.start()
-                except Exception as e:
-                    st.error(f"Failed to create worker: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
-                    st.stop()
-
-                cancel_col, status_col = st.columns([1, 3])
-                with cancel_col:
-                    if st.button("Cancel Run", type="secondary"):
-                        cancel_flag.set()
-                        st.warning("Cancelling...")
-                with status_col:
-                    consume_events(event_q, storyboard, worker_alive_fn=lambda: worker.is_alive())
-
-                # Wait for worker to complete
-                st.info("⏳ Waiting for pipeline to complete...")
-                worker.join(timeout=300)  # 5 minute timeout
-                
-                # Collect results
-                st.info("📦 Collecting results...")
-                if not result_q.empty():
-                    results = result_q.get()
-                    st.success(f"✅ Got result from queue: {type(results)}")
-                else:
-                    st.warning("⚠️ Result queue is empty, checking worker attributes...")
-                    # Check if worker has error or result attributes
-                    if hasattr(worker, 'error') and worker.error:
-                        results = {"success": False, "error": str(worker.error)}
-                        st.error(f"Worker has error: {worker.error}")
-                    elif hasattr(worker, 'result') and worker.result:
-                        results = worker.result
-                        st.info(f"Got result from worker.result: {type(results)}")
-                    else:
-                        results = {"success": False, "error": "No result returned from worker"}
-                        st.error("❌ No result found in queue or worker attributes")
                 
                 # Show what we got
                 with st.expander("🔍 Raw Results", expanded=False):
                     st.json(results)
-                if results.get('success'):
-                    st.session_state['test_results'] = results
-                    st.session_state['test_complete'] = True
-                    st.success("✅ Test Complete")
+            
+            except Exception as e:
+                st.error(f"❌ Pipeline failed: {e}")
+                import traceback
+                with st.expander("🐛 Error Details", expanded=True):
+                    st.code(traceback.format_exc())
+                results = {"success": False, "error": str(e)}
+            
+            # Process results
+            if results.get('success'):
+                st.session_state['test_results'] = results
+                st.session_state['test_complete'] = True
+                st.success("✅ Test Complete")
 
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("Variants Found", results.get('total_variants', 0))
-                    col2.metric("Genes Analyzed", len(results.get('genes', [])))
-                    col3.metric("Affected Drugs", results.get('affected_drugs', 0))
-                    col4.metric("Patient ID", results.get('patient_id', 'N/A'))
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Variants Found", results.get('total_variants', 0))
+                col2.metric("Genes Analyzed", len(results.get('genes', [])))
+                col3.metric("Affected Drugs", results.get('affected_drugs', 0))
+                col4.metric("Patient ID", results.get('patient_id', 'N/A'))
 
-                    # Show whether dashboard profile used
-                    cp = results.get('comprehensive_profile', {}) or {}
-                    used_dashboard = cp.get('dashboard_source', False)
-                    if used_dashboard:
-                        st.success("✅ Used dashboard patient profile")
-                    else:
-                        st.warning("⚠️ Used auto-generated profile")
-
-                    if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
-                        st.subheader("Generated Files")
-                        for t, p in results['comprehensive_outputs'].items():
-                            st.text(f"• {t}: {p}")
+                # Show whether dashboard profile used
+                cp = results.get('comprehensive_profile', {}) or {}
+                used_dashboard = cp.get('dashboard_source', False)
+                if used_dashboard:
+                    st.success("✅ Used dashboard patient profile")
                 else:
-                    st.error(f"Test failed: {results.get('error')}')")
+                    st.warning("⚠️ Used auto-generated profile")
+
+                if 'comprehensive_outputs' in results and results['comprehensive_outputs']:
+                    st.subheader("Generated Files")
+                    for t, p in results['comprehensive_outputs'].items():
+                        st.text(f"• {t}: {p}")
+            else:
+                st.error(f"❌ Test failed: {results.get('error', 'Unknown error')}")
 
 elif page == "📊 View Report":
     st.title("📊 Clinical Report")
