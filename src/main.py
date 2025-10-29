@@ -1024,10 +1024,45 @@ class PGxPipeline:
         comp_dir.mkdir(parents=True, exist_ok=True)
         
         try:
-            # 1. Comprehensive JSON-LD
+            # 1. Comprehensive JSON-LD with all gene knowledge graphs merged
             jsonld_file = comp_dir / f"{patient_id}_comprehensive.jsonld"
+            
+            # Merge all gene knowledge graphs into the profile
+            comprehensive_jsonld = profile.copy()
+            
+            # Load and merge each gene's knowledge graph
+            json_output_dir = Path("output/json")
+            if json_output_dir.exists():
+                all_variants_detailed = []
+                
+                for gene in gene_results.keys():
+                    gene_kg_file = json_output_dir / f"{gene}_knowledge_graph.jsonld"
+                    if gene_kg_file.exists():
+                        try:
+                            with open(gene_kg_file, 'r', encoding='utf-8') as f:
+                                gene_kg = json.load(f)
+                            
+                            # Extract variants from gene knowledge graph
+                            if isinstance(gene_kg, dict):
+                                # Check for variants in various possible locations
+                                if 'variants' in gene_kg:
+                                    all_variants_detailed.extend(gene_kg['variants'])
+                                elif '@graph' in gene_kg:
+                                    # If using @graph format, extract variant nodes
+                                    for node in gene_kg['@graph']:
+                                        if node.get('@type') in ['Variant', 'GeneticVariant', 'pgx:Variant']:
+                                            all_variants_detailed.append(node)
+                                
+                        except Exception as e:
+                            print(f"Error merging {gene} knowledge graph: {e}")
+                
+                # Add all detailed variants to comprehensive profile
+                if all_variants_detailed:
+                    comprehensive_jsonld['variants'] = all_variants_detailed
+            
+            # Save comprehensive JSON-LD
             with open(jsonld_file, 'w', encoding='utf-8') as f:
-                json.dump(profile, f, indent=2)
+                json.dump(comprehensive_jsonld, f, indent=2)
             outputs["JSON-LD"] = str(jsonld_file)
             
             # 2. Turtle RDF
@@ -1069,6 +1104,22 @@ class PGxPipeline:
                 with open(conflict_file, 'w', encoding='utf-8') as f:
                     json.dump(conflict_data, f, indent=2)
                 outputs["Conflict Report JSON"] = str(conflict_file)
+            
+            # 7. Add gene-specific knowledge graphs from output/json directory
+            json_output_dir = Path("output/json")
+            if json_output_dir.exists():
+                for gene in gene_results.keys():
+                    gene_jsonld = json_output_dir / f"{gene}_knowledge_graph.jsonld"
+                    if gene_jsonld.exists():
+                        outputs[f"{gene} Knowledge Graph"] = str(gene_jsonld)
+            
+            # 8. Add gene-specific RDF graphs from output/rdf directory
+            rdf_output_dir = Path("output/rdf")
+            if rdf_output_dir.exists():
+                for gene in gene_results.keys():
+                    gene_ttl = rdf_output_dir / f"{gene}_knowledge_graph.ttl"
+                    if gene_ttl.exists():
+                        outputs[f"{gene} RDF Graph"] = str(gene_ttl)
             
         except Exception as e:
             print(f"Error generating outputs: {e}")

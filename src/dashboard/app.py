@@ -229,7 +229,7 @@ except Exception as e1:
             PipelineWorker = WorkerAdapter
             _worker_source = "EnhancedBackgroundWorker (adapted)"
         except Exception as e3:
-            PipelineWorker = None
+        PipelineWorker = None
             _worker_source = f"none (errors: {e1}, {e2}, {e3})"
 
 try:
@@ -245,16 +245,16 @@ try:
         get_node_details,
     )
 except Exception:
-    try:
-        from components.jsonld_visualizer import (
-            jsonld_to_hierarchy,
-            render_d3_visualization,
-            get_node_details,
-        )
-    except Exception:
-        jsonld_to_hierarchy = None
-        render_d3_visualization = None
-        get_node_details = None
+try:
+    from components.jsonld_visualizer import (
+        jsonld_to_hierarchy,
+        render_d3_visualization,
+        get_node_details,
+    )
+except Exception:
+    jsonld_to_hierarchy = None
+    render_d3_visualization = None
+    get_node_details = None
 
 # For handling clicks from the D3 component
 import streamlit.components.v1 as components
@@ -281,12 +281,32 @@ st.session_state.setdefault('test_running', False)
 # Sidebar nav
 with st.sidebar:
     st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", width='stretch')
-    st.title("Navigation")
+    st.title("Workflow")
+    
+    # Show workflow steps with status indicators
+    steps = [
+        ("🏠 Home", True),
+        ("👤 Create Patient", st.session_state.get('patient_created', False)),
+        ("🧬 Select Genes", len(st.session_state.get('selected_genes', [])) > 0),
+        ("🔬 Run Test", st.session_state.get('test_complete', False)),
+        ("📊 View Results", st.session_state.get('test_complete', False)),
+        ("💾 Export Data", st.session_state.get('test_complete', False))
+    ]
+    
+    st.markdown("### Navigation")
+    page_options = [step[0] for step in steps]
     page = st.radio(
         "Select Page",
-        ["🏠 Home", "👤 Create Patient", "🧬 Select Genes", "🔬 Run Test", "📊 View Report", "💾 Export Data", "🛠️ Debug"],
+        page_options + ["🛠️ Debug"],
         index=0,
+        label_visibility="collapsed"
     )
+    
+    st.divider()
+    st.markdown("### Progress")
+    for step_name, completed in steps[1:]:  # Skip Home
+        icon = "✅" if completed else "⏹️"
+        st.caption(f"{icon} {step_name}")
 
 # =========================
 # Pages
@@ -302,6 +322,8 @@ if page == "🏠 Home":
 
 elif page == "👤 Create Patient":
     st.title("👤 Create Patient")
+    st.info("**Step 1:** Create a patient profile with demographics and clinical data. The profile will be auto-enhanced with diseases and medications.")
+    
     if PatientCreator is None:
         st.error("PatientCreator module not available")
     else:
@@ -326,12 +348,20 @@ elif page == "👤 Create Patient":
         profile = creator.render_patient_form()
         # PatientCreator should set st.session_state['patient_created'] and ['patient_profile']
         if st.session_state.get('patient_created'):
-            st.success("✅ Patient profile created")
+            st.success("✅ Patient profile created and ready!")
+            st.info("➡️ **Next:** Go to **🧬 Select Genes** to choose which genes to analyze.")
             with st.expander("Saved Profile", expanded=False):
                 st.json(st.session_state.get('patient_profile', {}))
 
 elif page == "🧬 Select Genes":
     st.title("🧬 Select Genes")
+    st.info("**Step 2:** Select which pharmacogenomic genes to analyze for variants that may affect drug response.")
+    
+    # Check prerequisite
+    if not st.session_state.get('patient_created'):
+        st.warning("⚠️ Please create a patient profile first (Step 1)")
+        st.stop()
+    
     if GenePanelSelector is None:
         st.error("GenePanelSelector module not available")
     else:
@@ -339,16 +369,24 @@ elif page == "🧬 Select Genes":
         selected = selector.render_gene_selector()
         if selected:
             st.session_state['selected_genes'] = selected
+        
+        if st.session_state.get('selected_genes'):
+            st.success(f"✅ Selected: {', '.join(st.session_state.get('selected_genes', []))}")
+            st.info("➡️ **Next:** Go to **🔬 Run Test** to analyze these genes.")
+        else:
         st.info(f"Selected: {', '.join(st.session_state.get('selected_genes', [])) or 'None'}")
 
 elif page == "🔬 Run Test":
     st.title("🔬 Run Pharmacogenetic Test")
+    st.info("**Step 3:** Run the comprehensive pharmacogenomic analysis pipeline on your selected genes.")
 
     # Preconditions
     if not st.session_state.get('patient_created'):
-        st.warning("Please create a patient profile first")
+        st.warning("⚠️ Please create a patient profile first (Step 1)")
+        st.stop()
     if not st.session_state.get('selected_genes'):
-        st.warning("Please select genes to test")
+        st.warning("⚠️ Please select genes to test (Step 2)")
+        st.stop()
 
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
         mode, enrich = render_profile_controls()
@@ -397,7 +435,7 @@ elif page == "🔬 Run Test":
             if PGxPipeline is None:
                 st.error("PGxPipeline not available - check imports")
                 st.stop()
-            
+
             # Resolve config
             config_path = "config.yaml"
             for cp in [
@@ -458,22 +496,100 @@ elif page == "🔬 Run Test":
                 event_bus = EventBus()
                 
                 current_progress = [0]  # Use list to allow mutation in callback
+                substep_text = st.empty()  # For sub-step details
+                
+                # Define detailed sub-steps for each stage
+                stage_substeps = {
+                    "lab_prep": [
+                        "Preparing sample...",
+                        "DNA extraction in progress...",
+                        "Quality control checks...",
+                        "Library preparation complete"
+                    ],
+                    "ngs": [
+                        "Initializing variant discovery...",
+                        "Querying variant databases...",
+                        "Calling variants for selected genes...",
+                        "Processing allele frequencies...",
+                        "Variant calling complete"
+                    ],
+                    "annotation": [
+                        "Fetching clinical significance data...",
+                        "Querying ClinVar database...",
+                        "Enriching with PharmGKB annotations...",
+                        "Mapping to SNOMED CT ontology...",
+                        "Clinical annotation complete"
+                    ],
+                    "enrichment": [
+                        "Linking to drug databases...",
+                        "Querying OpenFDA for drug labels...",
+                        "Fetching ChEMBL drug interactions...",
+                        "Finding disease associations...",
+                        "Searching literature databases...",
+                        "Drug-disease linking complete"
+                    ],
+                    "linking": [
+                        "Connecting patient profile to variants...",
+                        "Analyzing drug-gene interactions...",
+                        "Checking for clinical conflicts...",
+                        "Profile linking complete"
+                    ],
+                    "report": [
+                        "Building RDF knowledge graph...",
+                        "Merging all gene data...",
+                        "Generating comprehensive JSON-LD...",
+                        "Creating RDF triples...",
+                        "Generating HTML reports...",
+                        "Export complete"
+                    ]
+                }
+                
+                current_stage = [None]
+                substep_index = [0]
                 
                 def update_progress(event):
                     stage_progress_map = {
-                        "lab_prep": 0.2,
-                        "ngs": 0.4,
-                        "annotation": 0.6,
-                        "enrichment": 0.8,
-                        "linking": 0.85,
-                        "report": 0.95,
-                        "export": 1.0
+                        "lab_prep": (0.0, 0.2),
+                        "ngs": (0.2, 0.4),
+                        "annotation": (0.4, 0.6),
+                        "enrichment": (0.6, 0.8),
+                        "linking": (0.8, 0.9),
+                        "report": (0.9, 1.0)
                     }
                     
-                    progress = stage_progress_map.get(event.stage, current_progress[0])
-                    current_progress[0] = progress
-                    progress_bar.progress(progress)
+                    stage = event.stage
                     
+                    # Update stage if changed
+                    if current_stage[0] != stage:
+                        current_stage[0] = stage
+                        substep_index[0] = 0
+                    
+                    # Get progress range for this stage
+                    if stage in stage_progress_map:
+                        start_prog, end_prog = stage_progress_map[stage]
+                        
+                        # Get substeps for this stage
+                        substeps = stage_substeps.get(stage, [])
+                        if substeps:
+                            # Calculate progress within stage
+                            substep_progress = substep_index[0] / len(substeps)
+                            progress = start_prog + (end_prog - start_prog) * substep_progress
+                            
+                            # Increment substep
+                            substep_index[0] = min(substep_index[0] + 1, len(substeps) - 1)
+                            
+                            # Show current substep
+                            if substep_index[0] < len(substeps):
+                                substep_text.caption(f"↳ {substeps[substep_index[0]]}")
+                        else:
+                            progress = start_prog
+                    else:
+                        progress = current_progress[0]
+                    
+                    current_progress[0] = progress
+                    progress_bar.progress(min(progress, 1.0))
+                    
+                    # Main status message
                     message = getattr(event, 'message', f"Processing {event.stage}...")
                     status_text.text(f"⏳ {message}")
                 
@@ -507,7 +623,8 @@ elif page == "🔬 Run Test":
             if results.get('success'):
                 st.session_state['test_results'] = results
                 st.session_state['test_complete'] = True
-                st.success("✅ Test Complete")
+                st.success("✅ Analysis Complete!")
+                st.info("➡️ **Next:** Go to **📊 View Results** to see the full report and interactive knowledge graph.")
 
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Variants Found", results.get('total_variants', 0))
@@ -530,11 +647,14 @@ elif page == "🔬 Run Test":
             else:
                 st.error(f"❌ Test failed: {results.get('error', 'Unknown error')}")
 
-elif page == "📊 View Report":
+elif page == "📊 View Results":
     st.title("📊 Clinical Report")
+    st.info("**Step 4:** View the comprehensive analysis results, summary metrics, and interactive knowledge graph.")
+    
     results = st.session_state.get('test_results')
     if not results:
-        st.warning("No results. Run a test first.")
+        st.warning("⚠️ No results available. Please run a test first (Step 3)")
+        st.stop()
     else:
         demo = (st.session_state.get('patient_profile') or {}).get('demographics', {})
         st.header("Patient Information")
@@ -542,12 +662,32 @@ elif page == "📊 View Report":
         st.write(f"MRN: {demo.get('mrn', 'N/A')}")
         st.write(f"Age: {demo.get('age', 'N/A')}")
 
-        st.header("Summary")
-        st.write(f"Genes: {', '.join(results.get('genes', []))}")
-        st.write(f"Total Variants: {results.get('total_variants', 0)}")
-
+        st.header("📋 Analysis Summary")
+        
+        # Key metrics in columns
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Genes Analyzed", len(results.get('genes', [])))
+            st.caption(", ".join(results.get('genes', [])))
+        with col2:
+            st.metric("Total Variants Found", results.get('total_variants', 0))
+        with col3:
+            st.metric("Affected Drugs", results.get('affected_drugs', 0))
+        
+        # Profile source
         cp = results.get('comprehensive_profile', {}) or {}
-        st.write(f"Profile Source: {'Dashboard' if cp.get('dashboard_source') else 'Auto-generated'}")
+        profile_source = "✅ Dashboard Profile" if cp.get('dashboard_source') else "⚠️ Auto-generated Profile"
+        st.info(f"**Data Source:** {profile_source}")
+        
+        # Additional summary info
+        with st.expander("📊 Detailed Summary", expanded=False):
+            st.json({
+                "patient_id": results.get('patient_id', 'N/A'),
+                "genes": results.get('genes', []),
+                "total_variants": results.get('total_variants', 0),
+                "affected_drugs": results.get('affected_drugs', 0),
+                "timestamp": results.get('timestamp', 'N/A')
+            })
 
         # Show generated files
         outputs = results.get('comprehensive_outputs', {}) or results.get('outputs', {})
@@ -555,40 +695,35 @@ elif page == "📊 View Report":
             st.header("Generated Files")
             with st.expander("📁 Output Files", expanded=False):
                 for t, p in outputs.items():
-                    st.text(f"{t}: {p}")
+                st.text(f"{t}: {p}")
         
         # Interactive Visualization Section
         st.header("Interactive Knowledge Graph")
         if render_d3_visualization is None:
             st.error("Visualization component is not available.")
         else:
-            # Try to find the knowledge graph JSON-LD file (not patient profile)
+            # Try to find the comprehensive JSON-LD file (now contains all gene data merged)
             jsonld_path_str = None
             
-            # First, try specific keys for knowledge graphs
-            for key in ['Comprehensive JSON-LD', 'Knowledge Graph JSON-LD', 'JSON-LD', 'jsonld']:
+            # First priority: Comprehensive JSON-LD (contains ALL genes merged)
+            for key in ['JSON-LD', 'Comprehensive JSON-LD', 'Comprehensive Profile']:
                 jsonld_path_str = outputs.get(key)
                 if jsonld_path_str:
                     break
             
-            # If still not found, search for .jsonld files but prioritize knowledge graphs
+            # Second priority: Gene-specific knowledge graphs (fallback for individual genes)
             if not jsonld_path_str:
-                knowledge_graph_files = []
-                other_jsonld_files = []
-                
+                for key in outputs.keys():
+                    if 'knowledge graph' in key.lower():
+                        jsonld_path_str = outputs.get(key)
+                        break
+            
+            # Third priority: Search for any .jsonld files
+            if not jsonld_path_str:
                 for key, path in outputs.items():
                     if path and '.jsonld' in str(path):
-                        # Skip patient profile files - we want knowledge graphs
-                        if 'patient' in str(path).lower() or 'profile' in str(path).lower():
-                            other_jsonld_files.append(path)
-                        else:
-                            knowledge_graph_files.append(path)
-                
-                # Prioritize knowledge graph files
-                if knowledge_graph_files:
-                    jsonld_path_str = knowledge_graph_files[0]
-                elif other_jsonld_files:
-                    jsonld_path_str = other_jsonld_files[0]
+                        jsonld_path_str = path
+                        break
             
             # Get all available JSON-LD files
             all_jsonld_files = {}
@@ -629,15 +764,15 @@ elif page == "📊 View Report":
             
             if jsonld_path_str and Path(jsonld_path_str).exists():
                 try:
-                    with open(jsonld_path_str, 'r', encoding='utf-8') as f:
-                        jsonld_data = json.load(f)
+                with open(jsonld_path_str, 'r', encoding='utf-8') as f:
+                    jsonld_data = json.load(f)
 
                     # Info about the visualization
                     st.info("💡 **Tip:** Click on nodes to see details, use mouse wheel to zoom, drag to pan. Use the controls to reset zoom or expand/collapse all nodes.")
-                    
-                    with st.spinner("Generating interactive graph..."):
-                        hierarchy_data = jsonld_to_hierarchy(jsonld_data)
-                        if hierarchy_data:
+
+                with st.spinner("Generating interactive graph..."):
+                    hierarchy_data = jsonld_to_hierarchy(jsonld_data)
+                    if hierarchy_data:
                             # Create two columns - one for viz, one for details
                             viz_col, detail_col = st.columns([2, 1])
                             
@@ -663,13 +798,13 @@ elif page == "📊 View Report":
                                         details = get_node_details(jsonld_data, clicked_node.get('name', ''))
                                         if details:
                                             st.markdown("**Properties:**")
-                                            for prop, values in details.items():
+                            for prop, values in details.items():
                                                 with st.expander(f"📌 {prop}", expanded=True):
-                                                    for value in values:
-                                                        if value.startswith("http"):
+                                for value in values:
+                                    if value.startswith("http"):
                                                             st.markdown(f"- [{value.split('/')[-1]}]({value})")
-                                                        else:
-                                                            st.markdown(f"- {value}")
+                                    else:
+                                        st.markdown(f"- {value}")
                                         else:
                                             st.caption("No additional details found in graph.")
                                 else:
@@ -695,9 +830,12 @@ elif page == "📊 View Report":
 
 elif page == "💾 Export Data":
     st.title("💾 Export Data")
+    st.info("**Step 5:** Download all generated files including JSON-LD, RDF/TTL, and HTML reports.")
+    
     results = st.session_state.get('test_results')
     if not results:
-        st.warning("No results to export")
+        st.warning("⚠️ No results to export. Please run a test first (Step 3)")
+        st.stop()
     else:
         outputs = results.get('comprehensive_outputs', {}) or results.get('outputs', {})
         from pathlib import Path as _P
@@ -705,8 +843,8 @@ elif page == "💾 Export Data":
         if not outputs:
             st.warning("No output files found in results")
         else:
-            col1, col2 = st.columns(2)
-            with col1:
+        col1, col2 = st.columns(2)
+        with col1:
                 st.subheader("📥 Downloads")
                 
                 # Group files by type
@@ -729,9 +867,9 @@ elif page == "💾 Export Data":
                         st.markdown(f"**{group_name}**")
                         for key in file_keys:
                             path = outputs.get(key)
-                            if path and _P(path).exists():
+                if path and _P(path).exists():
                                 try:
-                                    with open(path, 'rb') as f:
+                    with open(path, 'rb') as f:
                                         file_content = f.read()
                                         st.download_button(
                                             f"📄 {key}",
@@ -746,10 +884,10 @@ elif page == "💾 Export Data":
                                 st.caption(f"⚠️ {key} - File not found")
                         st.divider()
             
-            with col2:
+        with col2:
                 st.subheader("📂 File Paths")
-                for t, p in outputs.items():
-                    exists = _P(p).exists() if p else False
+            for t, p in outputs.items():
+                exists = _P(p).exists() if p else False
                     status = "✅" if exists else "❌"
                     st.text(f"{status} {t}")
                     st.code(p or 'No path', language=None)
