@@ -26,7 +26,7 @@ try:
 except ImportError:
     # Fallback: direct import
     import importlib.util
-    utils_path = src_dir / "utils" / "dynamic_clinical_generator.py"
+    utils_path = src_dir.parent / "utils" / "dynamic_clinical_generator.py"
     if utils_path.exists():
         spec = importlib.util.spec_from_file_location("dynamic_clinical_generator", utils_path)
         gen_module = importlib.util.module_from_spec(spec)
