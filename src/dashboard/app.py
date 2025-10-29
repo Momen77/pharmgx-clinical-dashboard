@@ -179,7 +179,7 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", use_container_width=True)
+    st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx", width=200)
     st.title("Navigation")
     page = st.radio(
         "Select Page",
@@ -267,6 +267,10 @@ elif page == "🔬 Run Test":
                 "medications": manual_meds,
                 "labs": manual_labs,
             }
+        
+        # Remove non-serializable photo data before passing to worker
+        if 'photo' in profile:
+            del profile['photo']
 
         # Show passed profile for transparency
         with st.expander("Profile to pass", expanded=False):
@@ -423,12 +427,12 @@ elif page == "💾 Export Data":
             ]:
                 path = outputs.get(label_key)
                 if path and _P(path).exists():
-                    with open(path, 'rb') as f:
-                        st.download_button(f"Download {label_key}", f.read(), file_name=_P(path).name)
+                    with open(path, 'rb') as fp:
+                        st.download_button(f"Download {label_key}", fp.read(), file_name=_P(path).name)
         with col2:
             st.subheader("Paths")
             for t, p in outputs.items():
-                exists = _P(p).exists() if p else False
+                exists = _P(p).exists() if p and isinstance(p, (str, _P)) else False
                 st.text(f"{'✅' if exists else '❌'} {t}")
                 st.code(p or '', language=None)
 

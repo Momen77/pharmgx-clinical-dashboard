@@ -177,7 +177,7 @@ class PatientCreator:
                     st.image(uploaded_file, width=200)
             
             # Submit button
-            submitted = st.form_submit_button("✅ Create Patient Profile", type="primary", width='stretch')
+            submitted = st.form_submit_button("✅ Create Patient Profile", type="primary", use_container_width=True)
             
             if submitted:
                 if not first_name or not last_name:
@@ -287,4 +287,3 @@ class PatientCreator:
             },
             "test_date": (datetime.now() - timedelta(days=random.randint(1, 90))).isoformat()
         }
-
