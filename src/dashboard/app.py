@@ -782,42 +782,8 @@ elif page == "📊 View Results":
                     with st.spinner("Generating interactive graph..."):
                         hierarchy_data = jsonld_to_hierarchy(jsonld_data)
                         if hierarchy_data:
-                            # Create two columns - one for viz, one for details
-                            viz_col, detail_col = st.columns([2, 1])
-                            
-                            with viz_col:
-                                # Render visualization with component value
-                                clicked_node = render_d3_visualization(hierarchy_data)
-                            
-                            with detail_col:
-                                st.subheader("🔍 Node Details")
-                                
-                                # Check if a node was clicked
-                                if clicked_node:
-                                    st.markdown(f"**Selected:** `{clicked_node.get('name', 'Unknown')}`")
-                                    st.write(f"**Depth:** {clicked_node.get('depth', 'N/A')}")
-                                    st.write(f"**Has Children:** {'Yes' if clicked_node.get('hasChildren') else 'No'}")
-                                    if clicked_node.get('childCount'):
-                                        st.write(f"**Child Count:** {clicked_node['childCount']}")
-                                    
-                                    st.divider()
-                                    
-                                    # Get detailed information from JSON-LD
-                                    if get_node_details:
-                                        details = get_node_details(jsonld_data, clicked_node.get('name', ''))
-                                        if details:
-                                            st.markdown("**Properties:**")
-                                            for prop, values in details.items():
-                                                with st.expander(f"📌 {prop}", expanded=True):
-                                                    for value in values:
-                                                        if value.startswith("http"):
-                                                            st.markdown(f"- [{value.split('/')[-1]}]({value})")
-                                                        else:
-                                                            st.markdown(f"- {value}")
-                                        else:
-                                            st.caption("No additional details found in graph.")
-                                    else:
-                                        st.info("Click on a node in the visualization to see its details here.")
+                            # Render full-width visualization (no separate node details panel)
+                            _ = render_d3_visualization(hierarchy_data)
                         else:
                             st.warning("Could not generate hierarchy from JSON-LD data.")
 

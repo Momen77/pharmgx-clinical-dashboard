@@ -227,6 +227,70 @@ def jsonld_to_hierarchy(jsonld_data: dict):
                 "color": "#7f7f7f",
                 "children": var_items
             })
+
+        # 4) Full Variants list (synthetic tree) to reflect JSON-LD content if RDF doesn't include them
+        full_variant_nodes = []
+        if isinstance(variants, list) and variants:
+            for v in variants[:50]:  # cap to 50 for performance
+                vid = v.get("rsid") or v.get("variant_id") or v.get("id") or "Variant"
+                vuri = f"pgx:var:{vid}"
+                vchildren = []
+                # Basic props
+                if v.get("gene"):
+                    vchildren.append({
+                        "name": f"Gene: {v.get('gene')}",
+                        "uri": f"{vuri}:gene",
+                        "color": "#2ca02c",
+                        "children": None
+                    })
+                if v.get("clinical_significance"):
+                    vchildren.append({
+                        "name": f"Significance: {v.get('clinical_significance')}",
+                        "uri": f"{vuri}:sig",
+                        "color": "#ff7f0e",
+                        "children": None
+                    })
+                # Drugs
+                for d in v.get("drugs", []) or []:
+                    dname = d.get("name") or "Drug"
+                    duri = d.get("snomed:uri") or f"{vuri}:drug:{dname}"
+                    vchildren.append({
+                        "name": f"Drug: {dname}",
+                        "uri": duri,
+                        "color": "#d62728",
+                        "children": None
+                    })
+                # Diseases
+                for dis in v.get("diseases", []) or []:
+                    dlabel = dis.get("name") or "Disease"
+                    disuri = dis.get("snomed:uri") or f"{vuri}:disease:{dlabel}"
+                    vchildren.append({
+                        "name": f"Disease: {dlabel}",
+                        "uri": disuri,
+                        "color": "#9467bd",
+                        "children": None
+                    })
+                # Attach population context summary if present
+                if isinstance(v.get("population_frequencies"), dict):
+                    vchildren.append({
+                        "name": "Pop Frequencies",
+                        "uri": f"{vuri}:popfreq",
+                        "color": "#7f7f7f",
+                        "children": None
+                    })
+                full_variant_nodes.append({
+                    "name": str(vid),
+                    "uri": vuri,
+                    "color": "#ff7f0e",
+                    "children": vchildren or None
+                })
+        if full_variant_nodes:
+            ensure_children(base).append({
+                "name": "Variants",
+                "uri": "pgx:section:variants",
+                "color": "#ff7f0e",
+                "children": full_variant_nodes
+            })
         # Variant-linking provided links, if any
         vlinks = (jsonld_data.get("variant_linking") or {}).get("links") or {}
         # Expect dicts like medication_to_variant: [{"medication_uri": uri, "variant_uri": uri}]
@@ -305,19 +369,19 @@ def render_d3_visualization(d3_data: dict):
           margin: 0;
           font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
           color: #1f2a37;
-          background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+          background: transparent; /* match Streamlit app background */
         }}
         #container {{
           display: grid;
           grid-template-columns: 260px 1fr;
           gap: 16px;
-          padding: 16px;
+          padding: 8px;
         }}
         #sidebar {{
           background: #ffffff;
           border: 1px solid #e5e7eb;
           border-radius: 12px;
-          padding: 16px;
+          padding: 14px;
           box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }}
         #legend h3, #controls h3 {{
@@ -335,6 +399,10 @@ def render_d3_visualization(d3_data: dict):
           border-radius: 12px;
           box-shadow: 0 1px 2px rgba(0,0,0,0.04);
           padding: 8px;
+        }}
+        #chart {{
+          width: 100%;
+          height: 900px;
         }}
         .node circle {{ cursor: pointer; stroke: #1f2937; stroke-width: 1px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.08)); }}
         .node circle:hover {{ stroke-width: 2px; }}
@@ -480,7 +548,7 @@ def render_d3_visualization(d3_data: dict):
           if (showAffects) allowed.add('affects');
           if (showAssoc) allowed.add('associated');
           if (showSuggest) allowed.add('suggestion');
-          if (showVlinks) allowed.add('drug-variant'), allowed.add('med-variant'), allowed.add('condition-disease');
+          if (showVlinks) {{ allowed.add('drug-variant'); allowed.add('med-variant'); allowed.add('condition-disease'); }}
           const filtered = extra.filter(d => allowed.has(d.label));
           if (filtered.length === 0) return;
           linkLayer.selectAll("path")
