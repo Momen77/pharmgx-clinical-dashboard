@@ -562,19 +562,70 @@ elif page == "📊 View Report":
         if render_d3_visualization is None:
             st.error("Visualization component is not available.")
         else:
-            # Try to find JSON-LD file with various key names
+            # Try to find the knowledge graph JSON-LD file (not patient profile)
             jsonld_path_str = None
-            for key in ['Comprehensive JSON-LD', 'JSON-LD', 'jsonld', 'comprehensive_jsonld']:
+            
+            # First, try specific keys for knowledge graphs
+            for key in ['Comprehensive JSON-LD', 'Knowledge Graph JSON-LD', 'JSON-LD', 'jsonld']:
                 jsonld_path_str = outputs.get(key)
                 if jsonld_path_str:
                     break
             
-            # If still not found, try to find any .jsonld file in outputs
+            # If still not found, search for .jsonld files but prioritize knowledge graphs
             if not jsonld_path_str:
+                knowledge_graph_files = []
+                other_jsonld_files = []
+                
                 for key, path in outputs.items():
-                    if path and (path.endswith('.jsonld') or '.jsonld' in path):
-                        jsonld_path_str = path
+                    if path and '.jsonld' in str(path):
+                        # Skip patient profile files - we want knowledge graphs
+                        if 'patient' in str(path).lower() or 'profile' in str(path).lower():
+                            other_jsonld_files.append(path)
+                        else:
+                            knowledge_graph_files.append(path)
+                
+                # Prioritize knowledge graph files
+                if knowledge_graph_files:
+                    jsonld_path_str = knowledge_graph_files[0]
+                elif other_jsonld_files:
+                    jsonld_path_str = other_jsonld_files[0]
+            
+            # Get all available JSON-LD files
+            all_jsonld_files = {}
+            for key, path in outputs.items():
+                if path and '.jsonld' in str(path) and Path(path).exists():
+                    all_jsonld_files[key] = path
+            
+            # If multiple files, let user choose
+            if len(all_jsonld_files) > 1:
+                st.write("**Select JSON-LD file to visualize:**")
+                file_options = list(all_jsonld_files.keys())
+                
+                # Set default based on our priority
+                default_idx = 0
+                for i, key in enumerate(file_options):
+                    path = all_jsonld_files[key]
+                    if 'patient' not in str(path).lower() and 'profile' not in str(path).lower():
+                        default_idx = i
                         break
+                
+                selected_key = st.selectbox(
+                    "Choose file:",
+                    file_options,
+                    index=default_idx,
+                    key="jsonld_file_selector"
+                )
+                jsonld_path_str = all_jsonld_files[selected_key]
+            elif len(all_jsonld_files) == 1:
+                selected_key = list(all_jsonld_files.keys())[0]
+                jsonld_path_str = all_jsonld_files[selected_key]
+                st.caption(f"📄 Visualizing: {selected_key}")
+            
+            # Debug info
+            with st.expander("🔍 File Selection Debug", expanded=False):
+                st.write(f"All outputs: {list(outputs.keys())}")
+                st.write(f"Available JSON-LD files: {list(all_jsonld_files.keys())}")
+                st.write(f"Selected file: {jsonld_path_str}")
             
             if jsonld_path_str and Path(jsonld_path_str).exists():
                 try:
