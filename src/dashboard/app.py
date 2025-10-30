@@ -1068,6 +1068,58 @@ elif page == "🛠️ Debug":
         try:
             debug_sb = create_storyboard_with_controls()
             st.success("Storyboard OK")
+
+            st.divider()
+            st.subheader("Auto Demo")
+            if st.button("▶ Run storyboard simulation", key="run_storyboard_demo"):
+                import queue as _q
+                import time as _t
+
+                # Instantiate a fresh storyboard and set example genes
+                sb = Storyboard() if Storyboard else None
+                if sb and hasattr(sb, 'set_genes'):
+                    sb.set_genes(["CYP2D6", "CYP2C19", "TPMT", "DPYD"]) 
+
+                # Local event queue and worker flag
+                evq = _q.Queue()
+                done = {"v": False}
+
+                # Simple event object
+                class _Ev:
+                    def __init__(self, stage, substage, message, progress):
+                        self.stage = stage
+                        self.substage = substage
+                        self.message = message
+                        self.progress = progress
+
+                # Enqueue a full pass of stages
+                demo_events = [
+                    ("lab_prep", "init", "Starting lab preparation...", 0.05),
+                    ("lab_prep", "qaqc", "DNA extracted and QC passed", 0.18),
+                    ("ngs", "seq", "Sequencing reads being generated...", 0.30),
+                    ("ngs", "call", "Variant calling in progress...", 0.38),
+                    ("annotation", "clinvar", "Annotating variants with ClinVar...", 0.50),
+                    ("annotation", "literature", "Searching literature databases...", 0.62),
+                    ("enrichment", "link", "Linking variants to drugs/diseases...", 0.75),
+                    ("linking", "conflicts", "Checking for clinical conflicts...", 0.85),
+                    ("report", "export", "Generating reports and visualizations...", 0.95),
+                    ("report", "complete", "Analysis complete!", 1.00),
+                ]
+
+                for s, sub, msg, prog in demo_events:
+                    evq.put(_Ev(s, sub, msg, prog))
+                    _t.sleep(0.05)
+
+                done["v"] = True
+
+                def _alive():
+                    return not done["v"]
+
+                if sb and consume_events:
+                    consume_events(evq, sb, _alive)
+                else:
+                    st.info("Storyboard runtime not available")
+
         except Exception as e:
             st.error(f"Storyboard error: {e}")
     else:
