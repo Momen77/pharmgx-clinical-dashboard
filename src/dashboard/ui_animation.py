@@ -52,3 +52,45 @@ def consume_events(event_q, storyboard: Storyboard, worker_alive_fn):
             _ = event_q.get(timeout=0.1)
         except queue.Empty:
             pass
+
+
+def create_storyboard_with_controls():
+    """Debug helper to render EnhancedStoryboardV2 with minimal controls.
+
+    Returns the underlying EnhancedStoryboardV2 instance for external use.
+    """
+    if not EnhancedStoryboardV2:
+        st.info("Enhanced storyboard component not available")
+        return None
+
+    sb = EnhancedStoryboardV2()
+
+    # Minimal controls for debug page
+    st.markdown("### Storyboard Controls")
+    genes = st.text_input("Genes (comma-separated)", value="CYP2D6,CYP2C19,TPMT,DPYD")
+    if genes:
+        sb.set_genes([g.strip() for g in genes.split(',') if g.strip()])
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Stage: lab_prep"):
+            sb.advance(stage="lab_prep", message="Initializing...", progress=0.05)
+    with col2:
+        if st.button("Stage: ngs"):
+            sb.advance(stage="ngs", message="Sequencing...", progress=0.3)
+    with col3:
+        if st.button("Stage: annotation"):
+            sb.advance(stage="annotation", message="Annotating...", progress=0.5)
+
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        if st.button("Stage: enrichment"):
+            sb.advance(stage="enrichment", message="Enriching...", progress=0.7)
+    with col5:
+        if st.button("Stage: linking"):
+            sb.advance(stage="linking", message="Linking...", progress=0.85)
+    with col6:
+        if st.button("Stage: report"):
+            sb.advance(stage="report", message="Generating reports...", progress=0.95)
+
+    return sb
