@@ -6,6 +6,7 @@ Now with comprehensive educational content!
 from __future__ import annotations
 
 import streamlit as st
+import streamlit.components.v1 as components
 import time
 from typing import Optional, Dict, Any, List
 
@@ -470,6 +471,55 @@ def _inject_enhanced_css():
     st.session_state[_CSS_KEY] = True
 
 
+def _build_enhanced_css() -> str:
+    """Return the enhanced CSS as a single <style> block string for components.html rendering."""
+    return """
+    <style>
+    /* Enhanced Workflow Styles */
+    .wf-wrap { 
+        border: 2px solid #e2e8f0; 
+        border-radius: 12px; 
+        padding: 20px; 
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); 
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .wf-header { text-align: center; margin-bottom: 20px; font-size: 1.2rem; font-weight: 700; color: #1e40af; }
+    .wf-stages { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+    .wf-stage { flex: 1; min-width: 180px; padding: 12px; border-radius: 10px; border: 2px solid #e5e7eb; background: #ffffff; transition: all 300ms ease; position: relative; }
+    .wf-stage.active { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-color: #3b82f6; transform: scale(1.02); box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15); }
+    .wf-stage.done { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); border-color: #22c55e; }
+    .wf-stage.hidden { display: none; }
+    .wf-stage-icon { font-size: 2rem; text-align: center; margin-bottom: 8px; }
+    .wf-stage-title { font-weight: 600; font-size: 0.9rem; color: #1f2937; text-align: center; margin-bottom: 6px; }
+    .wf-stage-detail { font-size: 0.75rem; color: #6b7280; text-align: center; line-height: 1.3; }
+    .wf-microsteps { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.1); }
+    .wf-microstep { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.75rem; color: #4b5563; }
+    .wf-microstep.active { color: #1d4ed8; font-weight: 600; }
+    .wf-microstep.done { color: #16a34a; }
+    .wf-microstep-icon { width: 12px; height: 12px; border-radius: 50%; background: #d1d5db; }
+    .wf-microstep.active .wf-microstep-icon { background: #3b82f6; animation: pulse 1.5s infinite; }
+    .wf-microstep.done .wf-microstep-icon { background: #22c55e; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .wf-network { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .wf-network-title { font-weight: 600; font-size: 0.9rem; color: #374151; margin-bottom: 12px; text-align: center; }
+    .wf-network-graph { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+    .wf-network-row { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .wf-network-node { padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 500; border: 2px solid #94a3b8; background: #fff; }
+    .wf-network-node.medication { border-color: #F59E0B; }
+    .wf-network-node.gene { border-color: #3B82F6; }
+    .wf-network-edge { width: 80%; height: 3px; background: linear-gradient(90deg, #94a3b8, #cbd5e1); border-radius: 2px; }
+    .wf-network-edge.warning { background: linear-gradient(90deg, #f59e0b, #fdba74); height: 4px; }
+    .wf-network-edge.critical { background: linear-gradient(90deg, #ef4444, #fca5a5); height: 5px; }
+    .wf-progress { position: relative; height: 10px; background: #e5e7eb; border-radius: 6px; overflow: hidden; margin-top: 10px; }
+    .wf-progress-fill { height: 100%; background: linear-gradient(90deg, #60a5fa, #2563eb); transition: width 300ms ease; }
+    .wf-gene-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .wf-gene-chip { padding: 6px 10px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 16px; font-size: 0.8rem; }
+    .wf-gene-chip.active { background: #dbeafe; font-weight: 600; }
+    .wf-caption { font-size: 0.85rem; color: #374151; margin-top: 6px; }
+    </style>
+    """
+
+
 class EnhancedStoryboardV2:
     """Enhanced workflow visualization with detailed PGx steps and network graph"""
 
@@ -491,78 +541,72 @@ class EnhancedStoryboardV2:
         self.render("Initializing pharmacogenetic analysis...")
 
     def render(self, caption: str = ""):
-        """Render the enhanced workflow visualization"""
-        with self._container:
-            st.markdown("<div class='wf-wrap'>", unsafe_allow_html=True)
-            st.markdown("<div class='wf-header'>🧬 Pharmacogenetic Analysis Workflow</div>", unsafe_allow_html=True)
-            
-            # Main stages
-            st.markdown("<div class='wf-stages'>", unsafe_allow_html=True)
-            
-            stages = [
-                ("lab", "🧪", "Lab Prep", "DNA extraction & library prep"),
-                ("ngs", "🧬", "Sequencing", f"Variants: {self.state['variants']}"),
-                ("anno", "🔬", "Annotation", f"Literature: {self.state['literature']}"),
-                ("drug", "💊", "Interactions", f"Drugs: {self.state['drugs']}"),
-                ("report", "📊", "Report", "Comprehensive results"),
-            ]
-            
-            for stage_id, icon, title, subtitle in stages:
-                css_class = "wf-stage"
-                if stage_id == self.stage:
-                    css_class += " active"
-                elif self._is_stage_done(stage_id) and self.stage != "report":
-                    css_class += " hidden" # Hide completed stages
-                elif self._is_stage_done(stage_id) and self.stage == "report":
-                    css_class += " done" # Show all as done on the final stage
-                
-                stage_html = f"""
-                <div class='{css_class}'>
-                    <div class='wf-stage-icon'>{icon}</div>
-                    <div class='wf-stage-title'>{title}</div>
-                    <div class='wf-stage-detail'>{subtitle}</div>
-                    {self._render_microsteps(stage_id)}
-                    {self._render_stage_specific_content(stage_id)}
-                </div>
-                """
-                st.markdown(stage_html, unsafe_allow_html=True)
-            
-            st.markdown("</div>", unsafe_allow_html=True)  # Close stages
-            
-            # Gene chips
-            if self.genes:
-                chips_html = "<div class='wf-gene-chips'>"
-                for gene in self.genes:
-                    chip_class = "wf-gene-chip"
-                    if gene == self.state.get('current_gene'):
-                        chip_class += " active"
-                    chips_html += f"<span class='{chip_class}'>{gene}</span>"
-                chips_html += "</div>"
-                st.markdown(chips_html, unsafe_allow_html=True)
-            
-            # Network visualization for drug interactions stage
-            if self.stage == "drug" and self.state['drugs'] > 0:
-                self._render_network_graph()
-            
-            # Progress bar
-            progress_html = f"""
-            <div class='wf-progress'>
-                <div class='wf-progress-fill' style='width: {self.progress * 100}%'></div>
+        """Render the enhanced workflow visualization using components.html for consistent HTML/CSS rendering."""
+        # Build stages HTML
+        stages = [
+            ("lab", "🧪", "Lab Prep", "DNA extraction & library prep"),
+            ("ngs", "🧬", "Sequencing", f"Variants: {self.state['variants']}"),
+            ("anno", "🔬", "Annotation", f"Literature: {self.state['literature']}"),
+            ("drug", "💊", "Interactions", f"Drugs: {self.state['drugs']}"),
+            ("report", "📊", "Report", "Comprehensive results"),
+        ]
+
+        stages_html = ["<div class='wf-stages'>"]
+        for stage_id, icon, title, subtitle in stages:
+            css_class = "wf-stage"
+            if stage_id == self.stage:
+                css_class += " active"
+            elif self._is_stage_done(stage_id) and self.stage != "report":
+                css_class += " hidden"
+            elif self._is_stage_done(stage_id) and self.stage == "report":
+                css_class += " done"
+            stages_html.append(f"""
+            <div class='{css_class}'>
+                <div class='wf-stage-icon'>{icon}</div>
+                <div class='wf-stage-title'>{title}</div>
+                <div class='wf-stage-detail'>{subtitle}</div>
+                {self._render_microsteps(stage_id)}
+                {self._render_stage_specific_content(stage_id)}
             </div>
-            """
-            st.markdown(progress_html, unsafe_allow_html=True)
-            
-            if caption:
-                st.caption(f"💬 {caption}")
+            """)
+        stages_html.append("</div>")
 
-            st.markdown("</div>", unsafe_allow_html=True)  # Close wrap
+        # Gene chips
+        chips_html = ""
+        if self.genes:
+            chips_html = "<div class='wf-gene-chips'>" + "".join([
+                f"<span class='wf-gene-chip{' active' if gene == self.state.get('current_gene') else ''}'>{gene}</span>"
+                for gene in self.genes
+            ]) + "</div>"
 
-            # Render educational content below the main workflow
-            self.render_fun_facts()
-            self.render_educational_content()
-            self.render_database_connections()
-            self.render_data_flow_overview()
-            self.render_app_architecture()
+        # Network visualization (HTML version)
+        network_html = ""
+        if self.stage == "drug" and self.state['drugs'] > 0:
+            network_html = self._render_network_graph_html()
+
+        # Progress bar
+        progress_html = f"""
+        <div class='wf-progress'>
+            <div class='wf-progress-fill' style='width: {self.progress * 100}%'></div>
+        </div>
+        """
+
+        caption_html = f"<div class='wf-caption'>💬 {caption}</div>" if caption else ""
+
+        full_html = (
+            _build_enhanced_css()
+            + "<div class='wf-wrap'>"
+            + "<div class='wf-header'>🧬 Pharmacogenetic Analysis Workflow</div>"
+            + "".join(stages_html)
+            + chips_html
+            + network_html
+            + progress_html
+            + caption_html
+            + "</div>"
+        )
+
+        with self._container:
+            components.html(full_html, height=800, scrolling=True)
 
     def _is_stage_done(self, stage_id: str) -> bool:
         """Check if a stage is completed"""
@@ -636,43 +680,28 @@ class EnhancedStoryboardV2:
         
         return ""
 
-    def _render_network_graph(self):
-        """Render drug-gene interaction network"""
-        st.markdown("<div class='wf-network'>", unsafe_allow_html=True)
-        st.markdown("<div class='wf-network-title'>🔗 Drug-Gene Interaction Network</div>", unsafe_allow_html=True)
-        
-        # Get medications and genes from templates
-        meds = NETWORK_TEMPLATES.get('medications', [])[:3]  # Limit to 3 for clarity
+    def _render_network_graph_html(self) -> str:
+        """Return drug-gene interaction network HTML (for components.html)."""
+        html = ["<div class='wf-network'>", "<div class='wf-network-title'>🔗 Drug-Gene Interaction Network</div>"]
+        meds = NETWORK_TEMPLATES.get('medications', [])[:3]
         genes_data = NETWORK_TEMPLATES.get('genes', [])
         patient_genes = [g for g in genes_data if g['name'] in self.genes][:3]
-        
         if meds and patient_genes:
-            # Medications row
-            meds_html = "<div class='wf-network-row'>"
-            for med in meds:
-                meds_html += f"<div class='wf-network-node medication' style='border-color: {med['color']};'>💊 {med['name']}</div>"
-            meds_html += "</div>"
-            
-            # Connection edges
-            edges_html = "<div class='wf-network-row'>"
-            for i in range(min(len(meds), len(patient_genes))):
-                edge_class = "wf-network-edge"
-                if i % 2 == 0:  # Simulate some interactions
-                    edge_class += " warning" if i == 0 else " critical"
-                edges_html += f"<div class='{edge_class}'></div>"
-            edges_html += "</div>"
-            
-            # Genes row
-            genes_html = "<div class='wf-network-row'>"
-            for gene in patient_genes:
-                variants_str = ", ".join(gene.get('variants', [])[:2])
-                genes_html += f"<div class='wf-network-node gene' style='border-color: {gene['color']};'>🧬 {gene['name']}<br><small>{variants_str}</small></div>"
-            genes_html += "</div>"
-            
-            network_html = f"{meds_html}{edges_html}{genes_html}"
-            st.markdown(network_html, unsafe_allow_html=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+            meds_html = "<div class='wf-network-row'>" + "".join([
+                f"<div class='wf-network-node medication' style='border-color: {med['color']};'>💊 {med['name']}</div>"
+                for med in meds
+            ]) + "</div>"
+            edges_html = "<div class='wf-network-row'>" + "".join([
+                f"<div class='wf-network-edge{' warning' if i == 0 else ' critical' if i % 2 == 0 else ''}'></div>"
+                for i in range(min(len(meds), len(patient_genes)))
+            ]) + "</div>"
+            genes_html = "<div class='wf-network-row'>" + "".join([
+                f"<div class='wf-network-node gene' style='border-color: {gene['color']};'>🧬 {gene['name']}<br><small>{', '.join(gene.get('variants', [])[:2])}</small></div>"
+                for gene in patient_genes
+            ]) + "</div>"
+            html.append(meds_html + edges_html + genes_html)
+        html.append("</div>")
+        return "".join(html)
 
     def advance(self, stage: str = None, message: str = "", progress: Optional[float] = None, 
                 microstep: int = None, deltas: Optional[Dict[str, Any]] = None):
