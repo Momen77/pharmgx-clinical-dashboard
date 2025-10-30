@@ -806,29 +806,17 @@ elif page == "🔬 Run Test":
 
                     # If storyboard has completed but backend still running, show extra sections once
                     if not extra_sections_shown and time.time() > storyboard_finish_time and results is None:
+                        # Update storyboard with a small post-processing plan for visual continuity
                         try:
-                            st.markdown("### Finalizing Analysis (backend still running)")
-                            with st.expander("Assembling Knowledge Graphs", expanded=True):
-                                st.write("Merging per-gene RDF graphs, resolving namespaces, and writing JSON-LD/TTL outputs.")
-                            with st.expander("Exporting Reports", expanded=False):
-                                st.write("Generating HTML reports, saving summary JSON, and preparing file paths.")
-                            with st.expander("Quality Checks", expanded=False):
-                                st.write("Verifying output integrity and counts (variants, drugs, literature coverage).")
-                            # Update storyboard with a small post-processing plan for visual continuity
-                            try:
-                                if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render'):
-                                    post_plan = [
-                                        {"stage": "report", "substage": "finalize_graphs", "message": "Assembling knowledge graphs...", "progress": 0.98},
-                                        {"stage": "report", "substage": "export_reports", "message": "Exporting reports...", "progress": 0.99},
-                                        {"stage": "report", "substage": "quality_checks", "message": "Quality checks...", "progress": 0.995}
-                                    ]
-                                    # Reuse the same speed to keep feel consistent
-                                    sb.set_demo_plan(post_plan, storyboard_speed)
-                                    sb.render("Finalizing outputs...")
-                            except Exception:
-                                pass
-                            # Persist ability to revisit these sections later
-                            st.session_state['finalization_sections'] = True
+                            if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render'):
+                                post_plan = [
+                                    {"stage": "report", "substage": "finalize_graphs", "message": "Assembling knowledge graphs...", "progress": 0.98},
+                                    {"stage": "report", "substage": "export_reports", "message": "Exporting reports...", "progress": 0.99},
+                                    {"stage": "report", "substage": "quality_checks", "message": "Quality checks...", "progress": 0.995}
+                                ]
+                                # Reuse the same speed to keep feel consistent
+                                sb.set_demo_plan(post_plan, storyboard_speed)
+                                sb.render("Finalizing outputs...")
                         except Exception:
                             pass
                         extra_sections_shown = True
@@ -844,42 +832,7 @@ elif page == "🔬 Run Test":
                     except queue.Empty:
                         break
 
-                # If we previously showed finalization sections, keep a review area available
-                if st.session_state.get('finalization_sections'):
-                    st.divider()
-                    st.subheader("Review Finalization Steps")
-                    with st.expander("Assembling Knowledge Graphs", expanded=False):
-                        st.write("Merging per-gene RDF graphs, resolving namespaces, and writing JSON-LD/TTL outputs.")
-                    with st.expander("Exporting Reports", expanded=False):
-                        st.write("Generating HTML reports, saving summary JSON, and preparing file paths.")
-                    with st.expander("Quality Checks", expanded=False):
-                        st.write("Verifying output integrity and counts (variants, drugs, literature coverage).")
-
-                # Always provide a review area for workflow stages (previous ones as well)
-                st.divider()
-                st.subheader("Review Workflow Stages")
-                try:
-                    from dashboard.components.workflow_details import DETAIL_SCRIPTS as _DETAILS
-                except Exception:
-                    _DETAILS = {
-                        "lab": [], "ngs": [], "anno": [], "drug": [], "report": []
-                    }
-
-                def _render_stage(name: str, key: str, default_open: bool = False):
-                    with st.expander(name, expanded=default_open):
-                        steps = _DETAILS.get(key, []) or []
-                        if not steps:
-                            st.caption("No details available.")
-                            return
-                        for step in steps:
-                            st.markdown(f"**{step.get('label','')}** — {step.get('hint','')}")
-                            st.caption(step.get('detail',''))
-
-                _render_stage("🧪 Lab Preparation", "lab", False)
-                _render_stage("🧬 Sequencing (NGS)", "ngs", False)
-                _render_stage("🔬 Annotation", "anno", True)
-                _render_stage("💊 Interactions", "drug", False)
-                _render_stage("📊 Report", "report", False)
+                # Sections under storyboard have been removed per request; storyboard continues to show progress
 
                 # Ensure results is not None
                 if results is None:
