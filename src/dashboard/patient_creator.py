@@ -2,6 +2,7 @@
 Patient profile creator with comprehensive demographics form
 """
 import streamlit as st
+import os
 from datetime import datetime, timedelta
 import random
 from pathlib import Path
@@ -354,6 +355,15 @@ class PatientCreator:
                         from utils.ai_photo_generator import AIPhotoGenerator
 
                         with st.spinner("🎨 Generating AI-powered patient photo..."):
+                            # Load key from Streamlit secrets if available
+                            # Prefer top-level, fallback to [api_keys] section
+                            gemini_key = None
+                            if "GOOGLE_API_KEY" in st.secrets:
+                                gemini_key = st.secrets["GOOGLE_API_KEY"]
+                            elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
+                                gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
+                            if gemini_key:
+                                os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # used by AIPhotoGenerator
                             generator = AIPhotoGenerator()
                             photo_bytes = generator.generate_patient_photo(patient_profile)
 
@@ -530,6 +540,15 @@ class PatientCreator:
                 sys.path.append(str(Path(__file__).parent.parent))
                 from utils.ai_photo_generator import AIPhotoGenerator
 
+                # Load key from Streamlit secrets if available
+                # Prefer top-level, fallback to [api_keys] section
+                gemini_key = None
+                if "GOOGLE_API_KEY" in st.secrets:
+                    gemini_key = st.secrets["GOOGLE_API_KEY"]
+                elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
+                    gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
+                if gemini_key:
+                    os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # used by AIPhotoGenerator
                 generator = AIPhotoGenerator()
                 photo_bytes = generator.generate_patient_photo(patient_profile)
 

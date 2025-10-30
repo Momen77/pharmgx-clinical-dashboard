@@ -12,15 +12,26 @@ from pathlib import Path
 class AIPhotoGenerator:
     """Generates realistic patient photos using AI"""
 
-    def __init__(self, api_key: str = None, service: str = "openai"):
+    def __init__(self, api_key: str = None, service: str = "gemini"):
         """
         Initialize photo generator
 
         Args:
             api_key: API key for the AI service
-            service: Which service to use ("openai", "stability", "replicate")
+            service: Which service to use ("gemini", "openai", "stability")
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        # Choose API key based on selected service; allow explicit api_key to override
+        if api_key:
+            self.api_key = api_key
+        else:
+            if service == "gemini":
+                self.api_key = os.getenv("GOOGLE_API_KEY")
+            elif service == "openai":
+                self.api_key = os.getenv("OPENAI_API_KEY")
+            elif service == "stability":
+                self.api_key = os.getenv("STABILITY_API_KEY")
+            else:
+                self.api_key = None
         self.service = service
 
     def generate_patient_photo(self, patient_data: Dict) -> Optional[bytes]:
@@ -40,7 +51,9 @@ class AIPhotoGenerator:
         print(f"📝 Prompt: {prompt[:200]}...")
 
         # Generate image using selected service
-        if self.service == "openai" and self.api_key:
+        if self.service == "gemini" and self.api_key:
+            return self._generate_with_gemini(prompt)
+        elif self.service == "openai" and self.api_key:
             return self._generate_with_openai(prompt)
         elif self.service == "stability" and self.api_key:
             return self._generate_with_stability(prompt)
@@ -155,6 +168,42 @@ class AIPhotoGenerator:
 
         except Exception as e:
             print(f"❌ Error generating with OpenAI: {e}")
+            return None
+
+    def _generate_with_gemini(self, prompt: str) -> Optional[bytes]:
+        """Generate image using Google Gemini (Imagen 3) via Google AI Studio."""
+        # Prefer official client if available to avoid fragile REST payloads
+        try:
+            from google.genai import Client  # type: ignore
+        except Exception:
+            print("❌ google-genai package not installed. Install with: pip install google-genai")
+            return None
+
+        try:
+            client = Client(api_key=self.api_key)
+
+            # Safety-aware generation with a light negative prompt to reduce artifacts
+            response = client.images.generate(
+                model="imagen-3.0-generate-001",
+                prompt=prompt,
+                size="1024x1024",
+                num_images=1,
+                safety_filter_level="block_some",
+                negative_prompt="blurry, low-res, watermark, text, cartoon, illustration"
+            )
+
+            if getattr(response, "images", None):
+                img0 = response.images[0]
+                image_bytes = getattr(img0, "image_bytes", None)
+                if image_bytes:
+                    print("✅ Photo generated successfully with Gemini (Imagen 3)")
+                    return image_bytes
+
+            print("❌ Gemini API returned no images")
+            return None
+
+        except Exception as e:
+            print(f"❌ Error generating with Gemini: {e}")
             return None
 
     def _generate_with_stability(self, prompt: str) -> Optional[bytes]:
