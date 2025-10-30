@@ -313,6 +313,23 @@ class PatientCreator:
                         patient_profile["clinical_information"].setdefault("current_conditions", [])
                         patient_profile["clinical_information"].setdefault("current_medications", [])
                 
+                # Add top-level demographics shortcut for compatibility with gene_panel_selector and other components
+                # These components expect patient_profile['demographics']['first_name'] format
+                patient_profile['demographics'] = {
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'middle_name': middle_name,
+                    'preferred_name': preferred_name or first_name,
+                    'mrn': mrn,
+                    'age': age,
+                    'gender': gender,
+                    'biological_sex': biological_sex,
+                    'date_of_birth': date_of_birth.isoformat(),
+                    'ethnicity': ethnicity,
+                    'birth_city': birth_city,
+                    'birth_country': birth_country
+                }
+
                 # Store in session state
                 st.session_state['patient_profile'] = patient_profile
                 st.session_state['patient_created'] = True

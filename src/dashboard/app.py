@@ -379,9 +379,10 @@ elif page == "🔬 Run Test":
         profile = (st.session_state.get('patient_profile') or {}).copy()
 
         # Extract patient demographics for display
-        demo = profile.get('clinical_information', {}).get('demographics', {})
-        first_name = demo.get('foaf:firstName') or demo.get('schema:givenName') or demo.get('first_name', 'N/A')
-        last_name = demo.get('foaf:familyName') or demo.get('schema:familyName') or demo.get('last_name', 'N/A')
+        # Use top-level demographics shortcut (added for compatibility)
+        demo = profile.get('demographics', {})
+        first_name = demo.get('first_name', 'N/A')
+        last_name = demo.get('last_name', 'N/A')
         mrn = demo.get('mrn', 'N/A')
 
         # Show test summary
