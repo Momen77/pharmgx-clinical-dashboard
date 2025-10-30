@@ -1,6 +1,7 @@
 """
 Enhanced Workflow Animation for Human Pharmacogenetics
 Detailed, illustrative, and fun visualization of the PGx workflow
+Now with comprehensive educational content!
 """
 from __future__ import annotations
 
@@ -15,6 +16,23 @@ except ImportError:
     DETAIL_SCRIPTS = {}
     VISUAL_FLAGS = {}
     NETWORK_TEMPLATES = {}
+
+try:
+    from .workflow_education import (
+        STAGE_EDUCATION,
+        PIPELINE_DATA_FLOW,
+        DATABASE_CONNECTIONS,
+        APP_ARCHITECTURE,
+        FUN_FACTS
+    )
+    EDUCATION_AVAILABLE = True
+except ImportError:
+    EDUCATION_AVAILABLE = False
+    STAGE_EDUCATION = {}
+    PIPELINE_DATA_FLOW = {}
+    DATABASE_CONNECTIONS = {}
+    APP_ARCHITECTURE = {}
+    FUN_FACTS = []
 
 # Enhanced CSS with network visualization and detailed animations
 _CSS_KEY = "_pgx_workflow_enhanced_css"
@@ -300,6 +318,151 @@ def _inject_enhanced_css():
             width: 0%;
             transition: width 400ms ease;
         }
+
+        /* Educational Content Styles */
+        .wf-education {
+            margin-top: 20px;
+            padding: 16px;
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .wf-education-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wf-education-section {
+            margin: 12px 0;
+            padding: 12px;
+            background: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            border-radius: 6px;
+        }
+
+        .wf-education-section h4 {
+            margin: 0 0 8px 0;
+            color: #1e40af;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .wf-education-section p {
+            margin: 4px 0;
+            line-height: 1.6;
+            color: #475569;
+            font-size: 0.875rem;
+        }
+
+        .wf-fun-fact {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left-color: #f59e0b;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 6px;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .wf-data-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 16px 0;
+        }
+
+        .wf-data-flow-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            transition: all 200ms ease;
+        }
+
+        .wf-data-flow-step:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateX(4px);
+        }
+
+        .wf-data-flow-icon {
+            font-size: 1.5rem;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .wf-data-flow-arrow {
+            text-align: center;
+            color: #3b82f6;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .wf-db-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .wf-db-card {
+            padding: 12px;
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            transition: all 200ms ease;
+        }
+
+        .wf-db-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .wf-db-card-title {
+            font-weight: 700;
+            color: #1e40af;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .wf-db-card-desc {
+            font-size: 0.75rem;
+            color: #64748b;
+            line-height: 1.4;
+        }
+
+        .wf-tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            border-bottom: 1px dashed #3b82f6;
+        }
+
+        .wf-microstep span {
+            position: relative;
+        }
+
+        .wf-microstep span[title] {
+            cursor: help;
+            border-bottom: 1px dotted #94a3b8;
+        }
+
+        /* Improved microstep details */
+        .wf-microstep-detail {
+            font-size: 0.7rem;
+            color: #64748b;
+            margin-top: 2px;
+            font-style: italic;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -391,8 +554,15 @@ class EnhancedStoryboardV2:
             
             if caption:
                 st.caption(f"💬 {caption}")
-            
+
             st.markdown("</div>", unsafe_allow_html=True)  # Close wrap
+
+            # Render educational content below the main workflow
+            self.render_fun_facts()
+            self.render_educational_content()
+            self.render_database_connections()
+            self.render_data_flow_overview()
+            self.render_app_architecture()
 
     def _is_stage_done(self, stage_id: str) -> bool:
         """Check if a stage is completed"""
@@ -402,14 +572,14 @@ class EnhancedStoryboardV2:
         return check_idx < current_idx
 
     def _render_microsteps(self, stage_id: str) -> str:
-        """Render detailed microsteps for current stage"""
+        """Render detailed microsteps for current stage with enhanced tooltips"""
         if stage_id != self.stage or stage_id not in DETAIL_SCRIPTS:
             return ""
-        
+
         steps = DETAIL_SCRIPTS[stage_id]
         if not steps:
             return ""
-        
+
         html = "<div class='wf-microsteps'>"
         for i, step in enumerate(steps):
             step_class = "wf-microstep"
@@ -417,11 +587,18 @@ class EnhancedStoryboardV2:
                 step_class += " done"
             elif i == self.microstep:
                 step_class += " active"
-            
+
+            # Get detailed explanation if available
+            detail_text = step.get("detail", step.get("hint", ""))
+            tooltip = f"{step.get('hint', '')}\n\n{detail_text}" if detail_text != step.get('hint', '') else step.get('hint', '')
+
             html += f"""
             <div class='{step_class}'>
                 <span class='wf-microstep-icon'></span>
-                <span title='{step["hint"]}'>{step["label"]}</span>
+                <div>
+                    <span title='{step["hint"]}'>{step["label"]}</span>
+                    <div class='wf-microstep-detail'>{detail_text}</div>
+                </div>
             </div>
             """
         html += "</div>"
@@ -523,6 +700,146 @@ class EnhancedStoryboardV2:
     def set_genes(self, genes: List[str]):
         """Set the genes being analyzed"""
         self.genes = genes or []
+
+    def render_educational_content(self):
+        """Render comprehensive educational content for current stage"""
+        if not EDUCATION_AVAILABLE or self.stage not in STAGE_EDUCATION:
+            return
+
+        edu = STAGE_EDUCATION[self.stage]
+
+        # Create expander for educational content
+        with st.expander(f"📚 Learn More: {edu.get('title', 'About This Stage')}", expanded=False):
+            # What's Happening section
+            st.markdown("### 💡 What's Happening?")
+            st.markdown(edu.get('what_happening', '').strip())
+
+            # Science Behind It section
+            st.markdown("### 🔬 The Science Behind It")
+            st.markdown(edu.get('science_behind', '').strip())
+
+            # Fun Fact section
+            if edu.get('fun_fact'):
+                st.markdown("### 🎉 Fun Fact")
+                st.info(edu['fun_fact'].strip())
+
+            # Data Transformation section
+            if edu.get('data_transform'):
+                st.markdown("### 📊 Data Transformation")
+                st.code(edu['data_transform'].strip(), language='text')
+
+    def render_database_connections(self):
+        """Render database connection information for annotation stage"""
+        if not EDUCATION_AVAILABLE or not DATABASE_CONNECTIONS:
+            return
+
+        if self.stage != "anno":
+            return
+
+        with st.expander("🗄️ Scientific Databases Connected", expanded=True):
+            st.markdown(f"**{DATABASE_CONNECTIONS.get('title', 'Databases')}**")
+            st.caption(DATABASE_CONNECTIONS.get('description', ''))
+
+            # Render database cards
+            dbs = DATABASE_CONNECTIONS.get('databases', [])
+            if dbs:
+                # Create columns for database cards
+                cols = st.columns(2)
+                for idx, db in enumerate(dbs):
+                    with cols[idx % 2]:
+                        st.markdown(f"""
+                        <div class='wf-db-card'>
+                            <div style='font-size: 1.5rem; margin-bottom: 8px;'>{db['icon']}</div>
+                            <div class='wf-db-card-title'>{db['name']}</div>
+                            <div class='wf-db-card-desc'>{db['full_name']}</div>
+                            <div style='font-size: 0.75rem; color: #475569; margin-top: 6px;'>
+                                <strong>Purpose:</strong> {db['purpose']}<br>
+                                <strong>Analogy:</strong> {db['analogy']}<br>
+                                <strong>Example:</strong> <code>{db['example']}</code>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        st.caption(f"_{db['size']}_")
+
+    def render_data_flow_overview(self):
+        """Render complete data flow pipeline overview"""
+        if not EDUCATION_AVAILABLE or not PIPELINE_DATA_FLOW:
+            return
+
+        with st.expander("🔄 Complete Data Flow Pipeline", expanded=False):
+            st.markdown(f"**{PIPELINE_DATA_FLOW.get('title', 'Data Flow')}**")
+            st.caption(PIPELINE_DATA_FLOW.get('description', ''))
+
+            flow_steps = PIPELINE_DATA_FLOW.get('flow_steps', [])
+            for step in flow_steps:
+                st.markdown(f"""
+                <div class='wf-data-flow-step'>
+                    <div class='wf-data-flow-icon'>{step['icon']}</div>
+                    <div style='flex: 1;'>
+                        <div style='font-weight: 600; color: #1e40af;'>
+                            {step['step']}. {step['name']}
+                        </div>
+                        <div style='font-size: 0.85rem; color: #64748b;'>
+                            {step['description']}
+                        </div>
+                        <div style='font-size: 0.75rem; color: #94a3b8; margin-top: 4px;'>
+                            <strong>Type:</strong> {step['data_type']} |
+                            <strong>Example:</strong> <code>{step['example']}</code>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Add arrow between steps (except last one)
+                if step['step'] < len(flow_steps):
+                    st.markdown("<div class='wf-data-flow-arrow'>⬇</div>", unsafe_allow_html=True)
+
+    def render_app_architecture(self):
+        """Render app architecture explanation"""
+        if not EDUCATION_AVAILABLE or not APP_ARCHITECTURE:
+            return
+
+        with st.expander("🔧 How This App Works", expanded=False):
+            st.markdown(f"**{APP_ARCHITECTURE.get('title', 'Architecture')}**")
+            st.caption(APP_ARCHITECTURE.get('description', ''))
+
+            components = APP_ARCHITECTURE.get('components', [])
+            for comp in components:
+                with st.container():
+                    cols = st.columns([1, 4])
+                    with cols[0]:
+                        st.markdown(f"<div style='font-size: 2rem; text-align: center;'>{comp['icon']}</div>", unsafe_allow_html=True)
+                    with cols[1]:
+                        st.markdown(f"**{comp['name']}**")
+                        st.caption(f"_{comp['tech']}_")
+                        st.markdown(comp['purpose'])
+                        if comp.get('features'):
+                            features_str = " • ".join(comp['features'])
+                            st.caption(f"Features: {features_str}")
+                    st.divider()
+
+            # Processing flow
+            if APP_ARCHITECTURE.get('processing_flow'):
+                st.markdown("### ⚙️ Processing Flow")
+                st.markdown(APP_ARCHITECTURE['processing_flow'])
+
+    def render_fun_facts(self):
+        """Render random fun facts"""
+        if not EDUCATION_AVAILABLE or not FUN_FACTS:
+            return
+
+        import random
+        fact = random.choice(FUN_FACTS)
+
+        st.markdown(f"""
+        <div class='wf-fun-fact'>
+            <div style='font-size: 1.2rem; margin-bottom: 8px;'>{fact['icon']} <strong>{fact['category']}</strong></div>
+            <div style='font-size: 0.9rem; margin-bottom: 6px;'>{fact['fact']}</div>
+            <div style='font-size: 0.85rem; color: #92400e; font-style: italic;'>
+                <strong>Impact:</strong> {fact['impact']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # Enhanced event consumer with detailed step progression
