@@ -50,6 +50,19 @@ class PatientCreator:
     def render_patient_form(self):
         """Render comprehensive patient demographics form"""
         st.header("📋 Create Patient Profile")
+        # Patient Picture section at the very top
+        st.subheader("📸 Patient Picture")
+        photo_option_top = st.radio("Picture Option", ["Take patient picture", "Upload picture", "No picture"], horizontal=True, key="photo_option_top")
+        patient_photo_top = None
+        if photo_option_top == "No picture":
+            st.info("👤 A placeholder will be created from initials after submission")
+        elif photo_option_top == "Upload picture":
+            uploaded_file_top = st.file_uploader("Upload picture", type=['png', 'jpg', 'jpeg'], key="upload_picture_top")
+            if uploaded_file_top:
+                patient_photo_top = uploaded_file_top.read()
+                st.image(uploaded_file_top, width=200)
+        else:
+            st.info("📷 The patient's picture will be taken automatically based on the details you provide")
 
         # Basic Information (top section)
         st.subheader("Basic Information")
@@ -90,20 +103,9 @@ class PatientCreator:
                     st.metric("BMI", f"{bmi_preview:.1f}")
 
         with st.form("patient_form"):
-            # Patient Photo Section - AT THE TOP
-            st.subheader("📸 Patient Picture")
-            photo_option = st.radio("Picture Option", ["Take patient picture", "Upload picture", "No picture"], horizontal=True)
-
-            patient_photo = None
-            if photo_option == "No picture":
-                st.info("👤 A placeholder will be created from initials after submission")
-            elif photo_option == "Upload picture":
-                uploaded_file = st.file_uploader("Upload picture", type=['png', 'jpg', 'jpeg'])
-                if uploaded_file:
-                    patient_photo = uploaded_file.read()
-                    st.image(uploaded_file, width=200)
-            else:
-                st.info("📷 The patient's picture will be taken automatically based on the details you provide")
+            # Picture option and preview are handled above; bind their values here
+            photo_option = photo_option_top
+            patient_photo = patient_photo_top
 
             st.divider()
 
