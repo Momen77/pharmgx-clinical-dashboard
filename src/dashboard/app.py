@@ -54,6 +54,21 @@ except Exception:
             except Exception:
                 pass
 
+# Final fallback: try well-known image paths directly
+if not UGENT_LOGO_MAIN_EN:
+    _possible_images = [
+        _DASHBOARD_DIR / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_color.png",
+        _DASHBOARD_DIR / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_color-on-white.png",
+        _DASHBOARD_DIR / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_white.png",
+        _PROJECT_ROOT / "src" / "pharmgx-clinical-dashboard" / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_color.png",
+        _PROJECT_ROOT / "src" / "pharmgx-clinical-dashboard" / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_color-on-white.png",
+        _PROJECT_ROOT / "src" / "pharmgx-clinical-dashboard" / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_white.png",
+    ]
+    for _img in _possible_images:
+        if _img.exists():
+            UGENT_LOGO_MAIN_EN = str(_img)
+            break
+
 # Load PGxPipeline with multiple fallbacks
 PGxPipeline = None
 _import_errors = []
@@ -306,7 +321,13 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    st.image(UGENT_LOGO_MAIN_EN, width=160)
+    try:
+        if UGENT_LOGO_MAIN_EN and Path(UGENT_LOGO_MAIN_EN).exists():
+            st.image(UGENT_LOGO_MAIN_EN, width=160)
+        else:
+            st.markdown("### UGent PGx Dashboard")
+    except Exception:
+        st.markdown("### UGent PGx Dashboard")
     st.title("Workflow")
     
     # Show workflow steps with status indicators
