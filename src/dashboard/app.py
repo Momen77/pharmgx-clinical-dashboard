@@ -539,25 +539,7 @@ elif page == "🔬 Run Test":
                 st.write(f"Profile keys: {list(profile.keys())}")
 
             try:
-                # Run pipeline with progress indicators
-                st.info("🧬 Running pipeline...")
-                
-                # Show workflow stages as they would appear
-                stages_display = st.container()
-                with stages_display:
-                    cols = st.columns(5)
-                    stage_info = [
-                        ("🧪", "Lab Prep", "DNA extraction"),
-                        ("🧬", "Sequencing", "Variant calling"),
-                        ("📝", "Annotation", "Clinical data"),
-                        ("💊", "Drug Links", "Interactions"),
-                        ("📊", "Report", "Final results")
-                    ]
-                    for col, (emoji, title, desc) in zip(cols, stage_info):
-                        with col:
-                            st.markdown(f"### {emoji}")
-                            st.markdown(f"**{title}**")
-                            st.caption(desc)
+                # Run pipeline (storyboard handles visual stages and status)
                 
                 # Deprecated: old Streamlit progress UI (replaced by storyboard progress)
                 progress_bar = None
