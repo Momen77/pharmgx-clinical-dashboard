@@ -51,17 +51,43 @@ class PatientCreator:
         """Render comprehensive patient demographics form"""
         st.header("📋 Create Patient Profile")
 
-        # Live Date of Birth and Age (outside the form so age updates immediately)
-        st.subheader("Date of Birth")
-        dob_default = date.today() - timedelta(days=365*45)
-        date_of_birth = st.date_input(
-            "Date of Birth",
-            value=dob_default,
-            min_value=date(1900, 1, 1),
-            max_value=date.today()
-        )
-        age = (date.today() - date_of_birth).days // 365
-        st.info(f"Age: {age} years")
+        # Basic Information (top section)
+        st.subheader("Basic Information")
+        col_name1, col_name2 = st.columns(2)
+        with col_name1:
+            first_name = st.text_input("First Name *", value="", key="first_name_top")
+            middle_name = st.text_input("Middle Name", value="", key="middle_name_top")
+        with col_name2:
+            last_name = st.text_input("Last Name *", value="", key="last_name_top")
+            preferred_name = st.text_input("Preferred Name", value="", key="preferred_name_top")
+
+        # Compact live DOB/Age and Measurements panel
+        with st.container(border=True):
+            col_dob, col_gap, col_meas = st.columns([2, 0.2, 3])
+            with col_dob:
+                dob_default = date.today() - timedelta(days=365*45)
+                date_of_birth = st.date_input(
+                    "Date of Birth",
+                    value=dob_default,
+                    min_value=date(1900, 1, 1),
+                    max_value=date.today()
+                )
+                age = (date.today() - date_of_birth).days // 365
+                st.caption(f"Age: {age} years")
+            with col_meas:
+                col_w, col_h, col_bmi = st.columns([1.2, 1.2, 1])
+                with col_w:
+                    weight_unit = st.radio("Weight Unit", ["kg", "lbs"], horizontal=True, key="weight_unit_live")
+                    weight = st.number_input(f"Weight ({weight_unit})", min_value=0.0, value=70.0, step=0.1, key="weight_live")
+                with col_h:
+                    height_unit = st.radio("Height Unit", ["cm", "inches"], horizontal=True, key="height_unit_live")
+                    height = st.number_input(f"Height ({height_unit})", min_value=0.0, value=170.0, step=0.1, key="height_live")
+                with col_bmi:
+                    # Calculate live BMI preview in standard units
+                    weight_kg_preview = weight * 0.453592 if weight_unit == "lbs" else weight
+                    height_m_preview = (height * 0.0254) if height_unit == "inches" else (height / 100 if height > 0 else 0)
+                    bmi_preview = (weight_kg_preview / (height_m_preview ** 2)) if height_m_preview > 0 else 0.0
+                    st.metric("BMI", f"{bmi_preview:.1f}")
 
         with st.form("patient_form"):
             # Patient Photo Section - AT THE TOP
@@ -81,16 +107,8 @@ class PatientCreator:
 
             st.divider()
 
-            # Basic Information
+            # Additional identity details
             col1, col2 = st.columns(2)
-            
-            # Basic Information
-            with col1:
-                first_name = st.text_input("First Name *", value="")
-                middle_name = st.text_input("Middle Name", value="")
-                last_name = st.text_input("Last Name *", value="")
-                preferred_name = st.text_input("Preferred Name", value="")
-            
             with col2:
                 # Date of birth is selected above to allow live age updates
                 st.write("")
@@ -139,29 +157,7 @@ class PatientCreator:
                 emergency_contact = st.text_input("Emergency Contact Name", value="")
                 emergency_phone = st.text_input("Emergency Contact Phone", value="")
             
-            # Physical Measurements
-            st.subheader("Physical Measurements")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                weight_unit = st.radio("Weight Unit", ["kg", "lbs"], horizontal=True)
-                weight = st.number_input(f"Weight ({weight_unit})", min_value=0.0, value=70.0, step=0.1)
-            with col2:
-                height_unit = st.radio("Height Unit", ["cm", "inches"], horizontal=True)
-                height = st.number_input(f"Height ({height_unit})", min_value=0.0, value=170.0, step=0.1)
-            with col3:
-                # Calculate BMI
-                if weight_unit == "lbs":
-                    weight_kg = weight * 0.453592
-                else:
-                    weight_kg = weight
-                
-                if height_unit == "inches":
-                    height_m = height * 0.0254
-                else:
-                    height_m = height / 100
-                
-                bmi = weight_kg / (height_m ** 2) if height_m > 0 else 0
-                st.metric("BMI", f"{bmi:.1f}")
+            # Physical measurements are selected above for live BMI; values will be used on submit
             
             # Medical Record Number
             col1, col2 = st.columns(2)
@@ -216,6 +212,8 @@ class PatientCreator:
                     height_cm = height * 2.54
                 else:
                     height_cm = height
+                # Calculate BMI for submission
+                bmi = (weight_kg / ((height_cm / 100) ** 2)) if height_cm > 0 else 0
                 
                 # Map gender to schema.org format
                 gender_uri = f"http://schema.org/{gender}" if gender in ["Male", "Female"] else "http://schema.org/Male"
