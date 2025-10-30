@@ -53,7 +53,7 @@ class PatientCreator:
         with st.form("patient_form"):
             # Patient Photo Section - AT THE TOP
             st.subheader("📸 Patient Photo")
-            photo_option = st.radio("Photo Option", ["Generate Avatar", "Upload Photo", "AI Generated (coming soon)"], horizontal=True)
+            photo_option = st.radio("Photo Option", ["Generate Avatar", "Upload Photo", "AI Generated"], horizontal=True)
 
             patient_photo = None
             if photo_option == "Generate Avatar":
@@ -345,11 +345,53 @@ class PatientCreator:
                     'birth_country': birth_country
                 }
 
+                # Generate AI photo if selected
+                if photo_option == "AI Generated":
+                    try:
+                        import sys
+                        from pathlib import Path
+                        sys.path.append(str(Path(__file__).parent.parent))
+                        from utils.ai_photo_generator import AIPhotoGenerator
+
+                        with st.spinner("🎨 Generating AI-powered patient photo..."):
+                            generator = AIPhotoGenerator()
+                            photo_bytes = generator.generate_patient_photo(patient_profile)
+
+                            if photo_bytes:
+                                patient_profile['photo'] = photo_bytes
+                                patient_profile['photo_format'] = 'ai_generated'
+                                st.success("✅ AI photo generated successfully!")
+                            else:
+                                # Fallback to avatar
+                                initials = get_patient_initials(first_name, last_name)
+                                avatar = generate_avatar(initials, size=(200, 200))
+                                patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                                patient_profile['photo_format'] = 'avatar'
+                                st.warning("⚠️ Using avatar fallback (no API key configured or generation failed)")
+                    except Exception as e:
+                        st.error(f"⚠️ AI photo generation error: {e}")
+                        # Fallback to avatar
+                        initials = get_patient_initials(first_name, last_name)
+                        avatar = generate_avatar(initials, size=(200, 200))
+                        patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                        patient_profile['photo_format'] = 'avatar'
+
                 # Store in session state
                 st.session_state['patient_profile'] = patient_profile
                 st.session_state['patient_created'] = True
-                
+
                 st.success(f"✅ Patient profile created: {first_name} {last_name} (MRN: {mrn})")
+
+                # Show photo preview if available
+                if patient_profile.get('photo'):
+                    photo_format = patient_profile.get('photo_format', 'unknown')
+                    if photo_format == 'ai_generated':
+                        st.image(patient_profile['photo'], width=200, caption="✨ AI-Generated Patient Photo")
+                    elif photo_format == 'upload':
+                        st.image(patient_profile['photo'], width=200, caption="📸 Uploaded Photo")
+                    else:
+                        st.image(patient_profile['photo'], width=200, caption="👤 Avatar")
+
                 return patient_profile
 
         return None

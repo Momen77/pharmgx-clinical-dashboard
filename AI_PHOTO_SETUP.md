@@ -111,8 +111,15 @@ src/
 # Select photo option at top:
 # ⚪ Generate Avatar
 # ⚪ Upload Photo
-# ⚪ AI Generated (coming soon)  ← Will be enabled with API key
+# ⚪ AI Generated  ← Fully functional with API key
 ```
+
+When you select "AI Generated" and submit the form:
+1. The system collects all patient data from the form
+2. Builds a detailed AI prompt based on demographics and medical conditions
+3. Generates a photorealistic portrait using OpenAI DALL-E or Stability AI
+4. Displays the generated photo with success message
+5. Automatically falls back to avatar if no API key is configured
 
 ### Auto-Generate Profile
 ```python
