@@ -7,8 +7,6 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
-from .logo_UGent_EN.logo_assets import UGENT_LOGO_MAIN_EN
-import os
 
 # =========================
 # Robust import bootstrap
@@ -280,7 +278,26 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    st.image(UGENT_LOGO_MAIN_EN, width=160)
+    # Try to load local logo first, fallback to embedded SVG
+    import os
+    logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
+    if os.path.exists(logo_path):
+        st.image(logo_path, use_container_width=True)
+    else:
+        # Fallback: Use data URI with embedded SVG
+        logo_svg = """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100">
+          <rect width="400" height="100" fill="#1E64C8"/>
+          <rect x="0" y="0" width="10" height="100" fill="#FFD200"/>
+          <text x="25" y="45" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#FFFFFF">
+            GHENT UNIVERSITY
+          </text>
+          <text x="25" y="70" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#FFD200">
+            Pharmacogenomics Laboratory
+          </text>
+        </svg>
+        """
+        st.markdown(logo_svg, unsafe_allow_html=True)
     st.title("Workflow")
     
     # Show workflow steps with status indicators
@@ -368,7 +385,7 @@ elif page == "👤 Create Patient":
 
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                if st.button("🎲 Generate Random Patient Profile", type="primary", width=None):
+                if st.button("🎲 Generate Random Patient Profile", type="primary", use_container_width=True):
                     with st.spinner("Generating patient profile and AI photo..."):
                         profile = creator.generate_random_profile(generate_ai_photo=True)
                         if profile:
@@ -691,11 +708,8 @@ elif page == "🔬 Run Test":
                         if result_data["success"]:
                             results = result_data["data"]
                         else:
-                            # Defensive: Ensure the error message is always a string
-                            error_msg = result_data.get("error")
-                            if not isinstance(error_msg, str) or not error_msg:
-                                error_msg = "Unknown error"
-                            raise RuntimeError(error_msg)
+                            # Re-raise exception from worker
+                            raise RuntimeError(result_data["error"])
                         worker_done = True
                     elif not worker.is_alive():
                         # Worker died without putting result
@@ -760,11 +774,7 @@ elif page == "🔬 Run Test":
                     for t, p in results['comprehensive_outputs'].items():
                         st.text(f"• {t}: {p}")
             else:
-                # Defensive: ensure error is always printed as a string
-                error_msg = results.get('error')
-                if not isinstance(error_msg, str) or not error_msg:
-                    error_msg = "Unknown error"
-                st.error(f"❌ Test failed: {error_msg}")
+                st.error(f"❌ Test failed: {results.get('error', 'Unknown error')}")
 
 elif page == "📊 View Results":
     st.title("📊 Clinical Report")
@@ -967,7 +977,7 @@ elif page == "💾 Export Data":
                                             file_content,
                                             file_name=_P(path).name,
                                             key=f"download_{key}",
-                                            width=None
+                                            use_container_width=False
                                         )
                                 except Exception as e:
                                     st.error(f"Error reading {key}: {e}")
