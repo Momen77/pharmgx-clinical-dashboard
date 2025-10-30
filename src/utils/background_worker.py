@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any
 
 # Import pipeline components
 try:
-    from ..phase1_discovery.pipeline import PGxPipeline
+    from ..main import PGxPipeline
     from .event_bus import PipelineEvent, EventBus
 except ImportError:
     # Fallback imports for different execution contexts
@@ -16,36 +16,37 @@ except ImportError:
     from pathlib import Path
     src_dir = Path(__file__).parent.parent
     sys.path.insert(0, str(src_dir))
-    
+
     try:
-        from phase1_discovery.pipeline import PGxPipeline
+        from main import PGxPipeline
         from utils.event_bus import PipelineEvent, EventBus
     except ImportError:
         # Further fallback - create minimal classes if imports fail
         class PGxPipeline:
-            def __init__(self, event_bus=None):
+            def __init__(self, config_path="config.yaml", event_bus=None):
+                self.config_path = config_path
                 self.event_bus = event_bus
-            
+
             def run_single_gene(self, gene_symbol, patient_profile=None):
                 return {"gene": gene_symbol, "status": "completed"}
-            
+
             def run_multi_gene(self, gene_symbols, patient_profile=None):
                 return {"genes": gene_symbols, "status": "completed"}
-        
+
         class PipelineEvent:
             def __init__(self, stage, substage, message, progress=None):
                 self.stage = stage
                 self.substage = substage
                 self.message = message
                 self.progress = progress
-        
+
         class EventBus:
             def __init__(self):
                 self.subscribers = []
-            
+
             def subscribe(self, callback):
                 self.subscribers.append(callback)
-            
+
             def emit(self, event):
                 for callback in self.subscribers:
                     try:
