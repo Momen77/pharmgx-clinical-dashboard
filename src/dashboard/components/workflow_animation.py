@@ -9,6 +9,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import time
 from typing import Optional, Dict, Any, List
+import json
 
 try:
     from .workflow_details import DETAIL_SCRIPTS, VISUAL_FLAGS, NETWORK_TEMPLATES
@@ -585,6 +586,8 @@ class EnhancedStoryboardV2:
             "coverage": 0,
             "depth": 0
         }
+        self.demo_plan: Optional[List[Dict[str, Any]]] = None
+        self.demo_speed_ms: int = 800
         # Use a single reusable placeholder so re-renders replace prior content
         if '_pgx_storyboard_ph' not in st.session_state or st.session_state.get('_pgx_storyboard_ph') is None:
             st.session_state['_pgx_storyboard_ph'] = st.empty()
@@ -699,8 +702,60 @@ class EnhancedStoryboardV2:
             ph.empty()
         except Exception:
             pass
+        # Optionally append a built-in JS demo player for smooth animation without rerender
+        if self.demo_plan:
+            try:
+                plan_json = json.dumps(self.demo_plan)
+                speed_json = int(self.demo_speed_ms)
+            except Exception:
+                plan_json = 'null'
+                speed_json = 800
+            full_html += f"""
+            <script>
+            (function(){{
+                try {{
+                    const plan = {plan_json};
+                    if(!plan || !Array.isArray(plan) || plan.length===0) return;
+                    const speed = {speed_json};
+                    const map = {{lab_prep:'lab', ngs:'ngs', annotation:'anno', enrichment:'drug', linking:'drug', report:'report'}};
+                    const root = document.currentScript.closest('.wf-wrap') || document.body;
+                    const stages = root.querySelectorAll('.wf-stage');
+                    const fill = root.querySelector('.wf-progress-fill');
+                    const caption = root.querySelector('.wf-caption');
+                    function setStage(stage,message,progress){{
+                        if(fill){{ fill.style.transition='width 600ms ease'; fill.style.width=(Math.max(0,Math.min(100,(progress||0)*100))).toFixed(1)+'%'; }}
+                        const cur = map[stage] || stage;
+                        let activeSet=false;
+                        stages.forEach(el=>{{
+                            el.classList.remove('active','done','hidden');
+                            const title=(el.querySelector('.wf-stage-title')||{{}}).innerText||'';
+                            const t=title.toLowerCase();
+                            const isLab = cur==='lab' && t.includes('lab');
+                            const isSeq = cur==='ngs' && (t.includes('sequencing')||t.includes('ngs'));
+                            const isAnno = cur==='anno' && t.includes('annotation');
+                            const isDrug = cur==='drug' && (t.includes('interactions')||t.includes('drug'));
+                            const isRep = cur==='report' && t.includes('report');
+                            const match = isLab||isSeq||isAnno||isDrug||isRep;
+                            if(!activeSet && match){{ el.classList.add('active'); activeSet=true; }}
+                            else if(activeSet){{ el.classList.add(cur==='report' ? 'done':'hidden'); }}
+                            else {{ el.classList.add('hidden'); }}
+                        }});
+                        if(caption) caption.textContent = message ? ('\uD83D\uDCAC '+message) : '';
+                    }}
+                    let i=0; function next(){{ if(i>=plan.length) return; const ev=plan[i++]; setStage(ev.stage, ev.message, ev.progress); setTimeout(next, Math.max(250, speed)); }};
+                    setTimeout(next, Math.max(250, speed));
+                }} catch(e){{ /* no-op */ }}
+            }})();
+            </script>
+            """
         with ph.container():
             components.html(full_html, height=800, scrolling=True)
+
+    def set_demo_plan(self, plan: List[Dict[str, Any]], speed_ms: int = 800):
+        """Set a client-side demo plan for smooth built-in animation without Streamlit rerenders."""
+        if isinstance(plan, list):
+            self.demo_plan = plan
+            self.demo_speed_ms = int(speed_ms) if speed_ms else 800
 
     def _is_stage_done(self, stage_id: str) -> bool:
         """Check if a stage is completed"""

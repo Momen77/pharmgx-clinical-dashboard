@@ -1083,17 +1083,6 @@ elif page == "🛠️ Debug":
                 if sb and hasattr(sb, 'set_genes'):
                     sb.set_genes(["CYP2D6", "CYP2C19", "TPMT", "DPYD"]) 
 
-                # Local event queue
-                evq = _q.Queue()
-
-                # Simple event object
-                class _Ev:
-                    def __init__(self, stage, substage, message, progress):
-                        self.stage = stage
-                        self.substage = substage
-                        self.message = message
-                        self.progress = progress
-
                 # Full pass of stages (target progress per stage)
                 demo_events = [
                     ("lab_prep", "init", "Starting lab preparation...", 0.05),
@@ -1107,16 +1096,10 @@ elif page == "🛠️ Debug":
                     ("report", "export", "Generating reports and visualizations...", 0.95),
                     ("report", "complete", "Analysis complete!", 1.00),
                 ]
-                delay = max(0.2, min(3.0, demo_delay_ms / 1000.0))
-
-                # Feed substantive events only; rely on CSS transition for smoothness
-                if sb and consume_events:
-                    for s, sub, msg, prog in demo_events:
-                        evq.put(_Ev(s, sub, msg, prog))
-                        start = _t.time()
-                        def _alive():
-                            return (_t.time() - start) < delay or not evq.empty()
-                        consume_events(evq, sb, _alive)
+                if sb and hasattr(sb, 'set_demo_plan'):
+                    plan = [{"stage": s, "substage": sub, "message": msg, "progress": prog} for s, sub, msg, prog in demo_events]
+                    sb.set_demo_plan(plan, demo_delay_ms)
+                    sb.render("Starting demo...")
                 else:
                     st.info("Storyboard runtime not available")
 
