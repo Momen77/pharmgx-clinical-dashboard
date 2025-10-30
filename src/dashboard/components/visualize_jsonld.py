@@ -270,15 +270,15 @@ def render_d3_visualization(hierarchy_data):
 
         node.append("circle")
           .attr("fill", d => getColor(d.data.name))
-          .attr("r", d => d.children ? 12 : 10)
+          .attr("r", d => d.children ? 18 : 15)
           .attr("stroke", "#333")
-          .attr("stroke-width", 2)
+          .attr("stroke-width", 3)
           .style("cursor", "pointer")
           .on("mouseover", function(event, d) {{
             d3.select(this)
               .transition()
               .duration(200)
-              .attr("r", d.children ? 16 : 14);
+              .attr("r", d.children ? 24 : 20);
             
             tooltip.transition().duration(200).style("opacity", .95);
             tooltip.html(`
@@ -293,7 +293,7 @@ def render_d3_visualization(hierarchy_data):
             d3.select(this)
               .transition()
               .duration(200)
-              .attr("r", d.children ? 12 : 10);
+              .attr("r", d.children ? 18 : 15);
             
             tooltip.transition().duration(500).style("opacity", 0);
           }})
