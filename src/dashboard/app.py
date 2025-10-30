@@ -1109,27 +1109,14 @@ elif page == "🛠️ Debug":
                 ]
                 delay = max(0.2, min(3.0, demo_delay_ms / 1000.0))
 
-                # Feed events with smooth progress ticks between steps
+                # Feed substantive events only; rely on CSS transition for smoothness
                 if sb and consume_events:
-                    last_prog = 0.0
                     for s, sub, msg, prog in demo_events:
-                        # Smooth ticks
-                        ticks = 10
-                        for i in range(1, ticks + 1):
-                            interp = last_prog + (prog - last_prog) * (i / ticks)
-                            evq.put(_Ev(s, 'tick', msg, interp))
-                            start = _t.time()
-                            frame = max(0.02, min(0.08, delay / ticks))
-                            def _alive():
-                                return (_t.time() - start) < frame or not evq.empty()
-                            consume_events(evq, sb, _alive)
-                        # Final substantive event for microstep advance
                         evq.put(_Ev(s, sub, msg, prog))
                         start = _t.time()
-                        def _alive_final():
-                            return (_t.time() - start) < (delay * 0.4) or not evq.empty()
-                        consume_events(evq, sb, _alive_final)
-                        last_prog = prog
+                        def _alive():
+                            return (_t.time() - start) < delay or not evq.empty()
+                        consume_events(evq, sb, _alive)
                 else:
                     st.info("Storyboard runtime not available")
 
