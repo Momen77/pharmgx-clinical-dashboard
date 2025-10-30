@@ -196,9 +196,9 @@ def render_d3_visualization(hierarchy_data):
       
       <script>
         const data = {d3_data};
-        const width = 1600, height = 900, radius = Math.min(width, height) / 2.2;
+        const width = 1400, height = 900, radius = Math.min(width, height) / 2.2;
 
-        const tree = d3.tree().size([2 * Math.PI, radius - 20]).separation((a, b) => (a.parent == b.parent ? 15 : 18));
+        const tree = d3.tree().size([2 * Math.PI, radius - 20]).separation((a, b) => (a.parent == b.parent ? 25 : 30));
         const root = d3.hierarchy(data);
         tree(root);
 
