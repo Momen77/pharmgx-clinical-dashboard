@@ -124,12 +124,21 @@ class AIPhotoGenerator:
             face_block = "person of undetermined heritage, neutral facial features"
 
         # Base description
-        prompt_parts = [
-            f"Professional medical portrait photograph of a {age}-year-old {gender.lower()} patient",
-            f"of {ethnicity_desc}",
-            "neutral background, soft lighting, facing camera",
-            "realistic photographic style, high quality"
-        ]
+        try:
+            prompt_parts = [
+                f"Professional medical portrait photograph of a {age}-year-old {gender.lower()} patient",
+                f"of {ethnicity_desc}",
+                "neutral background, soft lighting, facing camera",
+                "realistic photographic style, high quality"
+            ]
+        except Exception as e:
+            # Debug: Log exactly what failed
+            error_details = f"Error creating prompt_parts: {type(e).__name__}: {e}"
+            error_details += f"\n  age={age!r} (type: {type(age).__name__})"
+            error_details += f"\n  gender={gender!r} (type: {type(gender).__name__})"
+            error_details += f"\n  ethnicity_desc={ethnicity_desc!r} (type: {type(ethnicity_desc).__name__})"
+            self.last_error = error_details
+            raise Exception(error_details)
 
         # Add face block at the beginning
         prompt_parts = [face_block] + prompt_parts
