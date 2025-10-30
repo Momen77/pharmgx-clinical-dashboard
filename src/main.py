@@ -27,7 +27,11 @@ from phase5_export.html_reporter import HTMLReporter
 
 # Try to import EventBus for dashboard integration
 try:
-    from utils.event_bus import PipelineEvent, emit as queue_emit
+    from utils.event_bus import PipelineEvent as _PipelineEventImported, emit as queue_emit
+    # Adapter: provide a compatible PipelineEvent callable with default level
+    def PipelineEvent(stage, substage, message, progress=None, level="info", payload=None):
+        # utils.event_bus.PipelineEvent signature is (stage, substage, level, message, progress, payload)
+        return _PipelineEventImported(stage, substage, level, message, progress, payload)
     # Provide a minimal EventBus wrapper that uses the queue when available
     class EventBus:
         """Queue-backed EventBus wrapper for dashboard integration"""
