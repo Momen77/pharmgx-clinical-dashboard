@@ -27,38 +27,71 @@ from phase5_export.html_reporter import HTMLReporter
 
 # Try to import EventBus for dashboard integration
 try:
-    from utils.event_bus import PipelineEvent, EventBus
+    from utils.event_bus import PipelineEvent, emit as queue_emit
+    EventBus = None  # Will use queue-based approach
 except ImportError:
+    queue_emit = None
+
     # Fallback for when EventBus is not available
     class PipelineEvent:
-        def __init__(self, stage, substage, message, progress=None):
+        def __init__(self, stage, substage, message, progress=None, level="info", payload=None):
             self.stage = stage
             self.substage = substage
             self.message = message
             self.progress = progress
-    
+            self.level = level
+            self.payload = payload
+
     class EventBus:
-        def __init__(self):
+        """Thread-safe EventBus with improved error handling"""
+        def __init__(self, event_queue=None):
             self.subscribers = []
-        
+            self.event_queue = event_queue
+
         def subscribe(self, callback):
             self.subscribers.append(callback)
-        
+
         def emit(self, event):
+            # If we have a queue, use it (thread-safe)
+            if self.event_queue is not None:
+                try:
+                    self.event_queue.put(event, block=False)
+                except Exception as e:
+                    import traceback
+                    print(f"Queue emit error: {e}")
+                    print(f"Full traceback:\n{traceback.format_exc()}")
+
+            # Also call subscribers (for compatibility)
             for callback in self.subscribers:
                 try:
                     callback(event)
                 except Exception as e:
+                    import traceback
                     print(f"Event callback error: {e}")
+                    print(f"Full traceback:\n{traceback.format_exc()}")
 
 
 class PGxPipeline:
     """Enhanced Pipeline for Dashboard Integration"""
-    
-    def __init__(self, config_path: str = "config.yaml", event_bus=None):
-        """Initialize pipeline with optional event bus for dashboard integration"""
+
+    def __init__(self, config_path: str = "config.yaml", event_bus=None, event_queue=None):
+        """Initialize pipeline with optional event bus or event queue for dashboard integration
+
+        Args:
+            config_path: Path to config.yaml
+            event_bus: Optional EventBus instance (callback-based, not thread-safe for Streamlit)
+            event_queue: Optional Queue instance (thread-safe, recommended for Streamlit)
+        """
         self.config = Config(config_path)
-        self.event_bus = event_bus or EventBus()
+        self.event_queue = event_queue
+
+        # Create EventBus with queue support if queue provided
+        if event_queue is not None:
+            self.event_bus = EventBus(event_queue=event_queue)
+        elif event_bus is not None:
+            self.event_bus = event_bus
+        else:
+            self.event_bus = EventBus()
         
         # Initialize phase modules
         self.phase1 = VariantDiscoverer()
@@ -292,10 +325,18 @@ class PGxPipeline:
             lock = threading.Lock()
 
             # PARALLEL PROCESSING: Process genes concurrently
-            max_workers = min(len(gene_symbols), 5)  # Max 5 parallel gene processes
+            # Optimize thread pool size based on:
+            # 1. Number of genes to process
+            # 2. CPU count (for I/O-bound tasks like API calls, can be higher)
+            # 3. Maximum limit to avoid overwhelming APIs
+            import os
+            cpu_count = os.cpu_count() or 4
+            # For I/O-bound tasks, use 2x CPU count, but cap at 8
+            max_workers = min(len(gene_symbols), min(cpu_count * 2, 8))
 
             print(f"\n{'='*70}")
             print(f"PARALLEL PROCESSING: Running {len(gene_symbols)} genes with {max_workers} workers")
+            print(f"CPU Count: {cpu_count}, Optimized workers: {max_workers}")
             print(f"{'='*70}\n")
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
