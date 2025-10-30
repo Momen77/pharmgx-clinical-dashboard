@@ -256,9 +256,39 @@ class AIPhotoGenerator:
                     continue
 
             if response is None:
-                self.last_error = f"All candidate models unavailable. Last error: {last_exc}"
-                print(f"❌ {self.last_error}")
-                return None
+                # As a last resort, discover available models dynamically
+                try:
+                    models = client.models.list()
+                    # Prefer imagen-4, then imagen-3 families that support generate_images
+                    def supports_image_gen(m):
+                        caps = getattr(m, "supported_generation_methods", []) or getattr(m, "supportedMethods", [])
+                        return any("generate_images" in str(c).lower() for c in caps)
+
+                    image_models = [m for m in models if supports_image_gen(m)]
+                    # Sort preference: imagen-4 first, then imagen-3, else anything with generate_images
+                    def score(m):
+                        name = getattr(m, "name", "") or ""
+                        if "imagen-4" in name:
+                            return 0
+                        if "imagen-3" in name:
+                            return 1
+                        return 2
+                    image_models.sort(key=score)
+
+                    if image_models:
+                        chosen = image_models[0].name
+                        if cfg is not None:
+                            response = client.models.generate_images(model=chosen, prompt=prompt, config=cfg)
+                        else:
+                            response = client.models.generate_images(model=chosen, prompt=prompt)
+                    else:
+                        self.last_error = f"No image-capable models available for this API key/project. Last error: {last_exc}"
+                        print(f"❌ {self.last_error}")
+                        return None
+                except Exception as e:
+                    self.last_error = f"Model discovery failed and candidates unavailable. Last error: {last_exc}; discovery error: {e}"
+                    print(f"❌ {self.last_error}")
+                    return None
 
             # Extract bytes across possible response shapes
             image_bytes: Optional[bytes] = None
