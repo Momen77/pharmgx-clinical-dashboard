@@ -708,12 +708,69 @@ class EnhancedStoryboardV2:
             """
         
         elif stage_id == "anno":
-            # Database connection indicators
+            # Database connection indicators + key annotation highlights
             dbs = ["dbSNP", "ClinVar", "PharmGKB"]
-            db_html = "<div style='margin-top: 8px; font-size: 0.7rem; color: #6b7280;'>Connected: "
-            db_html += ", ".join([f"<span style='color: #16a34a;'>{db}</span>" for db in dbs])
+            ann_lit = self.state.get('literature', 0)
+            highlights = [
+                ("🧾", "Pathogenic variants flagged", "Automatic ClinVar clinical significance checks"),
+                ("🔗", "HGVS normalized", "Unified variant representation applied"),
+                ("📚", f"Literature hits: {ann_lit}", "PMIDs and abstracts summarized"),
+            ]
+            items = []
+            for icon, title, desc in highlights:
+                items.append(f"""
+                <div style='display:flex; gap:10px; align-items:flex-start;'>
+                    <div style='font-size:1.1rem'>{icon}</div>
+                    <div style='font-size:0.8rem'>
+                        <div style='font-weight:700; color:#111827'>{title}</div>
+                        <div style='color:#6b7280'>{desc}</div>
+                    </div>
+                </div>
+                """)
+            db_html = "<div style='margin-top: 8px; font-size: 0.75rem; color: #6b7280;'>Connected: "
+            db_html += ", ".join([f"<span style='color: #16a34a; font-weight:600'>{db}</span>" for db in dbs])
             db_html += "</div>"
-            return db_html
+            return db_html + "<div style='margin-top:8px; display:flex; flex-direction:column; gap:6px;'>" + "".join(items) + "</div>"
+        
+        elif stage_id == "drug":
+            # Drug interaction summary badges
+            drugs = max(1, int(self.state.get('drugs', 0)))
+            badges = [
+                ("⚠️", "Potential interactions", "Review dose adjustments and monitoring"),
+                ("🧪", "Gene-drug links", "Actionable CPIC/DPWG guidance available"),
+                ("🧭", "Clinical pathways", "Alternative therapies considered"),
+            ]
+            rows = []
+            for icon, title, note in badges:
+                rows.append(f"""
+                <div style='display:flex; gap:10px; align-items:flex-start;'>
+                    <div style='font-size:1.1rem'>{icon}</div>
+                    <div style='font-size:0.8rem'>
+                        <div style='font-weight:700; color:#111827'>{title}</div>
+                        <div style='color:#6b7280'>{note}</div>
+                    </div>
+                </div>
+                """)
+            return "<div style='margin-top:8px; display:flex; flex-direction:column; gap:6px;'>" + "".join(rows) + "</div>"
+        
+        elif stage_id == "report":
+            # Report generation status and export hints
+            cards = [
+                ("📄", "HTML report", "Interactive results and summaries"),
+                ("🔗", "JSON-LD graph", "Machine-readable knowledge graph"),
+                ("🧩", "RDF triples", "Linked data export for integration"),
+            ]
+            card_html = []
+            for icon, title, desc in cards:
+                card_html.append(f"""
+                <div style='border:1px solid #e5e7eb; border-radius:10px; padding:8px; background:#fff;'>
+                    <div style='font-size:1.2rem'>{icon}</div>
+                    <div style='font-weight:700; margin-top:4px'>{title}</div>
+                    <div style='font-size:0.8rem; color:#6b7280'>{desc}</div>
+                </div>
+                """)
+            # grid
+            return "<div style='margin-top:10px; display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:8px;'>" + "".join(card_html) + "</div>"
         
         return ""
 
