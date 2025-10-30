@@ -362,6 +362,13 @@ class PatientCreator:
                                 gemini_key = st.secrets["GOOGLE_API_KEY"]
                             elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
                                 gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
+                            # Debug: surface detection info
+                            try:
+                                import sys as _sys
+                                key_preview = (gemini_key[:6] + "…" + gemini_key[-4:]) if gemini_key else "<none>"
+                                st.caption(f"Gemini key detected: {bool(gemini_key)} ({key_preview}); Python: {_sys.executable}")
+                            except Exception:
+                                pass
                             if not gemini_key:
                                 st.error("GOOGLE_API_KEY not found in secrets. Add it in Streamlit Secrets or .streamlit/secrets.toml")
                                 generator = AIPhotoGenerator()

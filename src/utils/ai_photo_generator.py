@@ -166,9 +166,9 @@ class AIPhotoGenerator:
                     print("✅ Photo generated successfully with OpenAI DALL-E")
                     return image_response.content
             else:
-            err = f"OpenAI API error: {response.status_code} - {response.text}"
-            print(f"❌ {err}")
-            self.last_error = err
+                err = f"OpenAI API error: {response.status_code} - {response.text}"
+                print(f"❌ {err}")
+                self.last_error = err
                 return None
 
         except Exception as e:
