@@ -666,7 +666,7 @@ elif page == "🔬 Run Test":
                             sb.set_genes(st.session_state.get('selected_genes', []))
                     # Independent storyboard playback (not tightly synced)
                     # Use a comfortable fixed speed (ms) without exposing UI controls
-                    storyboard_speed = 7000
+                    storyboard_speed = 10000
                     # Build a reasonable plan matching pipeline stages
                     sb_plan = [
                         ("lab_prep", "init", "Starting lab preparation...", 0.06),

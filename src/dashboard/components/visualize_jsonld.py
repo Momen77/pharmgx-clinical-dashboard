@@ -9,55 +9,22 @@ from collections import defaultdict
 
 
 def jsonld_to_hierarchy(jsonld_data):
-    """Convert JSON-LD to a clinically-relevant hierarchy for D3.js (whitelisted)."""
+    """Convert JSON-LD to a clinically-relevant hierarchy for D3.js (no whitelist; IRI→IRI edges only)."""
     try:
         g = Graph().parse(data=json.dumps(jsonld_data), format="json-ld")
-        allowed_node_patterns = (
-            "http://identifiers.org/dbsnp/rs",
-            "https://identifiers.org/dbsnp/rs",
-            "http://identifiers.org/ncbigene/",
-            "https://identifiers.org/ncbigene/",
-            "http://snomed.info/id/",
-            "https://snomed.info/id/",
-            "pharmgkb",
-            "drugbank",
-            "http://ugent.be/person/",
-            "https://ugent.be/person/",
-        )
-        # Allow any predicate between whitelisted node IRIs to avoid over-filtering
-        allowed_pred_keywords = None
-
-        # Build filtered adjacency
+        # Build adjacency for any IRI→IRI triple (ignore literals)
         links = defaultdict(list)
         nodes_seen = set()
         for subj, pred, obj in g:
-            s, p, o = str(subj), str(pred).lower(), str(obj)
-            if not any(k in s for k in allowed_node_patterns):
-                continue
-            if not any(k in o for k in allowed_node_patterns):
-                continue
-            if allowed_pred_keywords:
-                if not any(k in p for k in allowed_pred_keywords):
-                    continue
-            links[s].append(o)
-            nodes_seen.add(s); nodes_seen.add(o)
-
-        # Fallback: if nothing was linked with whitelist, include all URI→URI edges (no filtering)
-        if not links:
-            for subj, pred, obj in g:
-                s, o = str(subj), str(obj)
-                # keep only IRI→IRI edges (ignore literals)
-                if s.startswith("http") and (o.startswith("http") or o.startswith("https")):
-                    links[s].append(o)
-                    nodes_seen.add(s); nodes_seen.add(o)
+            s, o = str(subj), str(obj)
+            if (s.startswith("http://") or s.startswith("https://")) and (o.startswith("http://") or o.startswith("https://")):
+                links[s].append(o)
+                nodes_seen.add(s); nodes_seen.add(o)
 
         # Helper: direct clinical fallback when graph is too small
         def build_fallback_hierarchy(src: dict) -> dict:
-            # Patient label
             name = src.get('name') or src.get('identifier') or 'Patient'
             root = {"name": name, "children": []}
-
-            # Demographics
             demo_children = []
             demo = ((src.get('clinical_information') or {}).get('demographics')) or {}
             if src.get('identifier'):
@@ -66,28 +33,21 @@ def jsonld_to_hierarchy(jsonld_data):
                 demo_children.append({"name": f"Created: {src.get('dateCreated')}"})
             if demo_children:
                 root["children"].append({"name": "Demographics", "children": demo_children})
-
-            # Genetics: genes & variants (rsIDs)
             genes = set((src.get('pharmacogenomics_profile') or {}).get('genes_analyzed') or [])
             variants = src.get('variants') or []
             gene_children = []
             for gsym in genes:
-                v_children = []
-                count = 0
+                v_children, count = [], 0
                 for v in variants:
                     if v.get('gene') == gsym and (v.get('rsid') or '').startswith('rs'):
                         label = v.get('rsid')
                         if v.get('clinical_significance'):
                             label = f"{label} ({v.get('clinical_significance')})"
-                        v_children.append({"name": label})
-                        count += 1
-                        if count >= 3:
-                            break
+                        v_children.append({"name": label}); count += 1
+                        if count >= 3: break
                 gene_children.append({"name": gsym, "children": v_children or [{"name": "No variants"}]})
             if gene_children:
                 root["children"].append({"name": "Genes", "children": gene_children})
-
-            # Clinical info: conditions & medications (names only)
             clin = src.get('clinical_information') or {}
             conds = clin.get('current_conditions') or []
             meds = clin.get('current_medications') or []
@@ -97,51 +57,61 @@ def jsonld_to_hierarchy(jsonld_data):
                 root["children"].append({"name": "Conditions", "children": cond_children})
             if med_children:
                 root["children"].append({"name": "Medications", "children": med_children})
-
             return root
 
-        # Choose patient as root if present
-        # Prefer schema:Patient typing
+        # Root detection from JSON-LD first
         patient_root = None
-        types = jsonld_data.get('@type') or []
-        if isinstance(types, list) and any('schema:Patient' in t or 'Patient' == t for t in types):
+        if isinstance(jsonld_data.get('@type'), list) and any('schema:Patient' in t or t.endswith(':Patient') for t in jsonld_data.get('@type')):
             patient_root = jsonld_data.get('@id')
+        # If not found, scan triples for schema:Patient typing
         if not patient_root:
-            roots = [n for n in nodes_seen if "ugent.be/person/" in n]
-            patient_root = roots[0] if roots else None
+            try:
+                for s, p, o in g.triples((None, None, None)):
+                    if str(p).endswith('type') and ('schema#Patient' in str(o) or 'schema.org/Patient' in str(o) or str(o).endswith(':Patient')):
+                        patient_root = str(s); break
+            except Exception:
+                pass
+        # Fallback to any subject if still missing
+        if not patient_root:
+            patient_root = list(links.keys())[0] if links else None
 
-        # If still nothing meaningful, fallback to direct clinical tree
-        if len(nodes_seen) <= 3 or not links:
+        # If graph is too small, fallback to direct clinical tree
+        if not links or len(nodes_seen) <= 3:
             return build_fallback_hierarchy(jsonld_data)
 
-        root = patient_root or (list(links.keys())[0] if links else "root")
-
         visited = set()
+        max_depth = 4
+        max_children = 20
 
         def label_of(iri: str) -> str:
-            if "identifiers.org/dbsnp/rs" in iri:
-                return iri.split("/")[-1]  # rsID
-            if "identifiers.org/ncbigene/" in iri:
-                return "Gene:" + iri.split("/")[-1]
-            if "snomed.info/id/" in iri:
-                return "SNOMED:" + iri.split("/")[-1]
-            if "ugent.be/person/" in iri:
-                return "Patient"
-            if "pharmgkb" in iri or "drugbank" in iri:
-                return "Drug"
-            return iri.split("/")[-1]
+            # Prefer tail token
+            tail = iri.rsplit('/', 1)[-1]
+            if ':' in tail and len(tail) < 6:  # compact ids like rs123, Gene:ID
+                return tail
+            if 'dbsnp' in iri and 'rs' in iri:
+                return iri.split('/')[-1].replace('dbsnp:', '')
+            if 'ncbigene' in iri:
+                return 'Gene:' + iri.split('/')[-1].replace('ncbigene:', '')
+            if 'snomed.info/id' in iri:
+                return 'SNOMED:' + iri.split('/')[-1]
+            if 'ugent.be/person' in iri:
+                return 'Patient'
+            if 'pharmgkb' in iri or 'drugbank' in iri:
+                return 'Drug'
+            return tail
 
-        def make_tree(node, depth=0, max_depth=4):
+        def make_tree(node, depth=0):
             if node in visited or depth > max_depth:
                 return {"name": label_of(node)}
             visited.add(node)
-            children = [make_tree(c, depth+1, max_depth) for c in links.get(node, [])]
+            children_iris = links.get(node, [])[:max_children]
+            children = [make_tree(c, depth+1) for c in children_iris]
             result = {"name": label_of(node)}
             if children:
                 result["children"] = children
             return result
 
-        return make_tree(root)
+        return make_tree(patient_root or 'root')
     except Exception as e:
         st.error(f"Error converting JSON-LD to hierarchy: {e}")
         return {"name": "root", "children": []}
