@@ -1071,6 +1071,7 @@ elif page == "🛠️ Debug":
 
             st.divider()
             st.subheader("Auto Demo")
+            demo_delay_ms = st.slider("Demo speed per step (ms)", min_value=200, max_value=3000, value=900, step=100, key="sb_demo_delay")
             if st.button("▶ Run storyboard simulation", key="run_storyboard_demo"):
                 import queue as _q
                 import time as _t
@@ -1082,9 +1083,8 @@ elif page == "🛠️ Debug":
                 if sb and hasattr(sb, 'set_genes'):
                     sb.set_genes(["CYP2D6", "CYP2C19", "TPMT", "DPYD"]) 
 
-                # Local event queue and worker flag
+                # Local event queue
                 evq = _q.Queue()
-                done = {"v": False}
 
                 # Simple event object
                 class _Ev:
@@ -1094,7 +1094,7 @@ elif page == "🛠️ Debug":
                         self.message = message
                         self.progress = progress
 
-                # Enqueue a full pass of stages
+                # Full pass of stages
                 demo_events = [
                     ("lab_prep", "init", "Starting lab preparation...", 0.05),
                     ("lab_prep", "qaqc", "DNA extracted and QC passed", 0.18),
@@ -1107,18 +1107,16 @@ elif page == "🛠️ Debug":
                     ("report", "export", "Generating reports and visualizations...", 0.95),
                     ("report", "complete", "Analysis complete!", 1.00),
                 ]
+                delay = max(0.2, min(3.0, demo_delay_ms / 1000.0))
 
-                for s, sub, msg, prog in demo_events:
-                    evq.put(_Ev(s, sub, msg, prog))
-                    _t.sleep(0.05)
-
-                done["v"] = True
-
-                def _alive():
-                    return not done["v"]
-
+                # Feed events one-by-one with visible dwell time per step
                 if sb and consume_events:
-                    consume_events(evq, sb, _alive)
+                    for s, sub, msg, prog in demo_events:
+                        evq.put(_Ev(s, sub, msg, prog))
+                        start = _t.time()
+                        def _alive():
+                            return (_t.time() - start) < delay or not evq.empty()
+                        consume_events(evq, sb, _alive)
                 else:
                     st.info("Storyboard runtime not available")
 
