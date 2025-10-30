@@ -710,13 +710,13 @@ class EnhancedStoryboardV2:
             except Exception:
                 plan_json = 'null'
                 speed_json = 800
-            full_html += f"""
+            script_tpl = """
             <script>
             (function(){
                 try {
-                    const plan = {plan_json};
+                    const plan = __PLAN__;
                     if(!plan || !Array.isArray(plan) || plan.length===0) return;
-                    const speed = {speed_json};
+                    const speed = __SPEED__;
                     const map = {lab_prep:'lab', ngs:'ngs', annotation:'anno', enrichment:'drug', linking:'drug', report:'report'};
                     const root = document.currentScript.closest('.wf-wrap') || document.body;
                     const stages = root.querySelectorAll('.wf-stage');
@@ -767,7 +767,9 @@ class EnhancedStoryboardV2:
                 } catch(e) { /* no-op */ }
             })();
             </script>
-            """
+                """
+            script = script_tpl.replace("__PLAN__", plan_json).replace("__SPEED__", str(speed_json))
+            full_html += script
         with ph.container():
             components.html(full_html, height=800, scrolling=True)
 
