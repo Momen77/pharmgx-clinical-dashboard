@@ -338,8 +338,131 @@ class PatientCreator:
                 
                 st.success(f"✅ Patient profile created: {first_name} {last_name} (MRN: {mrn})")
                 return patient_profile
-        
+
         return None
+
+    def generate_random_profile(self):
+        """Generate a random patient profile for testing"""
+        import random
+        from datetime import datetime, timedelta
+
+        # Random names
+        first_names = ["John", "Jane", "Michael", "Sarah", "David", "Emma", "James", "Olivia", "Robert", "Sophia"]
+        last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Martinez", "Anderson"]
+
+        first_name = random.choice(first_names)
+        last_name = random.choice(last_names)
+
+        # Random demographics
+        age = random.randint(25, 75)
+        date_of_birth = datetime.now() - timedelta(days=365*age)
+        gender = random.choice(["Male", "Female"])
+        biological_sex = gender
+        ethnicity = [random.choice(["African", "Asian", "Caucasian/European", "Hispanic/Latino", "Mixed"])]
+
+        # Random MRN
+        mrn = f"MRN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        # Random measurements
+        if gender == "Male":
+            height_cm = random.uniform(165, 190)
+            weight_kg = random.uniform(65, 95)
+        else:
+            height_cm = random.uniform(155, 175)
+            weight_kg = random.uniform(50, 80)
+
+        bmi = weight_kg / ((height_cm / 100) ** 2)
+        gender_uri = f"http://schema.org/{gender}"
+
+        # Use MRN directly as ID
+        patient_id = mrn
+
+        patient_profile = {
+            "patient_id": patient_id,
+            "identifier": mrn,
+            "mrn": mrn,
+            "dashboard_source": True,
+            "created_at": datetime.now().isoformat(),
+            "photo": None,
+            "photo_format": "none",
+
+            "clinical_information": {
+                "demographics": {
+                    "@id": "http://ugent.be/person/demographics",
+                    "foaf:firstName": first_name,
+                    "foaf:familyName": last_name,
+                    "schema:givenName": first_name,
+                    "schema:familyName": last_name,
+                    "preferredName": first_name,
+                    "schema:birthDate": date_of_birth.isoformat(),
+                    "age": age,
+                    "schema:gender": gender_uri,
+                    "biological_sex": biological_sex,
+                    "ethnicity": ethnicity,
+                    "schema:weight": {
+                        "@type": "schema:QuantitativeValue",
+                        "schema:value": round(weight_kg, 1),
+                        "schema:unitCode": "kg",
+                        "schema:unitText": "kilograms"
+                    },
+                    "schema:height": {
+                        "@type": "schema:QuantitativeValue",
+                        "schema:value": round(height_cm, 1),
+                        "schema:unitCode": "cm",
+                        "schema:unitText": "centimeters"
+                    },
+                    "bmi": round(bmi, 1),
+                    "mrn": mrn,
+                    "note": "Auto-generated patient profile for testing"
+                },
+                "current_conditions": [],
+                "current_medications": [],
+                "organ_function": {},
+                "lifestyle_factors": {}
+            }
+        }
+
+        # Generate lifestyle factors
+        lifestyle = self._generate_lifestyle()
+        patient_profile["clinical_information"]["lifestyle_factors"] = lifestyle
+
+        # Generate organ function
+        organ_function = self._generate_organ_function()
+        patient_profile["clinical_information"]["organ_function"] = organ_function
+
+        # Try to generate conditions and medications
+        try:
+            if hasattr(self.clinical_generator, 'get_conditions_by_age_lifestyle'):
+                conditions = self.clinical_generator.get_conditions_by_age_lifestyle(age, lifestyle)
+                patient_profile["clinical_information"]["current_conditions"] = conditions
+
+                # Get medications for conditions
+                medications = []
+                for condition in conditions:
+                    snomed_code = condition.get("snomed:code")
+                    condition_label = condition.get("rdfs:label", "")
+                    if snomed_code:
+                        condition_meds = self.clinical_generator.get_drugs_for_condition(snomed_code, condition_label)
+                        medications.extend(condition_meds)
+                patient_profile["clinical_information"]["current_medications"] = medications
+        except Exception as e:
+            # If generation fails, just use empty lists
+            pass
+
+        # Add top-level demographics shortcut
+        patient_profile['demographics'] = {
+            'first_name': first_name,
+            'last_name': last_name,
+            'preferred_name': first_name,
+            'mrn': mrn,
+            'age': age,
+            'gender': gender,
+            'biological_sex': biological_sex,
+            'date_of_birth': date_of_birth.isoformat(),
+            'ethnicity': ethnicity
+        }
+
+        return patient_profile
     
     def _generate_lifestyle(self):
         """Generate lifestyle factors with SNOMED CT codes (matching auto-generated structure)"""

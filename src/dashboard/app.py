@@ -309,10 +309,22 @@ if page == "🏠 Home":
 elif page == "👤 Create Patient":
     st.title("👤 Create Patient")
     st.info("**Step 1:** Create a patient profile with demographics and clinical data. The profile will be auto-enhanced with diseases and medications.")
-    
+
     if PatientCreator is None:
         st.error("PatientCreator module not available")
     else:
+        # Profile creation mode selection
+        st.subheader("Patient Profile Source")
+        profile_mode = st.radio(
+            "Choose how to create the patient profile:",
+            ["Manual (Fill form)", "Auto-generate"],
+            index=0,
+            horizontal=True,
+            help="Manual: Fill out the detailed patient form | Auto-generate: Create a random patient for testing"
+        )
+
+        st.divider()
+
         # Load config.yaml if available for API keys
         bioportal_key = None
         try:
@@ -330,13 +342,35 @@ elif page == "👤 Create Patient":
                     break
         except Exception:
             pass
+
         creator = PatientCreator(bioportal_api_key=bioportal_key)
-        profile = creator.render_patient_form()
-        # PatientCreator should set st.session_state['patient_created'] and ['patient_profile']
+
+        # Show form only if Manual mode is selected
+        if profile_mode == "Manual (Fill form)":
+            profile = creator.render_patient_form()
+        else:
+            # Auto-generate mode
+            st.info("🤖 **Auto-generate mode:** A random patient profile will be created automatically with realistic demographics and clinical data.")
+
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("🎲 Generate Random Patient Profile", type="primary", use_container_width=True):
+                    with st.spinner("Generating patient profile..."):
+                        profile = creator.generate_random_profile()
+                        if profile:
+                            st.success("✅ Random patient profile generated!")
+                            st.session_state['patient_profile'] = profile
+                            st.session_state['patient_created'] = True
+
+                            # Show generated profile
+                            demo = profile.get('demographics', {})
+                            st.info(f"**Generated Patient:** {demo.get('first_name', 'Unknown')} {demo.get('last_name', 'Unknown')} (MRN: {demo.get('mrn', 'N/A')})")
+
+        # Show success message if profile was created
         if st.session_state.get('patient_created'):
             st.success("✅ Patient profile created and ready!")
             st.info("➡️ **Next:** Go to **🧬 Select Genes** to choose which genes to analyze.")
-            with st.expander("Saved Profile", expanded=False):
+            with st.expander("📋 View Saved Profile", expanded=False):
                 st.json(st.session_state.get('patient_profile', {}))
 
 elif page == "🧬 Select Genes":
