@@ -7,7 +7,6 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
-from .logo_UGent_EN.logo_assets import UGENT_LOGO_MAIN_EN
 import os
 
 # =========================
@@ -27,6 +26,33 @@ if proj_str not in sys.path:
 _dash_str = str(_DASHBOARD_DIR)
 if _dash_str not in sys.path:
     sys.path.insert(2, _dash_str)
+
+# =========================
+# UGent logo import (robust)
+# =========================
+UGENT_LOGO_MAIN_EN = None
+try:
+    # Preferred: local package relative import
+    from .logo_UGent_EN.logo_assets import UGENT_LOGO_MAIN_EN as _UGENT_LOGO_MAIN_EN  # type: ignore
+    UGENT_LOGO_MAIN_EN = _UGENT_LOGO_MAIN_EN
+except Exception:
+    # Fallback: try loading from known repo paths via file location
+    import importlib.util as _ilu
+    _logo_candidates = [
+        _DASHBOARD_DIR / "logo_UGent_EN" / "logo_assets.py",
+        _PROJECT_ROOT / "src" / "pharmgx-clinical-dashboard" / "logo_UGent_EN" / "logo_assets.py",
+    ]
+    for _p in _logo_candidates:
+        if _p.exists():
+            try:
+                _s = _ilu.spec_from_file_location("logo_assets", _p)
+                _m = _ilu.module_from_spec(_s)
+                _s.loader.exec_module(_m)  # type: ignore
+                UGENT_LOGO_MAIN_EN = getattr(_m, "UGENT_LOGO_MAIN_EN", None)
+                if UGENT_LOGO_MAIN_EN:
+                    break
+            except Exception:
+                pass
 
 # Load PGxPipeline with multiple fallbacks
 PGxPipeline = None
