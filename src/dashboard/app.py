@@ -674,6 +674,9 @@ elif page == "🔬 Run Test":
                     message = getattr(event, 'message', f"Processing {event.stage}...")
                     status_text.text(f"⏳ {message}")
 
+                # Snapshot selected genes from session in main thread
+                selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
+
                 # Worker function that runs pipeline in background thread
                 def run_pipeline_worker():
                     """Run pipeline in background thread and put result in queue"""
@@ -709,7 +712,7 @@ elif page == "🔬 Run Test":
 
                         # Run multi-gene analysis
                         result = pipeline.run_multi_gene(
-                            gene_symbols=st.session_state['selected_genes'],
+                            gene_symbols=selected_genes_snapshot,
                             patient_profile=profile
                         )
                         result_queue.put({"success": True, "data": result})
