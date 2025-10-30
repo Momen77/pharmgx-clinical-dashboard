@@ -280,8 +280,6 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    st.write(f"Logo path: {UGENT_LOGO_MAIN_EN}")
-    st.write(f"Logo exists: {os.path.exists(UGENT_LOGO_MAIN_EN)}")
     st.image(UGENT_LOGO_MAIN_EN, width=160)
     st.title("Workflow")
     
