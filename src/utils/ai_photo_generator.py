@@ -71,9 +71,9 @@ class AIPhotoGenerator:
 
         # Extract key demographics
         age = demo.get('age', 45)
-        gender = demo.get('gender', 'Male')
+        gender = demo.get('gender') or 'Male'  # Handle None case
         ethnicity = demo.get('ethnicity', [])[0] if demo.get('ethnicity') else 'Caucasian/European'
-        birth_country = demo.get('birth_country', '')
+        birth_country = demo.get('birth_country') or ''  # Handle None case
 
         # Map ethnicity to description
         ethnicity_map = {
@@ -89,8 +89,8 @@ class AIPhotoGenerator:
         ethnicity_desc = ethnicity_map.get(ethnicity, 'mixed ethnicity')
 
         # Ethnicity/gender explicit facial feature descriptors (clinical defaults)
-        ethn = ethnicity.lower() if isinstance(ethnicity, str) else str(ethnicity).lower()
-        gender_str = gender.lower() if isinstance(gender, str) else str(gender).lower()
+        ethn = str(ethnicity).lower() if ethnicity else 'unknown'
+        gender_str = str(gender).lower() if gender else 'unknown'
         face_block = None
         if 'middle eastern' in ethn or 'arab' in ethn:
             face_block = f"Middle Eastern {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, olive or tan skin, brown eyes, thick dark eyebrows, Middle Eastern facial features"

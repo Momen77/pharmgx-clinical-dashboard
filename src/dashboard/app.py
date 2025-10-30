@@ -339,22 +339,14 @@ with st.sidebar:
 # Pages
 # =========================
 if page == "🏠 Home":
-    # Display header with logo
-    col_logo, col_title = st.columns([1, 3])
-    with col_logo:
-        main_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_main_logo.png")
-        if os.path.exists(main_logo_path):
-            st.image(main_logo_path, width=150)
-    with col_title:
-        st.title("🧬 Pharmacogenomics Testing Dashboard")
-        st.markdown("Ghent University")
-
-    st.divider()
+    st.title("🧬 Pharmacogenomics Testing Dashboard")
     st.markdown("### Welcome to the Clinical Pharmacogenomics Testing Platform")
+
     c1, c2, c3 = st.columns(3)
     c1.metric("Patients Tested", "1,234")
     c2.metric("Genes Analyzed", "25+")
     c3.metric("Drug Interactions", "500+")
+
     st.info("Use the sidebar to navigate the workflow")
 
 elif page == "👤 Create Patient":
