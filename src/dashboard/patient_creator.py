@@ -109,17 +109,14 @@ class PatientCreator:
 
             st.divider()
 
-            # Additional identity details
-            col1, col2 = st.columns(2)
-            with col2:
-                # Date of birth is selected above to allow live age updates
-                st.write("")
-                
+            # Additional identity details (no empty columns; align inputs left)
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
                 gender = st.selectbox(
                     "Gender *",
                     ["Male", "Female", "Other", "Prefer not to say"]
                 )
-                
+            with col_g2:
                 biological_sex = st.selectbox(
                     "Biological Sex at Birth (for clinical purposes)",
                     ["Male", "Female"],
