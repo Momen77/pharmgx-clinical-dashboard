@@ -195,9 +195,17 @@ class AIPhotoGenerator:
             return None
 
         try:
-            # Use modern API only. If unavailable, surface a clear error.
-            if not (hasattr(client, "models") and hasattr(client.models, "generate_images")):
-                self.last_error = "Gemini SDK lacks models.generate_images (update google-genai)."
+            # Use modern API only. If unavailable, surface a clear error with capability introspection.
+            has_models = hasattr(client, "models")
+            has_models_generate = has_models and hasattr(client.models, "generate_images")
+            has_images_attr = hasattr(client, "images")
+            version = getattr(genai_mod, "__version__", "unknown")
+            if not has_models_generate:
+                self.last_error = (
+                    f"Gemini SDK lacks models.generate_images. genai version={version}; "
+                    f"has client.models={has_models}; has models.generate_images={has_models_generate}; "
+                    f"has client.images={has_images_attr}"
+                )
                 print(f"❌ {self.last_error}")
                 return None
 
