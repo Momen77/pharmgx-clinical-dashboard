@@ -1056,11 +1056,12 @@ def consume_events_enhanced(event_q, storyboard: EnhancedStoryboardV2, worker_al
             
             mapped_stage = stage_map.get(stage, stage)
             
-            # Auto-advance microsteps
-            if mapped_stage in step_counters:
-                max_steps = len(DETAIL_SCRIPTS.get(mapped_stage, []))
-                if step_counters[mapped_stage] < max_steps:
-                    step_counters[mapped_stage] += 1
+            # Auto-advance microsteps only for substantive events (not smooth ticks)
+            if getattr(event, 'substage', '') != 'tick':
+                if mapped_stage in step_counters:
+                    max_steps = len(DETAIL_SCRIPTS.get(mapped_stage, []))
+                    if step_counters[mapped_stage] < max_steps:
+                        step_counters[mapped_stage] += 1
             
             # Update counters based on message content
             deltas = {}
