@@ -95,7 +95,7 @@ class PDFExporter:
             # Get project root (go up from src/dashboard to project root)
             dashboard_dir = Path(__file__).parent
             project_root = dashboard_dir.parent.parent
-            logo_path = project_root / "assets" / "ugent_faculty_logo.png"
+            logo_path = project_root / "assets" / "ugent_main_logo.png"
 
             if logo_path.exists():
                 logo_img = Image(str(logo_path), width=2.5*inch, height=2.5*inch, kind='proportional')
@@ -104,7 +104,7 @@ class PDFExporter:
 
                 # Add institution text
                 institution = Paragraph(
-                    "<para align='center'><b>Ghent University</b><br/>Faculty of Pharmaceutical Sciences<br/>Pharmacogenomics Laboratory</para>",
+                    "<para align='center'><b>Ghent University</b></para>",
                     self.styles['Normal']
                 )
                 elements.append(institution)
