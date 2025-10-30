@@ -9,6 +9,8 @@ import random
 import uuid
 from pathlib import Path
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent))
@@ -286,36 +288,70 @@ class PGxPipeline:
             print(f"Generating new patient profile: {patient_id}")
         
         try:
-            # Process each gene individually
-            for i, gene_symbol in enumerate(gene_symbols, 1):
-                progress = 0.1 + (0.6 * i / len(gene_symbols))  # 10-70% for gene processing
-                
-                self.event_bus.emit(PipelineEvent(
-                    stage="ngs" if i <= len(gene_symbols)/2 else "annotation",
-                    substage="processing",
-                    message=f"Processing gene {gene_symbol} ({i}/{len(gene_symbols)})...",
-                    progress=progress
-                ))
-                
-                print(f"\n{'='*70}")
-                print(f"PROCESSING GENE {i}/{len(gene_symbols)}: {gene_symbol}")
-                print(f"{'='*70}")
-                
-                # Run single-gene pipeline
-                gene_result = self.run(gene_symbol)
-                results[gene_symbol] = gene_result
-                
-                if gene_result["success"]:
-                    # Collect variants from this gene
-                    gene_variants = self._extract_gene_variants(gene_symbol)
-                    all_variants.extend(gene_variants)
-                    
-                    # Collect drugs and diseases
-                    gene_drugs, gene_diseases = self._extract_drugs_diseases(gene_symbol)
-                    all_drugs.update(gene_drugs)
-                    all_diseases.update(gene_diseases)
-                else:
-                    print(f"WARNING: Failed to process {gene_symbol}: {gene_result.get('error', 'Unknown error')}")
+            # Thread-safe lock for shared data structures
+            lock = threading.Lock()
+
+            # PARALLEL PROCESSING: Process genes concurrently
+            max_workers = min(len(gene_symbols), 5)  # Max 5 parallel gene processes
+
+            print(f"\n{'='*70}")
+            print(f"PARALLEL PROCESSING: Running {len(gene_symbols)} genes with {max_workers} workers")
+            print(f"{'='*70}\n")
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all gene processing tasks
+                future_to_gene = {
+                    executor.submit(self.run, gene_symbol): gene_symbol
+                    for gene_symbol in gene_symbols
+                }
+
+                # Process results as they complete
+                completed = 0
+                for future in as_completed(future_to_gene):
+                    gene_symbol = future_to_gene[future]
+                    completed += 1
+
+                    progress = 0.1 + (0.6 * completed / len(gene_symbols))  # 10-70% for gene processing
+
+                    try:
+                        gene_result = future.result()
+
+                        # Thread-safe updates
+                        with lock:
+                            results[gene_symbol] = gene_result
+
+                        self.event_bus.emit(PipelineEvent(
+                            stage="ngs" if completed <= len(gene_symbols)/2 else "annotation",
+                            substage="processing",
+                            message=f"Completed gene {gene_symbol} ({completed}/{len(gene_symbols)})...",
+                            progress=progress
+                        ))
+
+                        print(f"\n{'='*70}")
+                        print(f"COMPLETED GENE {completed}/{len(gene_symbols)}: {gene_symbol}")
+                        print(f"{'='*70}")
+
+                        if gene_result["success"]:
+                            # Collect variants from this gene
+                            gene_variants = self._extract_gene_variants(gene_symbol)
+                            gene_drugs, gene_diseases = self._extract_drugs_diseases(gene_symbol)
+
+                            # Thread-safe updates
+                            with lock:
+                                all_variants.extend(gene_variants)
+                                all_drugs.update(gene_drugs)
+                                all_diseases.update(gene_diseases)
+                        else:
+                            print(f"WARNING: Failed to process {gene_symbol}: {gene_result.get('error', 'Unknown error')}")
+
+                    except Exception as e:
+                        print(f"ERROR: Exception processing {gene_symbol}: {str(e)}")
+                        with lock:
+                            results[gene_symbol] = {
+                                "success": False,
+                                "gene": gene_symbol,
+                                "error": str(e)
+                            }
             
             # Create comprehensive patient profile
             self.event_bus.emit(PipelineEvent(
