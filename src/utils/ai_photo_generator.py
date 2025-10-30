@@ -221,8 +221,15 @@ class AIPhotoGenerator:
                 )
 
             # Try supported models in order, stop on first that works
+            # Prefer latest public model codes; fall back to older ones if enabled
             candidate_models = [
-                "imagen-3.0-generate-001",
+                # Imagen 4 family (2025)
+                "imagen-4.0-generate-001",
+                "imagen-4.0-ultra-generate-001",
+                "imagen-4.0-fast-generate-001",
+                # Imagen 3 updated code (Feb 2025)
+                "imagen-3.0-generate-002",
+                # Older/alternative names (if project has legacy access)
                 "imagen-3.0-fast",
                 "imagen-3.0-nano"
             ]
