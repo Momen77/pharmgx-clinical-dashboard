@@ -97,7 +97,8 @@ class AIPhotoGenerator:
         ]
 
         # Add emotional state based on medical conditions
-        conditions = clinical.get('demographics', {}).get('current_conditions', [])
+        # current_conditions lives under clinical_information, not inside demographics
+        conditions = clinical.get('current_conditions', [])
         if isinstance(conditions, list):
             condition_count = len(conditions)
         else:
@@ -122,11 +123,141 @@ class AIPhotoGenerator:
         else:
             prompt_parts.append("youthful appearance")
 
+        # Extract weight/height/BMI when available to influence body habitus
+        height_cm = None
+        weight_kg = None
+        bmi_value = None
+        try:
+            demo_clin = clinical.get('demographics', {})
+            if isinstance(demo_clin, dict):
+                height = demo_clin.get('schema:height', {})
+                if isinstance(height, dict):
+                    height_cm = height.get('schema:value')
+                weight = demo_clin.get('schema:weight', {})
+                if isinstance(weight, dict):
+                    weight_kg = weight.get('schema:value')
+                bmi_value = demo_clin.get('bmi')
+        except Exception:
+            pass
+
+        # Compute BMI if not present and possible
+        if bmi_value is None and height_cm and weight_kg:
+            try:
+                h_m = float(height_cm) / 100.0
+                if h_m > 0:
+                    bmi_value = float(weight_kg) / (h_m * h_m)
+            except Exception:
+                bmi_value = None
+
+        # Map BMI/weight to body habitus description
+        body_desc = None
+        try:
+            if bmi_value is not None:
+                if bmi_value < 18.5:
+                    body_desc = "underweight body type, slight thinness"
+                elif bmi_value < 25:
+                    body_desc = "average body type"
+                elif bmi_value < 30:
+                    body_desc = "overweight body type, fuller face"
+                elif bmi_value < 35:
+                    body_desc = "obese body type, visibly heavy set"
+                elif bmi_value < 40:
+                    body_desc = "severely obese body type, very full features"
+                else:
+                    body_desc = "morbidly obese body type, pronounced fullness in face and body"
+            elif weight_kg is not None and float(weight_kg) >= 120:
+                body_desc = "obese body type, visibly heavy set"
+        except Exception:
+            body_desc = None
+
+        if body_desc:
+            prompt_parts.append(body_desc)
+
+        # Include height/weight hints to anchor proportions (without forcing exact numbers)
+        if height_cm:
+            prompt_parts.append("proportions consistent with reported height")
+        if weight_kg:
+            prompt_parts.append("proportions consistent with reported weight")
+
         # Add clothing
-        prompt_parts.append("wearing casual comfortable clothing")
+        prompt_parts.append("wearing casual comfortable clothing appropriate for a clinic visit")
+
+        # Regional/cultural clothing influence based on birthplace/ethnicity (kept subtle and clinical-appropriate)
+        try:
+            country = str(birth_country or "").lower()
+            region_hint = None
+            if country:
+                if any(k in country for k in ["saudi", "uae", "emirates", "qatar", "oman", "kuwait", "bahrain"]):
+                    region_hint = "subtle gulf regional influence in attire (e.g., neutral thobe/abaya styling cues, clinic-appropriate)"
+                elif any(k in country for k in ["egypt", "morocco", "tunisia", "algeria"]):
+                    region_hint = "north african influence in casual clinic attire (neutral tones, modest fit)"
+                elif any(k in country for k in ["pakistan", "india", "bangladesh", "sri lanka"]):
+                    region_hint = "south asian influence (simple kurta/salwar-inspired casual styling, neutral clinic colors)"
+                elif any(k in country for k in ["china", "japan", "korea", "taiwan", "singapore", "vietnam", "thailand", "malaysia", "indonesia"]):
+                    region_hint = "east/southeast asian smart-casual clinic attire (minimalist, neutral palette)"
+                elif any(k in country for k in ["nigeria", "ghana", "kenya", "south africa", "ethiopia", "uganda", "tanzania"]):
+                    region_hint = "sub-saharan african casual clinic attire (subtle patterned fabrics, modest fit)"
+                elif any(k in country for k in ["mexico", "brazil", "argentina", "chile", "colombia", "peru"]):
+                    region_hint = "latin american casual clinic attire (warm neutral palette)"
+                elif any(k in country for k in ["turkey", "iran", "iraq", "jordan", "lebanon", "syria", "yemen"]):
+                    region_hint = "middle eastern modest clinic attire (long sleeves, neutral tones)"
+                elif any(k in country for k in ["france", "germany", "netherlands", "belgium", "spain", "italy", "sweden", "norway", "denmark", "uk", "ireland", "poland"]):
+                    region_hint = "european casual clinic attire (layered neutrals)"
+                elif any(k in country for k in ["usa", "united states", "canada", "australia", "new zealand"]):
+                    region_hint = "western casual clinic attire (plain tee/shirt, neutral cardigan or jacket)"
+            if not region_hint:
+                # fallback via ethnicity keywords
+                eth = str(ethnicity).lower()
+                if "asian" in eth:
+                    region_hint = "east/south asian influence in clinic attire (minimalist, neutral colors)"
+                elif any(x in eth for x in ["african", "black"]):
+                    region_hint = "subtle african-inspired casual clinic attire (modest patterns)"
+                elif any(x in eth for x in ["middle eastern", "arab"]):
+                    region_hint = "middle eastern modest clinic attire"
+                elif any(x in eth for x in ["hispanic", "latino"]):
+                    region_hint = "latin american casual clinic attire"
+                elif any(x in eth for x in ["european", "caucasian"]):
+                    region_hint = "european/western casual clinic attire"
+            if region_hint:
+                prompt_parts.append(region_hint)
+        except Exception:
+            pass
+
+        # Subtle attributes based on lifestyle factors (if available)
+        lifestyle_factors = clinical.get('lifestyle_factors', [])
+        if isinstance(lifestyle_factors, list) and lifestyle_factors:
+            # Normalize to simple flags
+            is_smoker = any((f.get('factor_type') == 'smoking' and f.get('status') == 'current') for f in lifestyle_factors if isinstance(f, dict))
+            drinks_alcohol = any((f.get('factor_type') == 'alcohol') for f in lifestyle_factors if isinstance(f, dict))
+            exercise_regular = any((f.get('factor_type') == 'exercise' and 'Regular' in str(f.get('rdfs:label', ''))) for f in lifestyle_factors if isinstance(f, dict))
+
+            if is_smoker:
+                prompt_parts.append("subtle signs consistent with current smoker (slight skin dullness)")
+            if drinks_alcohol and (bmi_value or weight_kg):
+                prompt_parts.append("very mild facial redness acceptable in clinical portrait")
+            if exercise_regular and (bmi_value and bmi_value < 30):
+                prompt_parts.append("healthy posture")
+
+        # Age/gender style refinements
+        try:
+            if gender.lower() == 'male':
+                if age >= 50:
+                    prompt_parts.append("short neatly kept hair, optional subtle gray, light facial hair acceptable")
+                else:
+                    prompt_parts.append("short neatly kept hair")
+            elif gender.lower() == 'female':
+                if age >= 50:
+                    prompt_parts.append("neatly styled hair, optional subtle gray streaks")
+                else:
+                    prompt_parts.append("neatly styled hair")
+        except Exception:
+            pass
+
+        # Accessories common in clinics; avoid text artifacts
+        prompt_parts.append("no text, no watermark, no logos")
 
         # Important: make it look natural and human
-        prompt_parts.append("natural skin texture, realistic human features")
+        prompt_parts.append("natural skin texture, realistic human features, accurate body proportions")
         prompt_parts.append("NOT illustration, NOT cartoon, NOT artwork")
         prompt_parts.append("photorealistic medical record photo")
 
