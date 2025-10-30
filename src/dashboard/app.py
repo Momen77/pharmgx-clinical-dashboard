@@ -649,18 +649,6 @@ elif page == "🔬 Run Test":
                         progress = current_progress[0]
 
                     current_progress[0] = progress
-                    # Update storyboard progress instead of Streamlit bar
-                    try:
-                        if sb and hasattr(sb, 'advance'):
-                            class _EvObj:
-                                stage = None
-                                message = ""
-                                progress = 0.0
-                            _e = _EvObj()
-                            _e.progress = min(max(progress, 0.0), 1.0)
-                            sb.advance(_e)
-                    except Exception:
-                        pass
 
                     # Main status message
                     # Suppress old emoji status line; storyboard shows messages
@@ -671,10 +659,11 @@ elif page == "🔬 Run Test":
             # Prepare enhanced storyboard in Run Test (real pipeline)
                 try:
                     # Reset storyboard placeholder so we don't stack instances
-                    st.session_state['_pgx_storyboard_ph'] = st.empty()
-                    sb = Storyboard() if 'Storyboard' in globals() and Storyboard else None
-                    if sb and hasattr(sb, 'set_genes'):
-                        sb.set_genes(st.session_state.get('selected_genes', []))
+                    if not st.session_state.get('_sb_initialized'):
+                        st.session_state['_pgx_storyboard_ph'] = st.empty()
+                        sb = Storyboard() if 'Storyboard' in globals() and Storyboard else None
+                        if sb and hasattr(sb, 'set_genes'):
+                            sb.set_genes(st.session_state.get('selected_genes', []))
                     # Independent storyboard playback (not tightly synced)
                     # Use a comfortable fixed speed (ms) without exposing UI controls
                     storyboard_speed = 7000
@@ -691,12 +680,13 @@ elif page == "🔬 Run Test":
                         ("report", "export", "Generating reports and visualizations...", 0.96),
                         ("report", "complete", "Storyboard complete", 1.00),
                     ]
-                    if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render'):
+                    if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render') and not st.session_state.get('_sb_initialized'):
                         sb.set_demo_plan([
                             {"stage": s, "substage": sub, "message": msg, "progress": prog}
                             for s, sub, msg, prog in sb_plan
                         ], storyboard_speed)
                         sb.render("Initializing storyboard...")
+                        st.session_state['_sb_initialized'] = True
                     # Estimate when storyboard finishes (ms per step × steps + small buffer)
                     storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
                 except Exception:
