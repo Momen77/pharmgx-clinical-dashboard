@@ -278,7 +278,7 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    # Display official UGent logo - smaller and centered
+    # Display official UGent logo - smaller and left-aligned
     import os
 
     # Add spacing before logo
@@ -288,28 +288,24 @@ with st.sidebar:
     main_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_main_logo.png")
     svg_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
 
-    # Center the logo with smaller width
-    col1, col2, col3 = st.columns([0.5, 2, 0.5])
-    with col2:
-        if os.path.exists(main_logo_path):
-            # Official UGent main logo - smaller width
-            st.image(main_logo_path, width=120)
-        elif os.path.exists(svg_logo_path):
-            # Custom SVG logo - smaller width
-            st.image(svg_logo_path, width=120)
-        else:
-            # Fallback: Use embedded SVG with transparent background
-            logo_svg = """
-            <div style="text-align: center;">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="120" style="background: transparent;">
-                  <rect x="0" y="0" width="10" height="100" fill="#FFD200"/>
-                  <text x="25" y="60" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#1E64C8">
-                    GHENT UNIVERSITY
-                  </text>
-                </svg>
-            </div>
-            """
-            st.markdown(logo_svg, unsafe_allow_html=True)
+    # Left-aligned logo with smaller width
+    if os.path.exists(main_logo_path):
+        # Official UGent main logo - smaller width
+        st.image(main_logo_path, width=120)
+    elif os.path.exists(svg_logo_path):
+        # Custom SVG logo - smaller width
+        st.image(svg_logo_path, width=120)
+    else:
+        # Fallback: Use embedded SVG with transparent background
+        logo_svg = """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="120" style="background: transparent;">
+          <rect x="0" y="0" width="10" height="100" fill="#FFD200"/>
+          <text x="25" y="60" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#1E64C8">
+            GHENT UNIVERSITY
+          </text>
+        </svg>
+        """
+        st.markdown(logo_svg, unsafe_allow_html=True)
 
     st.divider()
     st.title("Workflow")
