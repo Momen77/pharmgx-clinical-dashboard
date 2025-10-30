@@ -69,11 +69,25 @@ class AIPhotoGenerator:
         demo = patient_data.get('demographics', {})
         clinical = patient_data.get('clinical_information', {})
 
-        # Extract key demographics
-        age = demo.get('age', 45)
-        gender = demo.get('gender') or 'Male'  # Handle None case
-        ethnicity = demo.get('ethnicity', [])[0] if demo.get('ethnicity') else 'Caucasian/European'
-        birth_country = demo.get('birth_country') or ''  # Handle None case
+        # Extract key demographics with defensive type handling
+        age = demo.get('age') or 45
+        gender = demo.get('gender') or 'Male'
+
+        # Handle ethnicity - could be string, list, or None
+        ethnicity_raw = demo.get('ethnicity')
+        if isinstance(ethnicity_raw, list) and len(ethnicity_raw) > 0:
+            ethnicity = ethnicity_raw[0]
+        elif isinstance(ethnicity_raw, str):
+            ethnicity = ethnicity_raw
+        else:
+            ethnicity = 'Caucasian/European'
+
+        birth_country = demo.get('birth_country') or ''
+
+        # Ensure all are strings for safe .lower() calls
+        gender = str(gender) if gender else 'Male'
+        ethnicity = str(ethnicity) if ethnicity else 'Caucasian/European'
+        birth_country = str(birth_country) if birth_country else ''
 
         # Map ethnicity to description
         ethnicity_map = {
