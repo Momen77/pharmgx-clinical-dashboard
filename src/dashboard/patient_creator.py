@@ -370,7 +370,11 @@ class PatientCreator:
                         import sys
                         from pathlib import Path
                         sys.path.append(str(Path(__file__).parent.parent))
-                        from utils.ai_photo_generator import AIPhotoGenerator
+                        # Ensure we reload the latest AI photo generator code on reruns
+                        import importlib
+                        import utils.ai_photo_generator as _ai_pg
+                        importlib.reload(_ai_pg)
+                        AIPhotoGenerator = _ai_pg.AIPhotoGenerator
 
                         with st.spinner("📷 Generating AI photo from patient demographics..."):
                             # Load key from Streamlit secrets if available
@@ -578,7 +582,11 @@ class PatientCreator:
                 import sys
                 from pathlib import Path
                 sys.path.append(str(Path(__file__).parent.parent))
-                from utils.ai_photo_generator import AIPhotoGenerator
+                # Ensure we reload the latest AI photo generator code on reruns
+                import importlib
+                import utils.ai_photo_generator as _ai_pg
+                importlib.reload(_ai_pg)
+                AIPhotoGenerator = _ai_pg.AIPhotoGenerator
 
                 with st.spinner("📷 Generating AI photo from patient demographics..."):
                     # Load key from Streamlit secrets if available
