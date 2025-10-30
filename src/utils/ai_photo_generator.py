@@ -104,7 +104,7 @@ class AIPhotoGenerator:
         else:
             condition_count = 0
 
-        # Determine emotional state
+        # Determine emotional state (base)
         if condition_count >= 3:
             prompt_parts.append("subtle tired expression, showing signs of chronic illness")
             prompt_parts.append("slight weariness in eyes but maintaining dignity")
@@ -172,6 +172,22 @@ class AIPhotoGenerator:
 
         if body_desc:
             prompt_parts.append(body_desc)
+
+        # Stronger visual anchors for higher BMI to avoid average-looking faces
+        try:
+            if bmi_value is not None and bmi_value >= 30:
+                prompt_parts.append("rounded cheeks, soft jawline")
+                prompt_parts.append("slight double chin visible")
+                prompt_parts.append("broader neck and shoulders proportionate to body size")
+                prompt_parts.append("upper torso visible to reflect body habitus")
+            if bmi_value is not None and bmi_value >= 40:
+                prompt_parts.append("very full facial features, clear fullness under chin")
+                prompt_parts.append("sturdy build, substantial upper torso presence")
+            if bmi_value is not None and bmi_value < 18.5:
+                prompt_parts.append("slender build, subtle gaunt cheeks, prominent cheekbones")
+                prompt_parts.append("narrow shoulders and neck proportionate to low body weight")
+        except Exception:
+            pass
 
         # Include height/weight hints to anchor proportions (without forcing exact numbers)
         if height_cm:
@@ -260,6 +276,23 @@ class AIPhotoGenerator:
         prompt_parts.append("natural skin texture, realistic human features, accurate body proportions")
         prompt_parts.append("NOT illustration, NOT cartoon, NOT artwork")
         prompt_parts.append("photorealistic medical record photo")
+
+        # Specific affect based on mental health conditions
+        try:
+            labels = []
+            for c in conditions if isinstance(conditions, list) else []:
+                if isinstance(c, dict):
+                    lbl = (c.get('rdfs:label') or c.get('name') or '')
+                    if isinstance(lbl, str):
+                        labels.append(lbl.lower())
+            has_anxiety = any('anxiety' in l for l in labels)
+            has_depression = any('depress' in l for l in labels)
+            if has_anxiety:
+                prompt_parts.append("subtle anxious affect, gentle furrowed brow, attentive gaze")
+            if has_depression:
+                prompt_parts.append("subdued affect, low energy gaze, gentle neutral mouth")
+        except Exception:
+            pass
 
         return ", ".join(prompt_parts)
 
