@@ -81,21 +81,7 @@ except Exception:
     else:
         PatientCreator = None
 
-# UI profile controls
-try:
-    from ui_profile import render_profile_controls, render_manual_enrichment_forms
-except Exception:
-    import importlib.util as _ilu
-    _p = _DASHBOARD_DIR / "ui_profile.py"
-    if _p.exists():
-        _s = _ilu.spec_from_file_location("ui_profile", _p)
-        _m = _ilu.module_from_spec(_s)
-        _s.loader.exec_module(_m)  # type: ignore
-        render_profile_controls = getattr(_m, "render_profile_controls", lambda: ("Manual (dashboard form)", "Auto (by age/lifestyle)"))
-        render_manual_enrichment_forms = getattr(_m, "render_manual_enrichment_forms", lambda: ([], [], {}))
-    else:
-        render_profile_controls = lambda: ("Manual (dashboard form)", "Auto (by age/lifestyle)")
-        render_manual_enrichment_forms = lambda: ([], [], {})
+# Note: ui_profile imports removed - profile creation UI should not appear on Run Test page
 
 # Animation UI
 try:
@@ -323,10 +309,22 @@ if page == "🏠 Home":
 elif page == "👤 Create Patient":
     st.title("👤 Create Patient")
     st.info("**Step 1:** Create a patient profile with demographics and clinical data. The profile will be auto-enhanced with diseases and medications.")
-    
+
     if PatientCreator is None:
         st.error("PatientCreator module not available")
     else:
+        # Profile creation mode selection
+        st.subheader("Patient Profile Source")
+        profile_mode = st.radio(
+            "Choose how to create the patient profile:",
+            ["Manual (Fill form)", "Auto-generate"],
+            index=0,
+            horizontal=True,
+            help="Manual: Fill out the detailed patient form | Auto-generate: Create a random patient for testing"
+        )
+
+        st.divider()
+
         # Load config.yaml if available for API keys
         bioportal_key = None
         try:
@@ -344,13 +342,41 @@ elif page == "👤 Create Patient":
                     break
         except Exception:
             pass
+
         creator = PatientCreator(bioportal_api_key=bioportal_key)
-        profile = creator.render_patient_form()
-        # PatientCreator should set st.session_state['patient_created'] and ['patient_profile']
+
+        # Show form only if Manual mode is selected
+        if profile_mode == "Manual (Fill form)":
+            profile = creator.render_patient_form()
+        else:
+            # Auto-generate mode
+            st.info("🤖 **Auto-generate mode:** A random patient profile will be created automatically with realistic demographics and clinical data.")
+
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("🎲 Generate Random Patient Profile", type="primary", use_container_width=True):
+                    with st.spinner("Generating patient profile and AI photo..."):
+                        profile = creator.generate_random_profile(generate_ai_photo=True)
+                        if profile:
+                            st.success("✅ Random patient profile generated!")
+                            st.session_state['patient_profile'] = profile
+                            st.session_state['patient_created'] = True
+
+                            # Show generated profile
+                            demo = profile.get('demographics', {})
+                            st.info(f"**Generated Patient:** {demo.get('first_name', 'Unknown')} {demo.get('last_name', 'Unknown')} (MRN: {demo.get('mrn', 'N/A')})")
+
+                            # Show AI-generated photo if available
+                            if profile.get('photo') and profile.get('photo_format') == 'ai_generated':
+                                st.image(profile['photo'], width=200, caption="✨ AI-Generated Patient Photo")
+                            elif profile.get('photo'):
+                                st.image(profile['photo'], width=200, caption="👤 Patient Avatar")
+
+        # Show success message if profile was created
         if st.session_state.get('patient_created'):
             st.success("✅ Patient profile created and ready!")
             st.info("➡️ **Next:** Go to **🧬 Select Genes** to choose which genes to analyze.")
-            with st.expander("Saved Profile", expanded=False):
+            with st.expander("📋 View Saved Profile", expanded=False):
                 st.json(st.session_state.get('patient_profile', {}))
 
 elif page == "🧬 Select Genes":
@@ -389,37 +415,33 @@ elif page == "🔬 Run Test":
         st.stop()
 
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
-        mode, enrich = render_profile_controls()
-        manual_conditions, manual_meds, manual_labs = [], [], {}
-        if enrich == "Manual (enter now)":
-            manual_conditions, manual_meds, manual_labs = render_manual_enrichment_forms()
-
-        # Prepare profile copy to pass to worker
+        # Get profile from session state
         profile = (st.session_state.get('patient_profile') or {}).copy()
-        if enrich == "Auto (by age/lifestyle)":
-            profile['auto_enrichment'] = True
-        elif enrich == "Manual (enter now)":
-            profile['manual_enrichment'] = {
-                "conditions": manual_conditions,
-                "medications": manual_meds,
-                "labs": manual_labs,
-            }
 
-        # Show passed profile for transparency
-        with st.expander("Profile to pass", expanded=False):
-            st.json(profile)
+        # Extract patient demographics for display
+        # Use top-level demographics shortcut (added for compatibility)
+        demo = profile.get('demographics', {})
+        first_name = demo.get('first_name', 'N/A')
+        last_name = demo.get('last_name', 'N/A')
+        mrn = demo.get('mrn', 'N/A')
 
         # Show test summary
-        st.divider()
         st.subheader("Test Summary")
         summary_col1, summary_col2 = st.columns(2)
         with summary_col1:
-            st.write(f"**Patient:** {profile.get('demographics', {}).get('first_name', 'N/A')} {profile.get('demographics', {}).get('last_name', 'N/A')}")
+            st.write(f"**Patient:** {first_name} {last_name}")
+            st.write(f"**MRN:** {mrn}")
             st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
         with summary_col2:
             st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
             st.write(f"**Estimated time:** ~2-5 minutes")
-        
+
+        # Optional: Show patient profile details
+        with st.expander("👤 View Patient Profile Details", expanded=False):
+            st.json(profile)
+
+        st.divider()
+
         # Add a button to start the test
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
