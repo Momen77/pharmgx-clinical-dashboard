@@ -108,8 +108,6 @@ class AIPhotoGenerator:
             face_block = "person of mixed heritage, neutral facial features"
         else:
             face_block = "person of undetermined heritage, neutral facial features"
-        
-        prompt_parts = [face_block] + prompt_parts
 
         # Base description
         prompt_parts = [
@@ -118,6 +116,9 @@ class AIPhotoGenerator:
             "neutral background, soft lighting, facing camera",
             "realistic photographic style, high quality"
         ]
+
+        # Add face block at the beginning
+        prompt_parts = [face_block] + prompt_parts
 
         # Add emotional state based on medical conditions
         # current_conditions lives under clinical_information, not inside demographics
