@@ -41,6 +41,15 @@ class Storyboard:
         prog = getattr(event, 'progress', None)
         self._sb.advance(stage=stage, message=msg, progress=prog)
 
+    def set_demo_plan(self, plan, speed_ms: int = 800):
+        """Expose demo plan to app.py for smooth client-side animation."""
+        if self._sb and hasattr(self._sb, 'set_demo_plan'):
+            self._sb.set_demo_plan(plan, speed_ms)
+    
+    def render(self, caption: str = ""):
+        if self._sb and hasattr(self._sb, 'render'):
+            self._sb.render(caption)
+
 
 def consume_events(event_q, storyboard: Storyboard, worker_alive_fn):
     if hasattr(storyboard, '_sb') and storyboard._sb and consume_events_enhanced:
