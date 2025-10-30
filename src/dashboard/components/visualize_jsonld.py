@@ -47,8 +47,6 @@ def jsonld_to_hierarchy(jsonld_data):
                     drug_children = []
                     for d in var.get('drugs', [])[:5]:
                         dn = d.get('name', 'Unknown Drug')
-                        if d.get('recommendation'):
-                            dn += f" - {d.get('recommendation', '')[:50]}..."
                         drug_children.append({"name": dn})
                     if drug_children:
                         variant_node = {"name": label, "children": drug_children}
@@ -193,14 +191,14 @@ def render_d3_visualization(hierarchy_data):
         <button class="control-btn" onclick="collapseAll()">Collapse All</button>
       </div>
       
-      <svg width="1100" height="600"></svg>
+      <svg width="1600" height="900"></svg>
       <div class="tooltip" style="opacity:0"></div>
       
       <script>
         const data = {d3_data};
-        const width = 1100, height = 600, radius = Math.min(width, height) / 2.5;
+        const width = 1600, height = 900, radius = Math.min(width, height) / 2.2;
 
-        const tree = d3.tree().size([2 * Math.PI, radius - 30]).separation((a, b) => (a.parent == b.parent ? 10 : 12));
+        const tree = d3.tree().size([2 * Math.PI, radius - 20]).separation((a, b) => (a.parent == b.parent ? 15 : 18));
         const root = d3.hierarchy(data);
         tree(root);
 
@@ -373,7 +371,7 @@ def render_d3_visualization(hierarchy_data):
     </html>
     """
 
-    st.components.v1.html(html, height=800, scrolling=False)
+    st.components.v1.html(html, height=950, scrolling=True)
 
 
 def get_node_details(jsonld_data, node_name):
