@@ -518,7 +518,6 @@ elif page == "🔬 Run Test":
                         for err in _import_errors:
                             st.code(str(err))
                 # Abort running the pipeline if imports failed
-                return
                 st.stop()
 
             # Resolve config
