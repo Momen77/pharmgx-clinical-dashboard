@@ -712,23 +712,23 @@ class EnhancedStoryboardV2:
                 speed_json = 800
             full_html += f"""
             <script>
-            (function(){{
-                try {{
+            (function(){
+                try {
                     const plan = {plan_json};
                     if(!plan || !Array.isArray(plan) || plan.length===0) return;
                     const speed = {speed_json};
-                    const map = {{lab_prep:'lab', ngs:'ngs', annotation:'anno', enrichment:'drug', linking:'drug', report:'report'}};
+                    const map = {lab_prep:'lab', ngs:'ngs', annotation:'anno', enrichment:'drug', linking:'drug', report:'report'};
                     const root = document.currentScript.closest('.wf-wrap') || document.body;
                     const stages = root.querySelectorAll('.wf-stage');
                     const fill = root.querySelector('.wf-progress-fill');
                     const caption = root.querySelector('.wf-caption');
-                    function setStage(stage,message,progress){{
-                        if(fill){{ fill.style.transition='width 600ms ease'; fill.style.width=(Math.max(0,Math.min(100,(progress||0)*100))).toFixed(1)+'%'; }}
+                    function setStage(stage,message,progress){
+                        if(fill){ fill.style.transition='width 600ms ease'; fill.style.width=(Math.max(0,Math.min(100,(progress||0)*100))).toFixed(1)+'%'; }
                         const cur = map[stage] || stage;
                         let activeSet=false;
-                        stages.forEach(el=>{{
+                        stages.forEach(el=>{
                             el.classList.remove('active','done','hidden');
-                            const title=(el.querySelector('.wf-stage-title')||{{}}).innerText||'';
+                            const title=(el.querySelector('.wf-stage-title')||{}).innerText||'';
                             const t=title.toLowerCase();
                             const isLab = cur==='lab' && t.includes('lab');
                             const isSeq = cur==='ngs' && (t.includes('sequencing')||t.includes('ngs'));
@@ -736,16 +736,36 @@ class EnhancedStoryboardV2:
                             const isDrug = cur==='drug' && (t.includes('interactions')||t.includes('drug'));
                             const isRep = cur==='report' && t.includes('report');
                             const match = isLab||isSeq||isAnno||isDrug||isRep;
-                            if(!activeSet && match){{ el.classList.add('active'); activeSet=true; }}
-                            else if(activeSet){{ el.classList.add(cur==='report' ? 'done':'hidden'); }}
-                            else {{ el.classList.add('hidden'); }}
-                        }});
+                            if(!activeSet && match){ el.classList.add('active'); activeSet=true; }
+                            else if(activeSet){ el.classList.add(cur==='report' ? 'done':'hidden'); }
+                            else { el.classList.add('hidden'); }
+                        });
                         if(caption) caption.textContent = message ? ('\uD83D\uDCAC '+message) : '';
-                    }}
-                    let i=0; function next(){{ if(i>=plan.length) return; const ev=plan[i++]; setStage(ev.stage, ev.message, ev.progress); setTimeout(next, Math.max(250, speed)); }};
-                    setTimeout(next, Math.max(250, speed));
-                }} catch(e){{ /* no-op */ }}
-            }})();
+                    }
+                    function animateMicrosteps(totalMs){
+                        try{
+                            const active = root.querySelector('.wf-stage.active .wf-microsteps');
+                            if(!active) return;
+                            const steps = Array.from(active.querySelectorAll('.wf-microstep'));
+                            if(!steps.length) return;
+                            let idx = 0;
+                            const per = Math.max(120, (totalMs||600) / Math.max(steps.length,1));
+                            function step(){
+                                steps.forEach((el,i)=>{
+                                    el.classList.remove('active','done');
+                                    if(i<idx) el.classList.add('done');
+                                    else if(i===idx) el.classList.add('active');
+                                });
+                                idx++;
+                                if(idx<=steps.length){ setTimeout(step, per); }
+                            }
+                            step();
+                        }catch(e){}
+                    }
+                    let i=0; function next(){ if(i>=plan.length) return; const ev=plan[i++]; setStage(ev.stage, ev.message, ev.progress); animateMicrosteps(speed*0.7); setTimeout(next, Math.max(300, speed)); };
+                    setTimeout(next, Math.max(300, speed));
+                } catch(e) { /* no-op */ }
+            })();
             </script>
             """
         with ph.container():
