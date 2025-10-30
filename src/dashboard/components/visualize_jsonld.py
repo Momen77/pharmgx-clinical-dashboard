@@ -20,10 +20,8 @@ def jsonld_to_hierarchy(jsonld_data):
             "drugbank",
             "ugent.be/person/",
         )
-        allowed_pred_keywords = (
-            "hasvariant", "has_gene", "hasgene", "affectsgene",
-            "drug", "phenotype", "disease"
-        )
+        # Allow any predicate between whitelisted node IRIs to avoid over-filtering
+        allowed_pred_keywords = None
 
         # Build filtered adjacency
         links = defaultdict(list)
@@ -34,8 +32,9 @@ def jsonld_to_hierarchy(jsonld_data):
                 continue
             if not any(k in o for k in allowed_node_patterns):
                 continue
-            if not any(k in p for k in allowed_pred_keywords):
-                continue
+            if allowed_pred_keywords:
+                if not any(k in p for k in allowed_pred_keywords):
+                    continue
             links[s].append(o)
             nodes_seen.add(s); nodes_seen.add(o)
 
