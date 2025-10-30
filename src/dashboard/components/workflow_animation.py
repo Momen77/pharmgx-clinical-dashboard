@@ -531,6 +531,7 @@ def _build_enhanced_css() -> str:
     .wf-stage-title { font-weight: 700; font-size: 1rem; color: var(--pgx-text); text-align: center; margin-bottom: 6px; }
     .wf-stage-detail { font-size: 0.85rem; color: var(--pgx-muted); text-align: center; line-height: 1.35; }
     .wf-microsteps { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.1); }
+    .wf-stage:not(.active) .wf-microsteps { display: none; }
     .wf-microstep { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 0.85rem; color: var(--pgx-muted); }
     .wf-microstep.active { color: var(--pgx-primary); font-weight: 700; }
     .wf-microstep.done { color: var(--pgx-accent); }
@@ -788,7 +789,7 @@ class EnhancedStoryboardV2:
 
     def _render_microsteps(self, stage_id: str) -> str:
         """Render detailed microsteps for current stage with enhanced tooltips"""
-        if stage_id != self.stage or stage_id not in DETAIL_SCRIPTS:
+        if stage_id not in DETAIL_SCRIPTS:
             return ""
 
         steps = DETAIL_SCRIPTS[stage_id]
