@@ -363,8 +363,10 @@ class PatientCreator:
                             elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
                                 gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
                             if gemini_key:
-                                os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # used by AIPhotoGenerator
-                            generator = AIPhotoGenerator()
+                                os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # for any downstream usage
+                                generator = AIPhotoGenerator(api_key=gemini_key, service="gemini")
+                            else:
+                                generator = AIPhotoGenerator()
                             photo_bytes = generator.generate_patient_photo(patient_profile)
 
                             if photo_bytes:
@@ -548,8 +550,10 @@ class PatientCreator:
                 elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
                     gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
                 if gemini_key:
-                    os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # used by AIPhotoGenerator
-                generator = AIPhotoGenerator()
+                    os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # for any downstream usage
+                    generator = AIPhotoGenerator(api_key=gemini_key, service="gemini")
+                else:
+                    generator = AIPhotoGenerator()
                 photo_bytes = generator.generate_patient_photo(patient_profile)
 
                 if photo_bytes:
