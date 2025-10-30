@@ -49,8 +49,26 @@ class PatientCreator:
     def render_patient_form(self):
         """Render comprehensive patient demographics form"""
         st.header("📋 Create Patient Profile")
-        
+
         with st.form("patient_form"):
+            # Patient Photo Section - AT THE TOP
+            st.subheader("📸 Patient Photo")
+            photo_option = st.radio("Photo Option", ["Generate Avatar", "Upload Photo", "AI Generated (coming soon)"], horizontal=True)
+
+            patient_photo = None
+            if photo_option == "Generate Avatar":
+                st.info("👤 Avatar will be generated with patient initials after form submission")
+            elif photo_option == "Upload Photo":
+                uploaded_file = st.file_uploader("Upload Patient Photo", type=['png', 'jpg', 'jpeg'])
+                if uploaded_file:
+                    patient_photo = uploaded_file.read()
+                    st.image(uploaded_file, width=200)
+            else:
+                st.info("🎨 AI-generated photo will be created based on patient demographics and medical conditions")
+
+            st.divider()
+
+            # Basic Information
             col1, col2 = st.columns(2)
             
             # Basic Information
@@ -159,23 +177,12 @@ class PatientCreator:
             # Primary Care Physician
             pcp_name = st.text_input("Primary Care Physician Name", value="")
             pcp_contact = st.text_input("PCP Contact", value="")
-            
-            # Patient Photo
-            st.subheader("Patient Photo")
-            photo_option = st.radio("Photo Option", ["Generate Avatar", "Upload Photo"], horizontal=True)
-            
-            patient_photo = None
-            if photo_option == "Generate Avatar":
-                initials = get_patient_initials(first_name, last_name)
-                avatar = generate_avatar(initials, size=(200, 200))
-                patient_photo = save_avatar_to_bytes(avatar)
-                st.image(patient_photo, width=200, caption=f"Avatar: {initials}")
-            else:
-                uploaded_file = st.file_uploader("Upload Patient Photo", type=['png', 'jpg', 'jpeg'])
-                if uploaded_file:
-                    patient_photo = uploaded_file.read()
-                    st.image(uploaded_file, width=200)
-            
+
+            # Generate avatar if needed (moved from later in form)
+            if photo_option == "Generate Avatar" and not patient_photo:
+                # Will generate after we have the name
+                pass
+
             # Submit button
             submitted = st.form_submit_button("✅ Create Patient Profile", type="primary", width='stretch')
             
@@ -183,7 +190,13 @@ class PatientCreator:
                 if not first_name or not last_name:
                     st.error("Please fill in required fields (First Name, Last Name)")
                     return None
-                
+
+                # Generate avatar if option selected
+                if photo_option == "Generate Avatar" and not patient_photo:
+                    initials = get_patient_initials(first_name, last_name)
+                    avatar = generate_avatar(initials, size=(200, 200))
+                    patient_photo = save_avatar_to_bytes(avatar)
+
                 # Create patient profile with proper structure
                 # Convert weight and height to standard units for clinical use
                 if weight_unit == "lbs":
@@ -341,8 +354,12 @@ class PatientCreator:
 
         return None
 
-    def generate_random_profile(self):
-        """Generate a random patient profile for testing"""
+    def generate_random_profile(self, generate_ai_photo: bool = True):
+        """Generate a random patient profile for testing
+
+        Args:
+            generate_ai_photo: Whether to generate AI photo (requires API key)
+        """
         import random
         from datetime import datetime, timedelta
 
@@ -459,8 +476,39 @@ class PatientCreator:
             'gender': gender,
             'biological_sex': biological_sex,
             'date_of_birth': date_of_birth.isoformat(),
-            'ethnicity': ethnicity
+            'ethnicity': ethnicity,
+            'birth_country': 'USA'  # Default for random generation
         }
+
+        # Generate AI photo if requested
+        if generate_ai_photo:
+            try:
+                import sys
+                from pathlib import Path
+                sys.path.append(str(Path(__file__).parent.parent))
+                from utils.ai_photo_generator import AIPhotoGenerator
+
+                generator = AIPhotoGenerator()
+                photo_bytes = generator.generate_patient_photo(patient_profile)
+
+                if photo_bytes:
+                    patient_profile['photo'] = photo_bytes
+                    patient_profile['photo_format'] = 'ai_generated'
+                    print("✅ AI photo generated successfully!")
+                else:
+                    # Fallback to avatar
+                    initials = get_patient_initials(first_name, last_name)
+                    avatar = generate_avatar(initials, size=(200, 200))
+                    patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                    patient_profile['photo_format'] = 'avatar'
+                    print("⚠️ Using avatar fallback (no API key or generation failed)")
+            except Exception as e:
+                print(f"⚠️ AI photo generation error: {e}")
+                # Fallback to avatar
+                initials = get_patient_initials(first_name, last_name)
+                avatar = generate_avatar(initials, size=(200, 200))
+                patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                patient_profile['photo_format'] = 'avatar'
 
         return patient_profile
     

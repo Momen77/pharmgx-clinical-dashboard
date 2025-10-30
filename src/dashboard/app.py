@@ -355,8 +355,8 @@ elif page == "👤 Create Patient":
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 if st.button("🎲 Generate Random Patient Profile", type="primary", use_container_width=True):
-                    with st.spinner("Generating patient profile..."):
-                        profile = creator.generate_random_profile()
+                    with st.spinner("Generating patient profile and AI photo..."):
+                        profile = creator.generate_random_profile(generate_ai_photo=True)
                         if profile:
                             st.success("✅ Random patient profile generated!")
                             st.session_state['patient_profile'] = profile
@@ -365,6 +365,12 @@ elif page == "👤 Create Patient":
                             # Show generated profile
                             demo = profile.get('demographics', {})
                             st.info(f"**Generated Patient:** {demo.get('first_name', 'Unknown')} {demo.get('last_name', 'Unknown')} (MRN: {demo.get('mrn', 'N/A')})")
+
+                            # Show AI-generated photo if available
+                            if profile.get('photo') and profile.get('photo_format') == 'ai_generated':
+                                st.image(profile['photo'], width=200, caption="✨ AI-Generated Patient Photo")
+                            elif profile.get('photo'):
+                                st.image(profile['photo'], width=200, caption="👤 Patient Avatar")
 
         # Show success message if profile was created
         if st.session_state.get('patient_created'):
