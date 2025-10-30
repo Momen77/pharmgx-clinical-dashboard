@@ -171,18 +171,24 @@ class AIPhotoGenerator:
             return None
 
     def _generate_with_gemini(self, prompt: str) -> Optional[bytes]:
-        """Generate image using Google Gemini (Imagen 3) via Google AI Studio."""
-        # Prefer official client if available to avoid fragile REST payloads
+        """Generate image using Google Gemini/Imagen via Google AI Studio.
+
+        Supports multiple client import paths and response shapes.
+        """
+        client = None
+        # Try both import paths used by google-genai across versions
         try:
             from google.genai import Client  # type: ignore
+            client = Client(api_key=self.api_key)
         except Exception:
-            print("❌ google-genai package not installed. Install with: pip install google-genai")
-            return None
+            try:
+                from google import genai  # type: ignore
+                client = genai.Client(api_key=self.api_key)
+            except Exception:
+                print("❌ google-genai is not installed or import failed. Install with: pip install google-genai")
+                return None
 
         try:
-            client = Client(api_key=self.api_key)
-
-            # Safety-aware generation with a light negative prompt to reduce artifacts
             response = client.images.generate(
                 model="imagen-3.0-generate-001",
                 prompt=prompt,
@@ -192,14 +198,44 @@ class AIPhotoGenerator:
                 negative_prompt="blurry, low-res, watermark, text, cartoon, illustration"
             )
 
-            if getattr(response, "images", None):
-                img0 = response.images[0]
-                image_bytes = getattr(img0, "image_bytes", None)
-                if image_bytes:
-                    print("✅ Photo generated successfully with Gemini (Imagen 3)")
-                    return image_bytes
+            # Extract bytes across possible response shapes
+            image_bytes: Optional[bytes] = None
 
-            print("❌ Gemini API returned no images")
+            # Case 1: response.images[0].image_bytes
+            images_attr = getattr(response, "images", None)
+            if images_attr and len(images_attr) > 0:
+                img0 = images_attr[0]
+                image_bytes = getattr(img0, "image_bytes", None)
+
+            # Case 2: response.generated_images[0].data / .bytes (API variations)
+            if image_bytes is None and hasattr(response, "generated_images"):
+                gi = getattr(response, "generated_images")
+                if gi and len(gi) > 0:
+                    img0 = gi[0]
+                    # Try common attribute names
+                    for attr in ("image_bytes", "bytes", "data"):
+                        maybe = getattr(img0, attr, None)
+                        if maybe:
+                            image_bytes = maybe if isinstance(maybe, (bytes, bytearray)) else None
+                            break
+
+            # Case 3: base64 data under response fields
+            if image_bytes is None:
+                for candidate in ("data", "image", "image_base64"):
+                    maybe = getattr(response, candidate, None)
+                    if isinstance(maybe, str):
+                        try:
+                            image_bytes = base64.b64decode(maybe)
+                            break
+                        except Exception:
+                            pass
+
+            if image_bytes:
+                print("✅ Photo generated successfully with Gemini (Imagen 3)")
+                return bytes(image_bytes)
+
+            # Log shape for debugging
+            print(f"❌ Gemini API returned no images. Response type: {type(response)}; attrs: {dir(response) if hasattr(response, '__dict__') else 'n/a'}")
             return None
 
         except Exception as e:
