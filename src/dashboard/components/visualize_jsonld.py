@@ -13,12 +13,16 @@ def jsonld_to_hierarchy(jsonld_data):
     try:
         g = Graph().parse(data=json.dumps(jsonld_data), format="json-ld")
         allowed_node_patterns = (
-            "identifiers.org/dbsnp/rs",
-            "identifiers.org/ncbigene/",
-            "snomed.info/id/",
+            "http://identifiers.org/dbsnp/rs",
+            "https://identifiers.org/dbsnp/rs",
+            "http://identifiers.org/ncbigene/",
+            "https://identifiers.org/ncbigene/",
+            "http://snomed.info/id/",
+            "https://snomed.info/id/",
             "pharmgkb",
             "drugbank",
-            "ugent.be/person/",
+            "http://ugent.be/person/",
+            "https://ugent.be/person/",
         )
         # Allow any predicate between whitelisted node IRIs to avoid over-filtering
         allowed_pred_keywords = None
@@ -37,6 +41,15 @@ def jsonld_to_hierarchy(jsonld_data):
                     continue
             links[s].append(o)
             nodes_seen.add(s); nodes_seen.add(o)
+
+        # Fallback: if nothing was linked with whitelist, include all URI→URI edges (no filtering)
+        if not links:
+            for subj, pred, obj in g:
+                s, o = str(subj), str(obj)
+                # keep only IRI→IRI edges (ignore literals)
+                if s.startswith("http") and (o.startswith("http") or o.startswith("https")):
+                    links[s].append(o)
+                    nodes_seen.add(s); nodes_seen.add(o)
 
         # Choose patient as root if present
         roots = [n for n in nodes_seen if "ugent.be/person/" in n]
