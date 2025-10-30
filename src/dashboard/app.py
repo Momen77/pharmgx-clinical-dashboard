@@ -427,14 +427,27 @@ elif page == "🔬 Run Test":
 
         # Show test summary
         st.subheader("Test Summary")
-        summary_col1, summary_col2 = st.columns(2)
-        with summary_col1:
-            st.write(f"**Patient:** {first_name} {last_name}")
-            st.write(f"**MRN:** {mrn}")
-            st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
-        with summary_col2:
-            st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
-            st.write(f"**Estimated time:** ~2-5 minutes")
+
+        # Create layout with patient photo and summary info
+        photo_col, summary_info_col = st.columns([1, 3])
+
+        # Display patient photo
+        with photo_col:
+            if profile.get('photo'):
+                st.image(profile['photo'], width=150, caption="Patient Photo")
+            else:
+                st.info("No photo available")
+
+        # Display summary information
+        with summary_info_col:
+            summary_col1, summary_col2 = st.columns(2)
+            with summary_col1:
+                st.write(f"**Patient:** {first_name} {last_name}")
+                st.write(f"**MRN:** {mrn}")
+                st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
+            with summary_col2:
+                st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
+                st.write(f"**Estimated time:** ~2-5 minutes")
 
         # Optional: Show patient profile details
         with st.expander("👤 View Patient Profile Details", expanded=False):
