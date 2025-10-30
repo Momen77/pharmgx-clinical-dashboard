@@ -28,7 +28,29 @@ from phase5_export.html_reporter import HTMLReporter
 # Try to import EventBus for dashboard integration
 try:
     from utils.event_bus import PipelineEvent, emit as queue_emit
-    EventBus = None  # Will use queue-based approach
+    # Provide a minimal EventBus wrapper that uses the queue when available
+    class EventBus:
+        """Queue-backed EventBus wrapper for dashboard integration"""
+        def __init__(self, event_queue=None):
+            self.event_queue = event_queue
+            self.subscribers = []
+
+        def subscribe(self, callback):
+            self.subscribers.append(callback)
+
+        def emit(self, event):
+            # Prefer queue for thread-safe UI communication
+            if self.event_queue is not None:
+                try:
+                    self.event_queue.put(event, block=False)
+                except Exception:
+                    pass
+            # Also call local subscribers (optional)
+            for callback in self.subscribers:
+                try:
+                    callback(event)
+                except Exception:
+                    pass
 except ImportError:
     queue_emit = None
 
