@@ -278,23 +278,27 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    # Display official UGent logo
+    # Display official UGent logo - smaller and left-aligned
     import os
+
+    # Add spacing before logo
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # Try official main logo first, then SVG fallback
     main_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_main_logo.png")
     svg_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
 
+    # Left-aligned logo with smaller width
     if os.path.exists(main_logo_path):
-        # Official UGent main logo
-        st.image(main_logo_path, use_container_width=True)
+        # Official UGent main logo - smaller width
+        st.image(main_logo_path, width=120)
     elif os.path.exists(svg_logo_path):
-        # Custom SVG logo
-        st.image(svg_logo_path, use_container_width=True)
+        # Custom SVG logo - smaller width
+        st.image(svg_logo_path, width=120)
     else:
         # Fallback: Use embedded SVG with transparent background
         logo_svg = """
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" style="background: transparent;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="120" style="background: transparent;">
           <rect x="0" y="0" width="10" height="100" fill="#FFD200"/>
           <text x="25" y="60" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#1E64C8">
             GHENT UNIVERSITY
