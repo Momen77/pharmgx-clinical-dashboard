@@ -209,25 +209,31 @@ def render_d3_visualization(hierarchy_data):
 
         const g = svg.append("g");
 
-        // Color mapping based on node name and depth
+        // Color mapping based on node name patterns
         function getColor(name) {{
-          const n = name.toLowerCase();
+          const n = name.toLowerCase().trim();
           // Patient (root) - dark blue
-          if (n.includes("patient") || n === "demographics" || n.startsWith("id:") || n.startsWith("created:")) return "#1f77b4";
-          // Genes - bright blue
-          if (n.includes("genes")) return "#00BFFF";
-          // Gene symbols (children of Genes) - blue
-          if (n.match(/^(slco1b1|g6pd|cyp\d+|tpmt|dpyd|ugt1a1|nudt15|cfp|cbc|dpy-?d|dihydroxy|udp-glucur|thiopurine|nucleoside)$/i)) return "#1e90ff";
+          if (n.includes("patient") || n.startsWith("jane") || n.startsWith("mrn-")) return "#1f77b4";
+          // Genes container - bright blue
+          if (n === "genes") return "#00BFFF";
+          // Gene symbols - blue
+          if (n.match(/^(slco1b1|g6pd|cyp\d+|tpmt|dpyd|ugt1a1|nudt15|cfp|cbc|dpy-?d|dihydroxy|udp-glucur|thiopurine|nucleoside|no variants)$/i)) return "#1e90ff";
+          // Demographics container - cyan
+          if (n === "demographics") return "#17becf";
+          // Demographics items - light cyan
+          if (n.startsWith("id:") || n.startsWith("created:") || n.startsWith("age:")) return "#7ec8e3";
+          // Conditions container - pink
+          if (n === "conditions") return "#FF69B4";
+          // Condition items - light pink
+          if (n.includes("condition") && !n.includes("conditions")) return "#ffb3db";
+          // Medications container - green
+          if (n === "medications") return "#32CD32";
+          // Medication items - light green
+          if (n.includes("medication") && !n.includes("medications")) return "#90EE90";
           // Variants (rs IDs) - orange
-          if (n.includes("variant") || n.match(/^rs\d+/) || n.includes(":")) return "#FF7F50";
-          // Drugs - green
-          if (n.includes("drug")) return "#32CD32";
-          // Drug names or medications - light green
-          if (n.match(/^(fluvastatin|glyburide|artesunate|clopidogrel|warfarin|simvastatin|atorvastatin|metformin|acetaminophen|ibuprofen|aspirin)/i)) return "#90EE90";
-          // Conditions/Diseases - pink
-          if (n.includes("condition") || n.includes("disease")) return "#FF69B4";
-          // Demographics items - cyan
-          if (n.includes("age")) return "#17becf";
+          if (n.match(/^rs\d+/) || (n.includes("variant") && !n.includes("variants"))) return "#FF7F50";
+          // Drugs - light green
+          if (n.includes("drug") || n.includes(" - ")) return "#90EE90";
           // Default - gray
           return "#888888";
         }}
