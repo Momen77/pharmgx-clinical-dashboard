@@ -686,7 +686,7 @@ elif page == "🔬 Run Test":
                         sb.set_genes(st.session_state.get('selected_genes', []))
                     # Independent storyboard playback (not tightly synced)
                     # Use a comfortable fixed speed (ms) without exposing UI controls
-                    storyboard_speed = 3000
+                    storyboard_speed = 5000
                     # Build a reasonable plan matching pipeline stages
                     sb_plan = [
                         ("lab_prep", "init", "Starting lab preparation...", 0.06),
@@ -814,6 +814,19 @@ elif page == "🔬 Run Test":
                                 st.write("Generating HTML reports, saving summary JSON, and preparing file paths.")
                             with st.expander("Quality Checks", expanded=False):
                                 st.write("Verifying output integrity and counts (variants, drugs, literature coverage).")
+                            # Update storyboard with a small post-processing plan for visual continuity
+                            try:
+                                if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render'):
+                                    post_plan = [
+                                        {"stage": "report", "substage": "finalize_graphs", "message": "Assembling knowledge graphs...", "progress": 0.98},
+                                        {"stage": "report", "substage": "export_reports", "message": "Exporting reports...", "progress": 0.99},
+                                        {"stage": "report", "substage": "quality_checks", "message": "Quality checks...", "progress": 0.995}
+                                    ]
+                                    # Reuse the same speed to keep feel consistent
+                                    sb.set_demo_plan(post_plan, storyboard_speed)
+                                    sb.render("Finalizing outputs...")
+                            except Exception:
+                                pass
                             # Persist ability to revisit these sections later
                             st.session_state['finalization_sections'] = True
                         except Exception:
