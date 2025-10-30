@@ -167,7 +167,19 @@ except Exception as e1:
                             worker_kwargs['patient_profile'] = self.profile
                         elif 'profile' in self.old_worker_params:
                             worker_kwargs['profile'] = self.profile
-                        
+
+                        # Pass through additional parameters if the worker accepts them
+                        if 'config_path' in self.old_worker_params:
+                            worker_kwargs['config_path'] = "config.yaml"
+                        if 'event_queue' in self.old_worker_params:
+                            worker_kwargs['event_queue'] = self.event_queue
+                        if 'result_queue' in self.old_worker_params:
+                            worker_kwargs['result_queue'] = self.result_queue
+                        if 'cancel_event' in self.old_worker_params:
+                            worker_kwargs['cancel_event'] = self.cancel_event
+                        if 'demo_mode' in self.old_worker_params:
+                            worker_kwargs['demo_mode'] = self.demo_mode
+
                         worker = _PW(self.genes, **worker_kwargs)
                         
                         # Handle demo mode manually
