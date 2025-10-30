@@ -401,6 +401,11 @@ class PGxPipeline:
                         if gene_result["success"]:
                             # Collect variants from this gene
                             gene_variants = self._extract_gene_variants(gene_symbol)
+                            # Resolve exact rsIDs as early as possible using allele tuple
+                            try:
+                                gene_variants = self._assign_exact_rsid(gene_variants)
+                            except Exception:
+                                pass
                             gene_drugs, gene_diseases = self._extract_drugs_diseases(gene_symbol)
 
                             # Thread-safe updates
@@ -1716,8 +1721,42 @@ class PGxPipeline:
                     g.add((gene_uri, SCHEMA.name, Literal(gene)))
             
             # Add variants
+            def _extract_rsid(v: dict) -> str:
+                """Return canonical rsID from any known fields/xrefs; empty string if not found."""
+                try:
+                    # direct fields
+                    for key in ["rsid", "dbsnp_id", "dbsnp", "variant_id"]:
+                        val = str(v.get(key, "")).strip()
+                        if val.lower().startswith("rs"):
+                            return val
+                    # xrefs list
+                    for xr in (v.get("xrefs", []) or []):
+                        name = str(xr.get("name", "")).lower()
+                        vid = str(xr.get("id", "")).strip()
+                        if name in ("dbsnp", "rsid") and vid:
+                            return vid if vid.lower().startswith("rs") else f"rs{vid}"
+                    # nested clinvar
+                    cv = v.get("clinvar", {}) or {}
+                    for k in ["rsid", "dbsnp", "dbsnp_id"]:
+                        val = str(cv.get(k, "")).strip()
+                        if val.lower().startswith("rs"):
+                            return val
+                    # generic identifiers dict
+                    ids = v.get("identifiers", {}) or {}
+                    for _, val in (ids.items() if isinstance(ids, dict) else []):
+                        sval = str(val).strip()
+                        if sval.lower().startswith("rs"):
+                            return sval
+                except Exception:
+                    return ""
+                return ""
+
             for variant in profile.get("variants", []):
-                variant_uri = URIRef(f"http://identifiers.org/dbsnp/{variant.get('variant_id', 'unknown')}")
+                rsid = _extract_rsid(variant)
+                if not rsid:
+                    # Skip non-rs variants to avoid inventing identifiers; upstream should supply rsIDs
+                    continue
+                variant_uri = URIRef(f"http://identifiers.org/dbsnp/{rsid}")
                 g.add((variant_uri, RDF.type, PGX.Variant))
                 g.add((variant_uri, SCHEMA.identifier, Literal(variant.get("variant_id", ""))))
                 g.add((variant_uri, PGX.affectsGene, URIRef(f"http://identifiers.org/ncbigene/{variant.get('gene', '')}")))
@@ -1883,6 +1922,39 @@ class PGxPipeline:
 """
         
         return html
+
+    def _assign_exact_rsid(self, variants: list) -> list:
+        """Assign exact dbSNP rsID for each variant using allele tuple when available.
+
+        Expected variant keys (best-effort): 'chrom', 'position' or 'pos', 'ref', 'alt'.
+        If 'rsid' already present, keep it. Else, prefer xrefs rsid only if allele matches.
+        """
+        def pick_rsid(v: dict) -> str:
+            rs = str(v.get('rsid', '')).strip()
+            if rs.lower().startswith('rs'):
+                return rs
+            # try exact match from xrefs with allele
+            alt = str(v.get('alt') or v.get('alternate') or '').upper()
+            xrefs = v.get('xrefs', []) or []
+            for xr in xrefs:
+                name = str(xr.get('name', '')).lower()
+                vid = str(xr.get('id', '')).strip()
+                xr_alt = str(xr.get('allele', '')).upper()
+                if name in ('dbsnp', 'rsid') and vid and (not alt or not xr_alt or xr_alt == alt):
+                    return vid if vid.lower().startswith('rs') else f"rs{vid}"
+            # try clinvar section
+            cv = v.get('clinvar', {}) or {}
+            for k in ('rsid', 'dbsnp', 'dbsnp_id'):
+                val = str(cv.get(k, '')).strip()
+                if val.lower().startswith('rs'):
+                    return val
+            return ''
+
+        for v in variants:
+            rsid = pick_rsid(v)
+            if rsid:
+                v['rsid'] = rsid
+        return variants
 
 
 # Legacy class for backward compatibility
