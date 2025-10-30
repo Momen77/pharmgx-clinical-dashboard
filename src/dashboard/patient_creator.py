@@ -414,17 +414,12 @@ class PatientCreator:
 
                 st.success(f"✅ Patient profile created: {first_name} {last_name} (MRN: {mrn})")
 
-                # Show picture at top-left in a two-column layout
-                col_img, col_body = st.columns([1, 3], gap="large")
-                with col_img:
-                    if patient_profile.get('photo'):
-                        photo_format = patient_profile.get('photo_format', 'unknown')
-                        if photo_format in ('captured', 'upload', 'ai_generated'):
-                            st.image(patient_profile['photo'], width=200, caption="Patient picture")
-                        else:
-                            st.image(patient_profile['photo'], width=200, caption="Placeholder picture")
-                with col_body:
-                    st.write("")
+                # Show picture at the top with the patient's name underneath
+                if patient_profile.get('photo'):
+                    photo_format = patient_profile.get('photo_format', 'unknown')
+                    caption = "Patient picture" if photo_format in ('captured', 'upload', 'ai_generated') else "Placeholder picture"
+                    st.image(patient_profile['photo'], width=220, caption=caption)
+                st.subheader(f"{first_name} {last_name}")
 
                 return patient_profile
 
