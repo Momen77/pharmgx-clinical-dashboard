@@ -4,7 +4,6 @@ Clinical report generator for HTML display
 import streamlit as st
 from datetime import datetime
 from dashboard.alert_classifier import AlertClassifier
-from logo_UGent_EN.logo_assets import UGENT_LOGO_MAIN_EN, FACULTY_LOGOS
 
 
 class ReportGenerator:
@@ -15,13 +14,6 @@ class ReportGenerator:
     
     def render_report(self, patient_profile: dict, test_results: dict):
         """Render comprehensive clinical report"""
-        
-        # Header logo section (UGent + Faculty - both EN, as per branding guidelines)
-        cols = st.columns([1, 1])
-        with cols[0]:
-            st.image(UGENT_LOGO_MAIN_EN, width=120)
-        with cols[1]:
-            st.image(FACULTY_LOGOS["FW"], width=120, caption="Faculty of Pharmaceutical Sciences")
         
         # Header with patient photo
         col1, col2, col3 = st.columns([1, 2, 1])

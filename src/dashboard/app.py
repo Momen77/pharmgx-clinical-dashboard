@@ -7,7 +7,6 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
-import os
 
 # =========================
 # Robust import bootstrap
@@ -26,48 +25,6 @@ if proj_str not in sys.path:
 _dash_str = str(_DASHBOARD_DIR)
 if _dash_str not in sys.path:
     sys.path.insert(2, _dash_str)
-
-# =========================
-# UGent logo import (robust)
-# =========================
-UGENT_LOGO_MAIN_EN = None
-try:
-    # Preferred: local package relative import
-    from .logo_UGent_EN.logo_assets import UGENT_LOGO_MAIN_EN as _UGENT_LOGO_MAIN_EN  # type: ignore
-    UGENT_LOGO_MAIN_EN = _UGENT_LOGO_MAIN_EN
-except Exception:
-    # Fallback: try loading from known repo paths via file location
-    import importlib.util as _ilu
-    _logo_candidates = [
-        _DASHBOARD_DIR / "logo_UGent_EN" / "logo_assets.py",
-        _PROJECT_ROOT / "src" / "pharmgx-clinical-dashboard" / "logo_UGent_EN" / "logo_assets.py",
-    ]
-    for _p in _logo_candidates:
-        if _p.exists():
-            try:
-                _s = _ilu.spec_from_file_location("logo_assets", _p)
-                _m = _ilu.module_from_spec(_s)
-                _s.loader.exec_module(_m)  # type: ignore
-                UGENT_LOGO_MAIN_EN = getattr(_m, "UGENT_LOGO_MAIN_EN", None)
-                if UGENT_LOGO_MAIN_EN:
-                    break
-            except Exception:
-                pass
-
-# Final fallback: try well-known image paths directly
-if not UGENT_LOGO_MAIN_EN:
-    _possible_images = [
-        _DASHBOARD_DIR / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_color.png",
-        _DASHBOARD_DIR / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_color-on-white.png",
-        _DASHBOARD_DIR / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_white.png",
-        _PROJECT_ROOT / "src" / "pharmgx-clinical-dashboard" / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_color.png",
-        _PROJECT_ROOT / "src" / "pharmgx-clinical-dashboard" / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_color-on-white.png",
-        _PROJECT_ROOT / "src" / "pharmgx-clinical-dashboard" / "logo_UGent_EN" / "logo_UGent_EN" / "logo_UGent_EN_RGB_2400_white.png",
-    ]
-    for _img in _possible_images:
-        if _img.exists():
-            UGENT_LOGO_MAIN_EN = str(_img)
-            break
 
 # Load PGxPipeline with multiple fallbacks
 PGxPipeline = None
@@ -321,13 +278,26 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    try:
-        if UGENT_LOGO_MAIN_EN and Path(UGENT_LOGO_MAIN_EN).exists():
-            st.image(UGENT_LOGO_MAIN_EN, width=160)
-        else:
-            st.markdown("### UGent PGx Dashboard")
-    except Exception:
-        st.markdown("### UGent PGx Dashboard")
+    # Try to load local logo first, fallback to embedded SVG
+    import os
+    logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=None)
+    else:
+        # Fallback: Use data URI with embedded SVG
+        logo_svg = """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100">
+          <rect width="400" height="100" fill="#1E64C8"/>
+          <rect x="0" y="0" width="10" height="100" fill="#FFD200"/>
+          <text x="25" y="45" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#FFFFFF">
+            GHENT UNIVERSITY
+          </text>
+          <text x="25" y="70" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#FFD200">
+            Pharmacogenomics Laboratory
+          </text>
+        </svg>
+        """
+        st.markdown(logo_svg, unsafe_allow_html=True)
     st.title("Workflow")
     
     # Show workflow steps with status indicators
