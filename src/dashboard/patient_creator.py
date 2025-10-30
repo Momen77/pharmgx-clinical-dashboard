@@ -573,40 +573,55 @@ class PatientCreator:
                 sys.path.append(str(Path(__file__).parent.parent))
                 from utils.ai_photo_generator import AIPhotoGenerator
 
-                # Load key from Streamlit secrets if available
-                # Prefer top-level, fallback to [api_keys] section
-                gemini_key = None
-                if "GOOGLE_API_KEY" in st.secrets:
-                    gemini_key = st.secrets["GOOGLE_API_KEY"]
-                elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
-                    gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
-                if not gemini_key:
-                    st.error("GOOGLE_API_KEY not found in secrets. Add it in Streamlit Secrets or .streamlit/secrets.toml")
-                    generator = AIPhotoGenerator()
-                else:
-                    try:
-                        from google.genai import Client  # type: ignore
-                    except Exception:
-                        st.error("Missing dependency: google-genai. Install with: pip install google-genai")
-                    os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # for any downstream usage
-                    generator = AIPhotoGenerator(api_key=gemini_key, service="gemini")
-                photo_bytes = generator.generate_patient_photo(patient_profile)
+                with st.spinner("📷 Generating AI photo from patient demographics..."):
+                    # Load key from Streamlit secrets if available
+                    # Prefer top-level, fallback to [api_keys] section
+                    gemini_key = None
+                    if "GOOGLE_API_KEY" in st.secrets:
+                        gemini_key = st.secrets["GOOGLE_API_KEY"]
+                    elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
+                        gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
 
-                if photo_bytes:
-                    patient_profile['photo'] = photo_bytes
-                    patient_profile['photo_format'] = 'ai_generated'
-                    print("✅ AI photo generated successfully!")
-                else:
-                    if hasattr(generator, 'last_error') and generator.last_error:
-                        st.error(f"AI generation error: {generator.last_error}")
-                    # Fallback to avatar
-                    initials = get_patient_initials(first_name, last_name)
-                    avatar = generate_avatar(initials, size=(200, 200))
-                    patient_profile['photo'] = save_avatar_to_bytes(avatar)
-                    patient_profile['photo_format'] = 'avatar'
-                    print("⚠️ Using avatar fallback (no API key or generation failed)")
+                    if not gemini_key:
+                        st.warning("⚠️ GOOGLE_API_KEY not found in Streamlit secrets. Cannot generate AI photo.")
+                        st.info("💡 Add GOOGLE_API_KEY to .streamlit/secrets.toml or Streamlit Cloud secrets to enable AI photo generation.")
+                        # Generate placeholder avatar
+                        initials = get_patient_initials(first_name, last_name)
+                        avatar = generate_avatar(initials, size=(200, 200))
+                        patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                        patient_profile['photo_format'] = 'avatar'
+                    else:
+                        try:
+                            from google.genai import Client  # type: ignore
+                        except ImportError:
+                            st.warning("⚠️ google-genai package not installed. Cannot generate AI photo.")
+                            st.info("💡 Install with: pip install google-genai")
+                            initials = get_patient_initials(first_name, last_name)
+                            avatar = generate_avatar(initials, size=(200, 200))
+                            patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                            patient_profile['photo_format'] = 'avatar'
+                        else:
+                            os.environ.setdefault("GOOGLE_API_KEY", gemini_key)
+                            generator = AIPhotoGenerator(api_key=gemini_key, service="gemini")
+                            photo_bytes = generator.generate_patient_photo(patient_profile)
+
+                            if photo_bytes:
+                                patient_profile['photo'] = photo_bytes
+                                patient_profile['photo_format'] = 'ai_generated'
+                                st.success("✅ AI photo generated successfully!")
+                            else:
+                                error_msg = generator.last_error if hasattr(generator, 'last_error') else "Unknown error"
+                                st.warning(f"⚠️ AI photo generation failed: {error_msg}")
+                                st.info("💡 Using placeholder avatar instead.")
+                                # Fallback to avatar
+                                initials = get_patient_initials(first_name, last_name)
+                                avatar = generate_avatar(initials, size=(200, 200))
+                                patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                                patient_profile['photo_format'] = 'avatar'
+
             except Exception as e:
-                print(f"⚠️ AI photo generation error: {e}")
+                st.warning(f"⚠️ AI photo generation error: {str(e)}")
+                st.info("💡 Using placeholder avatar instead.")
                 # Fallback to avatar
                 initials = get_patient_initials(first_name, last_name)
                 avatar = generate_avatar(initials, size=(200, 200))
