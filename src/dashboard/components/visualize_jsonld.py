@@ -96,8 +96,8 @@ def render_d3_visualization(hierarchy_data):
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
       body {{
-        background-color: #0f1116;
-        color: white;
+        background-color: #ffffff;
+        color: #333;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         margin: 0;
         padding: 20px;
@@ -105,10 +105,12 @@ def render_d3_visualization(hierarchy_data):
       .legend {{
         margin-bottom: 15px;
         font-size: 14px;
+        color: #333;
       }}
       .legend-item {{
         display: inline-block;
         margin-right: 20px;
+        color: #333;
       }}
       .legend-dot {{
         display: inline-block;
@@ -122,12 +124,12 @@ def render_d3_visualization(hierarchy_data):
         position: absolute;
         text-align: center;
         padding: 8px 12px;
-        background: rgba(0,0,0,0.9);
-        color: #fff;
+        background: rgba(255,255,255,0.98);
+        color: #333;
         border-radius: 6px;
         pointer-events: none;
         font-size: 13px;
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(0,0,0,0.2);
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
       }}
       .controls {{
@@ -147,13 +149,13 @@ def render_d3_visualization(hierarchy_data):
         background-color: #1e40af;
       }}
       svg {{
-        border: 1px solid #333;
+        border: 1px solid #ddd;
         border-radius: 8px;
-        background-color: #1a1a2e;
+        background-color: #ffffff;
       }}
       text {{
-        fill: #e0e0e0;
-        font-size: 11px;
+        fill: #333;
+        font-size: 13px;
       }}
     </style>
     </head>
@@ -227,9 +229,9 @@ def render_d3_visualization(hierarchy_data):
           .data(root.links())
           .join("path")
           .attr("fill", "none")
-          .attr("stroke", "#555")
-          .attr("stroke-opacity", 0.4)
-          .attr("stroke-width", 1.5)
+          .attr("stroke", "#888")
+          .attr("stroke-opacity", 0.5)
+          .attr("stroke-width", 2)
           .attr("d", d3.linkRadial()
             .angle(d => d.x)
             .radius(d => d.y));
@@ -246,15 +248,15 @@ def render_d3_visualization(hierarchy_data):
 
         node.append("circle")
           .attr("fill", d => getColor(d.data.name))
-          .attr("r", d => d.children ? 6 : 4)
-          .attr("stroke", "#fff")
-          .attr("stroke-width", 1)
+          .attr("r", d => d.children ? 12 : 10)
+          .attr("stroke", "#333")
+          .attr("stroke-width", 2)
           .style("cursor", "pointer")
           .on("mouseover", function(event, d) {{
             d3.select(this)
               .transition()
               .duration(200)
-              .attr("r", d.children ? 9 : 7);
+              .attr("r", d.children ? 16 : 14);
             
             tooltip.transition().duration(200).style("opacity", .95);
             tooltip.html(`
@@ -269,7 +271,7 @@ def render_d3_visualization(hierarchy_data):
             d3.select(this)
               .transition()
               .duration(200)
-              .attr("r", d.children ? 6 : 4);
+              .attr("r", d.children ? 12 : 10);
             
             tooltip.transition().duration(500).style("opacity", 0);
           }})
@@ -291,13 +293,14 @@ def render_d3_visualization(hierarchy_data):
         // Labels
         node.append("text")
           .attr("dy", "0.31em")
-          .attr("x", d => d.x < Math.PI === !d.children ? 6 : -6)
+          .attr("x", d => d.x < Math.PI === !d.children ? 15 : -15)
           .attr("text-anchor", d => d.x < Math.PI === !d.children ? "start" : "end")
           .attr("transform", d => d.x >= Math.PI ? "rotate(180)" : null)
           .text(d => d.data.name)
-          .style("font-size", "10px")
+          .style("font-size", "13px")
+          .style("font-weight", "500")
           .clone(true).lower()
-          .attr("stroke", "#1a1a2e")
+          .attr("stroke", "#ffffff")
           .attr("stroke-width", 3);
 
         // Zoom and pan
