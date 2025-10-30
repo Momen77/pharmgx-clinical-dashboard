@@ -33,6 +33,7 @@ class AIPhotoGenerator:
             else:
                 self.api_key = None
         self.service = service
+        self.last_error: Optional[str] = None
 
     def generate_patient_photo(self, patient_data: Dict) -> Optional[bytes]:
         """
@@ -58,7 +59,9 @@ class AIPhotoGenerator:
         elif self.service == "stability" and self.api_key:
             return self._generate_with_stability(prompt)
         else:
-            print("⚠️ No API key configured, using fallback avatar")
+            msg = "No API key configured, using fallback avatar"
+            print(f"⚠️ {msg}")
+            self.last_error = msg
             return None
 
     def _build_prompt(self, patient_data: Dict) -> str:
@@ -163,11 +166,15 @@ class AIPhotoGenerator:
                     print("✅ Photo generated successfully with OpenAI DALL-E")
                     return image_response.content
             else:
-                print(f"❌ OpenAI API error: {response.status_code} - {response.text}")
+            err = f"OpenAI API error: {response.status_code} - {response.text}"
+            print(f"❌ {err}")
+            self.last_error = err
                 return None
 
         except Exception as e:
-            print(f"❌ Error generating with OpenAI: {e}")
+            err = f"Error generating with OpenAI: {e}"
+            print(f"❌ {err}")
+            self.last_error = err
             return None
 
     def _generate_with_gemini(self, prompt: str) -> Optional[bytes]:
@@ -185,7 +192,8 @@ class AIPhotoGenerator:
                 from google import genai  # type: ignore
                 client = genai.Client(api_key=self.api_key)
             except Exception:
-                print("❌ google-genai is not installed or import failed. Install with: pip install google-genai")
+                self.last_error = "google-genai not installed or import failed. Install with: pip install google-genai"
+                print(f"❌ {self.last_error}")
                 return None
 
         try:
@@ -235,11 +243,13 @@ class AIPhotoGenerator:
                 return bytes(image_bytes)
 
             # Log shape for debugging
-            print(f"❌ Gemini API returned no images. Response type: {type(response)}; attrs: {dir(response) if hasattr(response, '__dict__') else 'n/a'}")
+            self.last_error = f"Gemini API returned no images. Response type: {type(response)}"
+            print(f"❌ {self.last_error}")
             return None
 
         except Exception as e:
-            print(f"❌ Error generating with Gemini: {e}")
+            self.last_error = f"Error generating with Gemini: {e}"
+            print(f"❌ {self.last_error}")
             return None
 
     def _generate_with_stability(self, prompt: str) -> Optional[bytes]:
@@ -281,11 +291,15 @@ class AIPhotoGenerator:
                 print("✅ Photo generated successfully with Stability AI")
                 return base64.b64decode(image_data)
             else:
-                print(f"❌ Stability AI error: {response.status_code} - {response.text}")
+                err = f"Stability AI error: {response.status_code} - {response.text}"
+                print(f"❌ {err}")
+                self.last_error = err
                 return None
 
         except Exception as e:
-            print(f"❌ Error generating with Stability AI: {e}")
+            err = f"Error generating with Stability AI: {e}"
+            print(f"❌ {err}")
+            self.last_error = err
             return None
 
 

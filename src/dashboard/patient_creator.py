@@ -380,6 +380,8 @@ class PatientCreator:
                                 patient_profile['photo_format'] = 'ai_generated'
                                 st.success("✅ AI photo generated successfully!")
                             else:
+                                if hasattr(generator, 'last_error') and generator.last_error:
+                                    st.error(f"AI generation error: {generator.last_error}")
                                 # Fallback to avatar
                                 initials = get_patient_initials(first_name, last_name)
                                 avatar = generate_avatar(initials, size=(200, 200))
@@ -572,6 +574,8 @@ class PatientCreator:
                     patient_profile['photo_format'] = 'ai_generated'
                     print("✅ AI photo generated successfully!")
                 else:
+                    if hasattr(generator, 'last_error') and generator.last_error:
+                        st.error(f"AI generation error: {generator.last_error}")
                     # Fallback to avatar
                     initials = get_patient_initials(first_name, last_name)
                     avatar = generate_avatar(initials, size=(200, 200))
