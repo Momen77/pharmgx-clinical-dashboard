@@ -559,8 +559,9 @@ elif page == "🔬 Run Test":
                             st.markdown(f"**{title}**")
                             st.caption(desc)
                 
-                progress_bar = st.progress(0)
-                status_text = st.empty()
+                # Deprecated: old Streamlit progress UI (replaced by storyboard progress)
+                progress_bar = None
+                status_text = None
                 substep_text = st.empty()  # For sub-step details
 
                 # ==============================================
@@ -668,11 +669,21 @@ elif page == "🔬 Run Test":
                         progress = current_progress[0]
 
                     current_progress[0] = progress
-                    progress_bar.progress(min(progress, 1.0))
+                    # Update storyboard progress instead of Streamlit bar
+                    try:
+                        if sb and hasattr(sb, 'advance'):
+                            class _EvObj:
+                                stage = None
+                                message = ""
+                                progress = 0.0
+                            _e = _EvObj()
+                            _e.progress = min(max(progress, 0.0), 1.0)
+                            sb.advance(_e)
+                    except Exception:
+                        pass
 
                     # Main status message
-                    message = getattr(event, 'message', f"Processing {event.stage}...")
-                    status_text.text(f"⏳ {message}")
+                    # Suppress old emoji status line; storyboard shows messages
 
                 # Snapshot selected genes from session in main thread
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
