@@ -740,7 +740,7 @@ class EnhancedStoryboardV2:
                             else if(activeSet){ el.classList.add(cur==='report' ? 'done':'hidden'); }
                             else { el.classList.add('hidden'); }
                         });
-                        if(caption) caption.textContent = message ? ('\uD83D\uDCAC '+message) : '';
+                        if(caption) caption.innerHTML = message ? ('&#128172; '+message) : '';
                     }
                     function animateMicrosteps(totalMs){
                         try{
