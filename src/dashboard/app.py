@@ -278,19 +278,14 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    # Display official UGent Faculty of Pharmaceutical Sciences logo
+    # Display official UGent logo
     import os
 
-    # Try official faculty logo first, then main logo, then fallback
-    faculty_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_faculty_logo.png")
+    # Try official main logo first, then SVG fallback
     main_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_main_logo.png")
     svg_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
 
-    if os.path.exists(faculty_logo_path):
-        # Official Faculty of Pharmaceutical Sciences logo
-        st.image(faculty_logo_path, use_container_width=True)
-        st.markdown("**Pharmacogenomics Laboratory**")
-    elif os.path.exists(main_logo_path):
+    if os.path.exists(main_logo_path):
         # Official UGent main logo
         st.image(main_logo_path, use_container_width=True)
     elif os.path.exists(svg_logo_path):
@@ -302,11 +297,8 @@ with st.sidebar:
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100">
           <rect width="400" height="100" fill="#1E64C8"/>
           <rect x="0" y="0" width="10" height="100" fill="#FFD200"/>
-          <text x="25" y="45" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#FFFFFF">
+          <text x="25" y="50" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#FFFFFF">
             GHENT UNIVERSITY
-          </text>
-          <text x="25" y="70" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#FFD200">
-            Pharmacogenomics Laboratory
           </text>
         </svg>
         """
@@ -347,12 +339,11 @@ if page == "🏠 Home":
     # Display header with logo
     col_logo, col_title = st.columns([1, 3])
     with col_logo:
-        faculty_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_faculty_logo.png")
-        if os.path.exists(faculty_logo_path):
-            st.image(faculty_logo_path, width=150)
+        main_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_main_logo.png")
+        if os.path.exists(main_logo_path):
+            st.image(main_logo_path, width=150)
     with col_title:
         st.title("🧬 Pharmacogenomics Testing Dashboard")
-        st.markdown("**Faculty of Pharmaceutical Sciences**")
         st.markdown("Ghent University")
 
     st.divider()
