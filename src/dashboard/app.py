@@ -292,12 +292,11 @@ with st.sidebar:
         # Custom SVG logo
         st.image(svg_logo_path, use_container_width=True)
     else:
-        # Fallback: Use embedded SVG
+        # Fallback: Use embedded SVG with transparent background
         logo_svg = """
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100">
-          <rect width="400" height="100" fill="#1E64C8"/>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" style="background: transparent;">
           <rect x="0" y="0" width="10" height="100" fill="#FFD200"/>
-          <text x="25" y="50" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#FFFFFF">
+          <text x="25" y="60" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="bold" fill="#1E64C8">
             GHENT UNIVERSITY
           </text>
         </svg>
