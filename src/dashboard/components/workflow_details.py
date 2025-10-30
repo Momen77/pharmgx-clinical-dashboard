@@ -103,6 +103,18 @@ DETAIL_SCRIPTS = {
             "detail": "Querying PharmGKB for drug-gene relationships and evidence levels"
         },
         {
+            "id": "uniprot",
+            "label": "UniProt protein context",
+            "hint": "Domains / function / isoforms",
+            "detail": "Retrieving protein function and domain context for impacted genes (UniProt)"
+        },
+        {
+            "id": "ebi_proteins",
+            "label": "EMBL-EBI Proteins API",
+            "hint": "Protein metadata & xrefs",
+            "detail": "Fetching protein metadata and cross-references from EMBL-EBI Proteins API"
+        },
+        {
             "id": "literature",
             "label": "Literature search",
             "hint": "Europe PMC citations",
@@ -115,6 +127,18 @@ DETAIL_SCRIPTS = {
             "label": "Drug-gene network",
             "hint": "Connect meds to variants",
             "detail": "Building network graph connecting your genetic variants to affected medications"
+        },
+        {
+            "id": "chembl",
+            "label": "ChEMBL mechanisms",
+            "hint": "Bioactivity & targets",
+            "detail": "Linking drugs to targets and bioactivity evidence from ChEMBL"
+        },
+        {
+            "id": "openfda",
+            "label": "OpenFDA labels",
+            "hint": "PGx label text",
+            "detail": "Scanning FDA drug labels for pharmacogenomic mentions and precautions"
         },
         {
             "id": "guidelines",
@@ -141,6 +165,12 @@ DETAIL_SCRIPTS = {
             "label": "Compiling results",
             "hint": "PGx summary per drug/gene",
             "detail": "Aggregating all analysis results into comprehensive pharmacogenomic profile"
+        },
+        {
+            "id": "viz",
+            "label": "Visualizations",
+            "hint": "Graphs & summaries",
+            "detail": "Creating interactive HTML visualizations and summaries for clinician review"
         },
         {
             "id": "formats",

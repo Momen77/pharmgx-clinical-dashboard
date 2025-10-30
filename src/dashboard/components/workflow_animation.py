@@ -799,10 +799,6 @@ class EnhancedStoryboardV2:
         html = "<div class='wf-microsteps'>"
         for i, step in enumerate(steps):
             step_class = "wf-microstep"
-            if i < self.microstep:
-                step_class += " done"
-            elif i == self.microstep:
-                step_class += " active"
 
             # Get detailed explanation if available
             detail_text = step.get("detail", step.get("hint", ""))
