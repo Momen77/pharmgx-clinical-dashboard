@@ -1076,6 +1076,8 @@ elif page == "🛠️ Debug":
                 import time as _t
 
                 # Instantiate a fresh storyboard and set example genes
+                # Reset storyboard placeholder so we don't stack instances
+                st.session_state['_pgx_storyboard_ph'] = st.empty()
                 sb = Storyboard() if Storyboard else None
                 if sb and hasattr(sb, 'set_genes'):
                     sb.set_genes(["CYP2D6", "CYP2C19", "TPMT", "DPYD"]) 

@@ -585,7 +585,10 @@ class EnhancedStoryboardV2:
             "coverage": 0,
             "depth": 0
         }
-        self._container = st.container()
+        # Use a single reusable placeholder so re-renders replace prior content
+        if '_pgx_storyboard_ph' not in st.session_state or st.session_state.get('_pgx_storyboard_ph') is None:
+            st.session_state['_pgx_storyboard_ph'] = st.empty()
+        self._placeholder = st.session_state['_pgx_storyboard_ph']
         self.render("Initializing pharmacogenetic analysis...")
 
     def render(self, caption: str = ""):
@@ -690,7 +693,13 @@ class EnhancedStoryboardV2:
             + "</div>"
         )
 
-        with self._container:
+        # Clear and re-render in the same placeholder to avoid stacking
+        ph = self._placeholder
+        try:
+            ph.empty()
+        except Exception:
+            pass
+        with ph.container():
             components.html(full_html, height=800, scrolling=True)
 
     def _is_stage_done(self, stage_id: str) -> bool:
