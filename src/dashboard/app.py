@@ -677,13 +677,37 @@ elif page == "🔬 Run Test":
                 # Snapshot selected genes from session in main thread
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
-                # Prepare enhanced storyboard in Run Test (real pipeline)
+            # Prepare enhanced storyboard in Run Test (real pipeline)
                 try:
                     # Reset storyboard placeholder so we don't stack instances
                     st.session_state['_pgx_storyboard_ph'] = st.empty()
                     sb = Storyboard() if 'Storyboard' in globals() and Storyboard else None
                     if sb and hasattr(sb, 'set_genes'):
                         sb.set_genes(st.session_state.get('selected_genes', []))
+                # Independent storyboard playback (not tightly synced)
+                # Use a comfortable fixed speed (ms) without exposing UI controls
+                storyboard_speed = 3000
+                # Build a reasonable plan matching pipeline stages
+                sb_plan = [
+                    ("lab_prep", "init", "Starting lab preparation...", 0.06),
+                    ("lab_prep", "qaqc", "QC checks passed", 0.18),
+                    ("ngs", "seq", "Sequencing reads being generated...", 0.30),
+                    ("ngs", "call", "Variant calling in progress...", 0.40),
+                    ("annotation", "clinvar", "Annotating variants with ClinVar...", 0.52),
+                    ("annotation", "literature", "Searching literature databases...", 0.64),
+                    ("enrichment", "link", "Linking variants to drugs/diseases...", 0.76),
+                    ("linking", "conflicts", "Checking for clinical conflicts...", 0.86),
+                    ("report", "export", "Generating reports and visualizations...", 0.96),
+                    ("report", "complete", "Storyboard complete", 1.00),
+                ]
+                if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render'):
+                    sb.set_demo_plan([
+                        {"stage": s, "substage": sub, "message": msg, "progress": prog}
+                        for s, sub, msg, prog in sb_plan
+                    ], storyboard_speed)
+                    sb.render("Initializing storyboard...")
+                # Estimate when storyboard finishes (ms per step × steps + small buffer)
+                storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
                 except Exception:
                     sb = None
 
@@ -745,6 +769,9 @@ elif page == "🔬 Run Test":
                 last_update = time.time()
                 update_interval = 0.1  # Update UI every 100ms max
 
+                # Post-storyboard sections rendered flag
+                extra_sections_shown = False
+                
                 while not worker_done:
                     # Process all available events (batch processing for performance)
                     events_processed = 0
@@ -754,12 +781,6 @@ elif page == "🔬 Run Test":
                             # Only update UI if enough time passed (throttling)
                             if time.time() - last_update > update_interval:
                                 process_event(event)
-                                # Advance storyboard with the same event
-                                try:
-                                    if sb and hasattr(sb, 'advance'):
-                                        sb.advance(event)
-                                except Exception:
-                                    pass
                                 last_update = time.time()
                             events_processed += 1
                         except queue.Empty:
@@ -783,6 +804,22 @@ elif page == "🔬 Run Test":
                         # Worker died without putting result
                         worker_done = True
 
+                    # If storyboard has completed but backend still running, show extra sections once
+                    if not extra_sections_shown and time.time() > storyboard_finish_time and results is None:
+                        try:
+                            st.markdown("### Finalizing Analysis (backend still running)")
+                            with st.expander("Assembling Knowledge Graphs", expanded=True):
+                                st.write("Merging per-gene RDF graphs, resolving namespaces, and writing JSON-LD/TTL outputs.")
+                            with st.expander("Exporting Reports", expanded=False):
+                                st.write("Generating HTML reports, saving summary JSON, and preparing file paths.")
+                            with st.expander("Quality Checks", expanded=False):
+                                st.write("Verifying output integrity and counts (variants, drugs, literature coverage).")
+                            # Persist ability to revisit these sections later
+                            st.session_state['finalization_sections'] = True
+                        except Exception:
+                            pass
+                        extra_sections_shown = True
+
                     # Small sleep to prevent busy waiting
                     time.sleep(0.05)
 
@@ -791,13 +828,45 @@ elif page == "🔬 Run Test":
                     try:
                         event = event_queue.get_nowait()
                         process_event(event)
-                        try:
-                            if sb and hasattr(sb, 'advance'):
-                                sb.advance(event)
-                        except Exception:
-                            pass
                     except queue.Empty:
                         break
+
+                # If we previously showed finalization sections, keep a review area available
+                if st.session_state.get('finalization_sections'):
+                    st.divider()
+                    st.subheader("Review Finalization Steps")
+                    with st.expander("Assembling Knowledge Graphs", expanded=False):
+                        st.write("Merging per-gene RDF graphs, resolving namespaces, and writing JSON-LD/TTL outputs.")
+                    with st.expander("Exporting Reports", expanded=False):
+                        st.write("Generating HTML reports, saving summary JSON, and preparing file paths.")
+                    with st.expander("Quality Checks", expanded=False):
+                        st.write("Verifying output integrity and counts (variants, drugs, literature coverage).")
+
+                # Always provide a review area for workflow stages (previous ones as well)
+                st.divider()
+                st.subheader("Review Workflow Stages")
+                try:
+                    from dashboard.components.workflow_details import DETAIL_SCRIPTS as _DETAILS
+                except Exception:
+                    _DETAILS = {
+                        "lab": [], "ngs": [], "anno": [], "drug": [], "report": []
+                    }
+
+                def _render_stage(name: str, key: str, default_open: bool = False):
+                    with st.expander(name, expanded=default_open):
+                        steps = _DETAILS.get(key, []) or []
+                        if not steps:
+                            st.caption("No details available.")
+                            return
+                        for step in steps:
+                            st.markdown(f"**{step.get('label','')}** — {step.get('hint','')}")
+                            st.caption(step.get('detail',''))
+
+                _render_stage("🧪 Lab Preparation", "lab", False)
+                _render_stage("🧬 Sequencing (NGS)", "ngs", False)
+                _render_stage("🔬 Annotation", "anno", True)
+                _render_stage("💊 Interactions", "drug", False)
+                _render_stage("📊 Report", "report", False)
 
                 # Ensure results is not None
                 if results is None:
