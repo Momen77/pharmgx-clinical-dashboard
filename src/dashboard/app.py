@@ -81,21 +81,7 @@ except Exception:
     else:
         PatientCreator = None
 
-# UI profile controls
-try:
-    from ui_profile import render_profile_controls, render_manual_enrichment_forms
-except Exception:
-    import importlib.util as _ilu
-    _p = _DASHBOARD_DIR / "ui_profile.py"
-    if _p.exists():
-        _s = _ilu.spec_from_file_location("ui_profile", _p)
-        _m = _ilu.module_from_spec(_s)
-        _s.loader.exec_module(_m)  # type: ignore
-        render_profile_controls = getattr(_m, "render_profile_controls", lambda: ("Manual (dashboard form)", "Auto (by age/lifestyle)"))
-        render_manual_enrichment_forms = getattr(_m, "render_manual_enrichment_forms", lambda: ([], [], {}))
-    else:
-        render_profile_controls = lambda: ("Manual (dashboard form)", "Auto (by age/lifestyle)")
-        render_manual_enrichment_forms = lambda: ([], [], {})
+# Note: ui_profile imports removed - profile creation UI should not appear on Run Test page
 
 # Animation UI
 try:
@@ -389,37 +375,32 @@ elif page == "🔬 Run Test":
         st.stop()
 
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
-        mode, enrich = render_profile_controls()
-        manual_conditions, manual_meds, manual_labs = [], [], {}
-        if enrich == "Manual (enter now)":
-            manual_conditions, manual_meds, manual_labs = render_manual_enrichment_forms()
-
-        # Prepare profile copy to pass to worker
+        # Get profile from session state
         profile = (st.session_state.get('patient_profile') or {}).copy()
-        if enrich == "Auto (by age/lifestyle)":
-            profile['auto_enrichment'] = True
-        elif enrich == "Manual (enter now)":
-            profile['manual_enrichment'] = {
-                "conditions": manual_conditions,
-                "medications": manual_meds,
-                "labs": manual_labs,
-            }
 
-        # Show passed profile for transparency
-        with st.expander("Profile to pass", expanded=False):
-            st.json(profile)
+        # Extract patient demographics for display
+        demo = profile.get('clinical_information', {}).get('demographics', {})
+        first_name = demo.get('foaf:firstName') or demo.get('schema:givenName') or demo.get('first_name', 'N/A')
+        last_name = demo.get('foaf:familyName') or demo.get('schema:familyName') or demo.get('last_name', 'N/A')
+        mrn = demo.get('mrn', 'N/A')
 
         # Show test summary
-        st.divider()
         st.subheader("Test Summary")
         summary_col1, summary_col2 = st.columns(2)
         with summary_col1:
-            st.write(f"**Patient:** {profile.get('demographics', {}).get('first_name', 'N/A')} {profile.get('demographics', {}).get('last_name', 'N/A')}")
+            st.write(f"**Patient:** {first_name} {last_name}")
+            st.write(f"**MRN:** {mrn}")
             st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
         with summary_col2:
             st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
             st.write(f"**Estimated time:** ~2-5 minutes")
-        
+
+        # Optional: Show patient profile details
+        with st.expander("👤 View Patient Profile Details", expanded=False):
+            st.json(profile)
+
+        st.divider()
+
         # Add a button to start the test
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
