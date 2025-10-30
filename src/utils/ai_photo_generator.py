@@ -45,6 +45,13 @@ class AIPhotoGenerator:
         Returns:
             Image bytes or None if generation fails
         """
+        # Validate demographics readiness before building prompt
+        demo = patient_data.get('demographics') if isinstance(patient_data, dict) else None
+        if not isinstance(demo, dict) or not demo:
+            self.last_error = "Invalid or missing demographics; aborted photo generation."
+            print(f"⚠️ {self.last_error}")
+            return None
+
         # Build detailed prompt from patient data
         prompt = self._build_prompt(patient_data)
 
@@ -66,82 +73,77 @@ class AIPhotoGenerator:
 
     def _build_prompt(self, patient_data: Dict) -> str:
         """Build detailed prompt from patient data"""
+        # Defensive fallback: always create prompt_parts as a last resort
+        prompt_parts = ["Generic person, neutral facial features"]
         demo = patient_data.get('demographics', {})
         clinical = patient_data.get('clinical_information', {})
-
-        # Extract key demographics with defensive type handling
-        age = demo.get('age') or 45
-        gender = demo.get('gender') or 'Male'
-
-        # Handle ethnicity - could be string, list, or None
-        ethnicity_raw = demo.get('ethnicity')
-        if isinstance(ethnicity_raw, list) and len(ethnicity_raw) > 0:
-            ethnicity = ethnicity_raw[0]
-        elif isinstance(ethnicity_raw, str):
-            ethnicity = ethnicity_raw
-        else:
-            ethnicity = 'Caucasian/European'
-
-        birth_country = demo.get('birth_country') or ''
-
-        # Ensure all are strings for safe .lower() calls
-        gender = str(gender) if gender else 'Male'
-        ethnicity = str(ethnicity) if ethnicity else 'Caucasian/European'
-        birth_country = str(birth_country) if birth_country else ''
-
-        # Map ethnicity to description
-        ethnicity_map = {
-            'African': 'African descent with dark skin',
-            'Asian': 'Asian descent with East Asian features',
-            'Caucasian/European': 'European descent with fair skin',
-            'Hispanic/Latino': 'Hispanic/Latino descent with olive skin',
-            'Middle Eastern': 'Middle Eastern descent with tan skin',
-            'Native American': 'Native American descent',
-            'Pacific Islander': 'Pacific Islander descent',
-            'Mixed': 'mixed ethnicity'
-        }
-        ethnicity_desc = ethnicity_map.get(ethnicity, 'mixed ethnicity')
-
-        # Ethnicity/gender explicit facial feature descriptors (clinical defaults)
-        ethn = str(ethnicity).lower() if ethnicity else 'unknown'
-        gender_str = str(gender).lower() if gender else 'unknown'
-        face_block = None
-        if 'middle eastern' in ethn or 'arab' in ethn:
-            face_block = f"Middle Eastern {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, olive or tan skin, brown eyes, thick dark eyebrows, Middle Eastern facial features"
-        elif 'asian' in ethn and ('east' in ethn or 'china' in birth_country.lower() or 'japan' in birth_country.lower() or 'korea' in birth_country.lower()):
-            face_block = f"East Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, pale or yellowish skin tone, almond-shaped eyes, straight black hair, East Asian facial features"
-        elif 'asian' in ethn:
-            face_block = f"South Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, light brown skin, dark eyes, dark straight or wavy hair, South Asian facial features"
-        elif 'african' in ethn or 'black' in ethn:
-            face_block = f"Black/African {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, dark brown or black skin, curly/coily hair, strong jawline, fuller lips, African facial features"
-        elif 'hispanic' in ethn or 'latino' in ethn:
-            face_block = f"Latino/Latina {('woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person')}, light brown or olive skin, dark eyes, straight or wavy dark hair, Latino facial features"
-        elif 'caucasian' in ethn or 'european' in ethn or 'white' in ethn:
-            face_block = f"White/European {('woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person')}, fair skin, brown, blonde or black straight/wavy hair, blue, green, or brown eyes, European facial features"
-        elif 'mixed' in ethn:
-            face_block = "person of mixed heritage, neutral facial features"
-        else:
-            face_block = "person of undetermined heritage, neutral facial features"
-
-        # Base description
         try:
-            prompt_parts = [
+            # Extract key demographics with defensive type handling
+            age = demo.get('age') or 45
+            gender = demo.get('gender') or 'Male'
+            ethnicity_raw = demo.get('ethnicity')
+            if isinstance(ethnicity_raw, list) and len(ethnicity_raw) > 0:
+                ethnicity = ethnicity_raw[0]
+            elif isinstance(ethnicity_raw, str):
+                ethnicity = ethnicity_raw
+            else:
+                ethnicity = 'Caucasian/European'
+            birth_country = demo.get('birth_country') or ''
+            # Normalize strings
+            gender = str(gender) if gender else 'Male'
+            ethnicity = str(ethnicity) if ethnicity else 'Caucasian/European'
+            birth_country = str(birth_country) if birth_country else ''
+            # Map ethnicity to description
+            ethnicity_map = {
+                'African': 'African descent with dark skin',
+                'Asian': 'Asian descent with East Asian features',
+                'Caucasian/European': 'European descent with fair skin',
+                'Hispanic/Latino': 'Hispanic/Latino descent with olive skin',
+                'Middle Eastern': 'Middle Eastern descent with tan skin',
+                'Native American': 'Native American descent',
+                'Pacific Islander': 'Pacific Islander descent',
+                'Mixed': 'mixed ethnicity'
+            }
+            ethnicity_desc = ethnicity_map.get(ethnicity, 'mixed ethnicity')
+
+            # Ethnicity/gender explicit facial feature descriptors (clinical defaults)
+            ethn = ethnicity.lower()
+            gender_str = gender.lower()
+            face_block = None
+            if 'middle eastern' in ethn or 'arab' in ethn:
+                face_block = f"Middle Eastern {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, olive or tan skin, brown eyes, thick dark eyebrows, Middle Eastern facial features"
+            elif 'asian' in ethn and ('east' in ethn or 'china' in birth_country.lower() or 'japan' in birth_country.lower() or 'korea' in birth_country.lower()):
+                face_block = f"East Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, pale or yellowish skin tone, almond-shaped eyes, straight black hair, East Asian facial features"
+            elif 'asian' in ethn:
+                face_block = f"South Asian {'woman' if gender_str == 'female' else 'man ' if gender_str == 'male' else 'person'}, light brown skin, dark eyes, dark straight or wavy hair, South Asian facial features"
+            elif 'african' in ethn or 'black' in ethn:
+                face_block = f"Black/African {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, dark brown or black skin, curly/coily hair, strong jawline, fuller lips, African facial features"
+            elif 'hispanic' in ethn or 'latino' in ethn:
+                face_block = f"Latino/Latina {('woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person')}, light brown or olive skin, dark eyes, straight or wavy dark hair, Latino facial features"
+            elif 'caucasian' in ethn or 'european' in ethn or 'white' in ethn:
+                face_block = f"White/European {('woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person')}, fair skin, brown, blonde or black straight/wavy hair, blue, green, or brown eyes, European facial features"
+            elif 'mixed' in ethn:
+                face_block = "person of mixed heritage, neutral facial features"
+            else:
+                face_block = "person of undetermined heritage, neutral facial features"
+            # Overwrite prompt_parts with more specific face_block
+            prompt_parts = [face_block]
+
+            # Base description
+            prompt_parts += [
                 f"Professional medical portrait photograph of a {age}-year-old {gender.lower()} patient",
                 f"of {ethnicity_desc}",
                 "neutral background, soft lighting, facing camera",
                 "realistic photographic style, high quality"
             ]
         except Exception as e:
-            # Debug: Log exactly what failed
-            error_details = f"Error creating prompt_parts: {type(e).__name__}: {e}"
-            error_details += f"\n  age={age!r} (type: {type(age).__name__})"
-            error_details += f"\n  gender={gender!r} (type: {type(gender).__name__})"
-            error_details += f"\n  ethnicity_desc={ethnicity_desc!r} (type: {type(ethnicity_desc).__name__})"
-            self.last_error = error_details
-            raise Exception(error_details)
-
-        # Add face block at the beginning
-        prompt_parts = [face_block] + prompt_parts
+            # Log details for debugging
+            self.last_error = (
+                f"prompt_parts error: {type(e).__name__}: {e}\n"
+                f"age={demo.get('age')!r} gender={demo.get('gender')!r} ethnicity={demo.get('ethnicity')!r} birth_country={demo.get('birth_country')!r}"
+            )
+            # Return emergency fallback prompt
+            return ", ".join(prompt_parts)
 
         # Add emotional state based on medical conditions
         # current_conditions lives under clinical_information, not inside demographics
