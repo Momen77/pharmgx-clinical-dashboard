@@ -51,9 +51,70 @@ def jsonld_to_hierarchy(jsonld_data):
                     links[s].append(o)
                     nodes_seen.add(s); nodes_seen.add(o)
 
+        # Helper: direct clinical fallback when graph is too small
+        def build_fallback_hierarchy(src: dict) -> dict:
+            # Patient label
+            name = src.get('name') or src.get('identifier') or 'Patient'
+            root = {"name": name, "children": []}
+
+            # Demographics
+            demo_children = []
+            demo = ((src.get('clinical_information') or {}).get('demographics')) or {}
+            if src.get('identifier'):
+                demo_children.append({"name": f"ID: {src.get('identifier')}"})
+            if src.get('dateCreated'):
+                demo_children.append({"name": f"Created: {src.get('dateCreated')}"})
+            if demo_children:
+                root["children"].append({"name": "Demographics", "children": demo_children})
+
+            # Genetics: genes & variants (rsIDs)
+            genes = set((src.get('pharmacogenomics_profile') or {}).get('genes_analyzed') or [])
+            variants = src.get('variants') or []
+            gene_children = []
+            for gsym in genes:
+                v_children = []
+                count = 0
+                for v in variants:
+                    if v.get('gene') == gsym and (v.get('rsid') or '').startswith('rs'):
+                        label = v.get('rsid')
+                        if v.get('clinical_significance'):
+                            label = f"{label} ({v.get('clinical_significance')})"
+                        v_children.append({"name": label})
+                        count += 1
+                        if count >= 3:
+                            break
+                gene_children.append({"name": gsym, "children": v_children or [{"name": "No variants"}]})
+            if gene_children:
+                root["children"].append({"name": "Genes", "children": gene_children})
+
+            # Clinical info: conditions & medications (names only)
+            clin = src.get('clinical_information') or {}
+            conds = clin.get('current_conditions') or []
+            meds = clin.get('current_medications') or []
+            cond_children = [{"name": (c.get('rdfs:label') or c.get('name') or 'Condition')} for c in conds[:5]]
+            med_children = [{"name": (m.get('rdfs:label') or m.get('name') or 'Medication')} for m in meds[:5]]
+            if cond_children:
+                root["children"].append({"name": "Conditions", "children": cond_children})
+            if med_children:
+                root["children"].append({"name": "Medications", "children": med_children})
+
+            return root
+
         # Choose patient as root if present
-        roots = [n for n in nodes_seen if "ugent.be/person/" in n]
-        root = roots[0] if roots else (list(links.keys())[0] if links else "root")
+        # Prefer schema:Patient typing
+        patient_root = None
+        types = jsonld_data.get('@type') or []
+        if isinstance(types, list) and any('schema:Patient' in t or 'Patient' == t for t in types):
+            patient_root = jsonld_data.get('@id')
+        if not patient_root:
+            roots = [n for n in nodes_seen if "ugent.be/person/" in n]
+            patient_root = roots[0] if roots else None
+
+        # If still nothing meaningful, fallback to direct clinical tree
+        if len(nodes_seen) <= 3 or not links:
+            return build_fallback_hierarchy(jsonld_data)
+
+        root = patient_root or (list(links.keys())[0] if links else "root")
 
         visited = set()
 
