@@ -513,6 +513,12 @@ elif page == "🔬 Run Test":
         if run_test_button:
             if PGxPipeline is None:
                 st.error("PGxPipeline not available - check imports")
+                if _import_errors:
+                    with st.expander("🔎 Import errors", expanded=True):
+                        for err in _import_errors:
+                            st.code(str(err))
+                # Abort running the pipeline if imports failed
+                return
                 st.stop()
 
             # Resolve config
@@ -726,6 +732,7 @@ elif page == "🔬 Run Test":
                             if tb:
                                 # Also print full worker traceback to console for debugging
                                 print("Worker traceback:\n" + tb)
+                                raise RuntimeError(result_data["error"] + "\n" + tb)
                             raise RuntimeError(result_data["error"])
                         worker_done = True
                     elif not worker.is_alive():
