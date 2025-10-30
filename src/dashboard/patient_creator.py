@@ -50,19 +50,33 @@ class PatientCreator:
     def render_patient_form(self):
         """Render comprehensive patient demographics form"""
         st.header("📋 Create Patient Profile")
-        # Patient Picture section at the very top
-        st.subheader("📸 Patient Picture")
-        photo_option_top = st.radio("Picture Option", ["Take patient picture", "Upload picture", "No picture"], horizontal=True, key="photo_option_top")
+        # Patient Picture: show final photo at top if already available; otherwise show picker
         patient_photo_top = None
-        if photo_option_top == "No picture":
-            st.info("👤 A placeholder will be created from initials after submission")
-        elif photo_option_top == "Upload picture":
-            uploaded_file_top = st.file_uploader("Upload picture", type=['png', 'jpg', 'jpeg'], key="upload_picture_top")
-            if uploaded_file_top:
-                patient_photo_top = uploaded_file_top.read()
-                st.image(uploaded_file_top, width=200)
+        photo_option_top = None
+        existing_profile = st.session_state.get('patient_profile')
+        if existing_profile and existing_profile.get('photo'):
+            photo_bytes_top = existing_profile.get('photo')
+            photo_format_top = existing_profile.get('photo_format', 'unknown')
+            caption_top = "Patient picture" if photo_format_top in ('captured', 'upload', 'ai_generated') else "Placeholder picture"
+            st.image(photo_bytes_top, width=220, caption=caption_top)
+            # Show name if present
+            demo_ss = existing_profile.get('demographics', {})
+            fn_ss = demo_ss.get('first_name', '')
+            ln_ss = demo_ss.get('last_name', '')
+            if fn_ss or ln_ss:
+                st.subheader(f"{fn_ss} {ln_ss}".strip())
         else:
-            st.info("📷 The patient's picture will be taken automatically based on the details you provide")
+            st.subheader("📸 Patient Picture")
+            photo_option_top = st.radio("Picture Option", ["Take patient picture", "Upload picture", "No picture"], horizontal=True, key="photo_option_top")
+            if photo_option_top == "No picture":
+                st.info("👤 A placeholder will be created from initials after submission")
+            elif photo_option_top == "Upload picture":
+                uploaded_file_top = st.file_uploader("Upload picture", type=['png', 'jpg', 'jpeg'], key="upload_picture_top")
+                if uploaded_file_top:
+                    patient_photo_top = uploaded_file_top.read()
+                    st.image(uploaded_file_top, width=200)
+            else:
+                st.info("📷 The patient's picture will be taken automatically based on the details you provide")
 
         # Basic Information (top section)
         st.subheader("Basic Information")
