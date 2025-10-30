@@ -183,28 +183,60 @@ class AIPhotoGenerator:
         Supports multiple client import paths and response shapes.
         """
         client = None
+        genai_mod = None
         # Try both import paths used by google-genai across versions
         try:
-            from google.genai import Client  # type: ignore
-            client = Client(api_key=self.api_key)
+            from google import genai as _genai  # type: ignore
+            genai_mod = _genai
+            client = _genai.Client(api_key=self.api_key)
         except Exception:
             try:
-                from google import genai  # type: ignore
-                client = genai.Client(api_key=self.api_key)
+                from google.genai import Client  # type: ignore
+                client = Client(api_key=self.api_key)
             except Exception:
                 self.last_error = "google-genai not installed or import failed. Install with: pip install google-genai"
                 print(f"❌ {self.last_error}")
                 return None
 
         try:
-            response = client.images.generate(
-                model="imagen-3.0-generate-001",
-                prompt=prompt,
-                size="1024x1024",
-                num_images=1,
-                safety_filter_level="block_some",
-                negative_prompt="blurry, low-res, watermark, text, cartoon, illustration"
-            )
+            response = None
+            # Preferred modern API: client.models.generate_images
+            try:
+                if genai_mod is not None and hasattr(client, "models") and hasattr(client.models, "generate_images"):
+                    cfg_cls = getattr(genai_mod, "types", None)
+                    cfg = None
+                    if cfg_cls and hasattr(cfg_cls, "GenerateImagesConfig"):
+                        GenerateImagesConfig = getattr(cfg_cls, "GenerateImagesConfig")
+                        cfg = GenerateImagesConfig(
+                            number_of_images=1,
+                            safety_filter_level="BLOCK_LOW_AND_ABOVE",
+                            person_generation="ALLOW_ADULT",
+                            aspect_ratio="1:1",
+                        )
+                    response = client.models.generate_images(
+                        model="imagen-3.0-generate-001",
+                        prompt=prompt,
+                        config=cfg
+                    )
+            except Exception as e:
+                # Fall back to older API shapes below
+                pass
+
+            # Legacy API: client.images.generate
+            if response is None and hasattr(client, "images") and hasattr(client.images, "generate"):
+                response = client.images.generate(
+                    model="imagen-3.0-generate-001",
+                    prompt=prompt,
+                    size="1024x1024",
+                    num_images=1,
+                    safety_filter_level="block_some",
+                    negative_prompt="blurry, low-res, watermark, text, cartoon, illustration"
+                )
+
+            if response is None:
+                self.last_error = "Gemini client has neither models.generate_images nor images.generate"
+                print(f"❌ {self.last_error}")
+                return None
 
             # Extract bytes across possible response shapes
             image_bytes: Optional[bytes] = None
@@ -215,15 +247,14 @@ class AIPhotoGenerator:
                 img0 = images_attr[0]
                 image_bytes = getattr(img0, "image_bytes", None)
 
-            # Case 2: response.generated_images[0].data / .bytes (API variations)
-            if image_bytes is None and hasattr(response, "generated_images"):
-                gi = getattr(response, "generated_images")
+            # Case 2: response.generated_images[0].image_bytes / .bytes / .data
+            if image_bytes is None:
+                gi = getattr(response, "generated_images", None)
                 if gi and len(gi) > 0:
                     img0 = gi[0]
-                    # Try common attribute names
                     for attr in ("image_bytes", "bytes", "data"):
                         maybe = getattr(img0, attr, None)
-                        if maybe:
+                        if maybe is not None:
                             image_bytes = maybe if isinstance(maybe, (bytes, bytearray)) else None
                             break
 
