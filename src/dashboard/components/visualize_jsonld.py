@@ -75,9 +75,77 @@ def jsonld_to_hierarchy(jsonld_data):
         if not patient_root:
             patient_root = list(links.keys())[0] if links else None
 
-        # If graph is too small, fallback to direct clinical tree
+        # If generic graph is too small, try clinical extraction from triples
         if not links or len(nodes_seen) <= 3:
-            return build_fallback_hierarchy(jsonld_data)
+            # Extract clinical entities and relations directly from triples
+            genes, variants, drugs, diseases = set(), set(), set(), set()
+            gene_to_variants = defaultdict(set)
+            variant_to_drugs = defaultdict(set)
+            variant_to_diseases = defaultdict(set)
+
+            for s, p, o in g.triples((None, None, None)):
+                ss, pp, oo = str(s), str(p).lower(), str(o)
+                if 'ncbigene' in ss or 'ncbigene' in oo:
+                    if 'ncbigene' in ss: genes.add(ss)
+                    if 'ncbigene' in oo: genes.add(oo)
+                if 'dbsnp' in ss or 'dbsnp' in oo or 'rs' in ss or 'rs' in oo:
+                    if 'http' in ss and ('dbsnp' in ss or '/rs' in ss): variants.add(ss)
+                    if 'http' in oo and ('dbsnp' in oo or '/rs' in oo): variants.add(oo)
+                if 'pharmgkb' in ss or 'drugbank' in ss or 'pharmgkb' in oo or 'drugbank' in oo:
+                    if 'http' in ss and ('pharmgkb' in ss or 'drugbank' in ss): drugs.add(ss)
+                    if 'http' in oo and ('pharmgkb' in oo or 'drugbank' in oo): drugs.add(oo)
+                if 'snomed.info/id' in ss or 'snomed.info/id' in oo:
+                    if 'http' in ss and 'snomed.info/id' in ss: diseases.add(ss)
+                    if 'http' in oo and 'snomed.info/id' in oo: diseases.add(oo)
+
+                # Relations
+                if (('dbsnp' in ss or '/rs' in ss) and 'ncbigene' in oo) or (('dbsnp' in oo or '/rs' in oo) and 'ncbigene' in ss):
+                    v = ss if ('dbsnp' in ss or '/rs' in ss) else oo
+                    giri = oo if 'ncbigene' in oo else ss
+                    gene_to_variants[giri].add(v)
+                if ('dbsnp' in ss or '/rs' in ss) and ('pharmgkb' in oo or 'drugbank' in oo):
+                    variant_to_drugs[ss].add(oo)
+                if ('dbsnp' in ss or '/rs' in ss) and ('snomed.info/id' in oo):
+                    variant_to_diseases[ss].add(oo)
+
+            # If still nothing, fall back to direct clinical view
+            has_any = genes or variants or drugs or diseases
+            if not has_any:
+                return build_fallback_hierarchy(jsonld_data)
+
+            # Build hierarchy: Patient -> Genes -> Variants -> (Drugs/Diseases)
+            def short(iri: str) -> str:
+                tail = iri.rsplit('/', 1)[-1]
+                if 'dbsnp' in iri and 'rs' in tail:
+                    return tail
+                if 'ncbigene' in iri:
+                    return 'Gene:' + tail
+                if 'snomed.info/id' in iri:
+                    return 'SNOMED:' + tail
+                if 'pharmgkb' in iri or 'drugbank' in iri:
+                    return tail
+                return tail
+
+            root_name = jsonld_data.get('name') or jsonld_data.get('identifier') or 'Patient'
+            root = {"name": root_name, "children": []}
+            gene_children = []
+            for giri in list(genes)[:20]:
+                vlist = list(gene_to_variants.get(giri, []))[:5]
+                v_children = []
+                for viri in vlist:
+                    leafs = []
+                    for d in list(variant_to_drugs.get(viri, []))[:3]:
+                        leafs.append({"name": short(d)})
+                    for dz in list(variant_to_diseases.get(viri, []))[:3]:
+                        leafs.append({"name": short(dz)})
+                    node = {"name": short(viri)}
+                    if leafs:
+                        node["children"] = leafs
+                    v_children.append(node)
+                gene_children.append({"name": short(giri), "children": v_children or [{"name": "No variants"}]})
+            if gene_children:
+                root["children"].append({"name": "Genes", "children": gene_children})
+            return root
 
         visited = set()
         max_depth = 4
@@ -86,7 +154,7 @@ def jsonld_to_hierarchy(jsonld_data):
         def label_of(iri: str) -> str:
             # Prefer tail token
             tail = iri.rsplit('/', 1)[-1]
-            if ':' in tail and len(tail) < 6:  # compact ids like rs123, Gene:ID
+            if ':' in tail and len(tail) < 12:  # compact ids like rs123, Gene:ID
                 return tail
             if 'dbsnp' in iri and 'rs' in iri:
                 return iri.split('/')[-1].replace('dbsnp:', '')

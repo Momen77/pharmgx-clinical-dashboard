@@ -1,11 +1,11 @@
 api:
-  ncbi_email: "momenmohamed82@gmail.com"  # Required by NCBI
-  ncbi_api_key: "3934c59d1d6aa604d6598791001974cd6c08"  # Optional, for faster rate limits (get from https://www.ncbi.nlm.nih.gov/account/)
-  bioportal_api_key: "753b30b6-30e0-42c5-9a31-d39d62dcd209"  # Replace with your BioPortal API key
+  ncbi_email: ""  # Required by NCBI
+  ncbi_api_key: ""  # Optional, for faster rate limits (get from https://www.ncbi.nlm.nih.gov/account/)
+  bioportal_api_key: ""  # Replace with your BioPortal API key
   
 rate_limits:
-  ncbi: 3  # requests per second (10 with API key)
-  pharmgkb: 2
+  ncbi: 10  # requests per second (10 with API key)
+  pharmgkb: 10
   bioportal: 10
   openfda: 10
   europepmc: 10
