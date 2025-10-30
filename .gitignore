@@ -1,4 +1,11 @@
-patient_20251029095052_comprehensive.jsonld
+# Sample data and test outputs
+*.jsonld
+sample_*.json
+test_*.json
+
+# Streamlit secrets
+.streamlit/secrets.toml
+.streamlit/credentials.toml
 
 # Python cache files
 __pycache__/

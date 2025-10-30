@@ -15,13 +15,25 @@ This app uses `requirements.txt` for dependency management to avoid conda TOS is
 
 ### Local Development
 
+#### Option 1: Using pip (recommended for Streamlit Cloud)
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
+#### Option 2: Using conda (for local development)
+```bash
+conda env create -f environment.yml
+conda activate pgx-clinical-dashboard
+streamlit run app.py
+```
+
 ### Configuration
 
+#### Local Development
+Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and add your API keys.
+
+#### Streamlit Cloud
 Add your API keys in Streamlit Cloud secrets (Settings → Secrets):
 
 ```toml
@@ -29,6 +41,7 @@ Add your API keys in Streamlit Cloud secrets (Settings → Secrets):
 ncbi_email = "your-email@example.com"
 ncbi_api_key = "your-ncbi-key"
 bioportal_api_key = "your-bioportal-key"
+GOOGLE_API_KEY = "your-google-key"  # Optional: for AI photo generation
 ```
 
 ## Features
@@ -39,13 +52,6 @@ bioportal_api_key = "your-bioportal-key"
 - 🔬 Pharmacogenetic test execution
 - 📊 Clinical report generation
 - 💾 Data export (JSON-LD, PDF)
-
-## Documentation
-
-- `DEPLOYMENT_SUCCESS.md` - Deployment status and guide
-- `DEPLOYMENT_CHECKLIST.md` - Troubleshooting checklist
-- `DEPLOYMENT_FIXES.md` - What was fixed
-- `README_DEPLOYMENT.md` - Detailed deployment guide
 
 ## Requirements
 
