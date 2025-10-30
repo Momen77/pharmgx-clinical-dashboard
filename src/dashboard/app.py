@@ -873,10 +873,21 @@ elif page == "📊 View Results":
         st.stop()
     else:
         demo = (st.session_state.get('patient_profile') or {}).get('demographics', {})
-        st.header("Patient Information")
-        st.write(f"Name: {demo.get('first_name', '')} {demo.get('last_name', '')}")
-        st.write(f"MRN: {demo.get('mrn', 'N/A')}")
-        st.write(f"Age: {demo.get('age', 'N/A')}")
+        profile = st.session_state.get('patient_profile', {})
+        
+        # Display patient photo and information
+        photo_col, info_col = st.columns([1, 3])
+        with photo_col:
+            if profile.get('photo'):
+                st.image(profile['photo'], width=150, caption="Patient Photo")
+            else:
+                st.info("No photo available")
+        
+        with info_col:
+            st.header("Patient Information")
+            st.write(f"**Name:** {demo.get('first_name', '')} {demo.get('last_name', '')}")
+            st.write(f"**MRN:** {demo.get('mrn', 'N/A')}")
+            st.write(f"**Age:** {demo.get('age', 'N/A')}")
 
         st.header("📋 Analysis Summary")
         
