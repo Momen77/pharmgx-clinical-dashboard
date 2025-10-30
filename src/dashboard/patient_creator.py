@@ -52,30 +52,20 @@ class PatientCreator:
         st.header("📋 Create Patient Profile")
 
         with st.form("patient_form"):
-            # Top layout: details on left, photo on right
-            left_col, right_col = st.columns([2, 1])
+            # Patient Photo Section - AT THE TOP
+            st.subheader("📸 Patient Picture")
+            photo_option = st.radio("Picture Option", ["Take patient picture", "Upload picture", "No picture"], horizontal=True)
 
-            with right_col:
-                st.subheader("📸 Patient Photo")
-                photo_option = st.radio(
-                    "Photo Option",
-                    ["Take Picture", "Upload Picture", "No Picture"],
-                    horizontal=False
-                )
-
-                patient_photo = None
-                if photo_option == "Take Picture":
-                    camera_img = st.camera_input("Take patient picture")
-                    if camera_img is not None:
-                        patient_photo = camera_img.getvalue()
-                        st.image(patient_photo, width=200)
-                elif photo_option == "Upload Picture":
-                    uploaded_file = st.file_uploader("Upload patient picture", type=['png', 'jpg', 'jpeg'])
-                    if uploaded_file:
-                        patient_photo = uploaded_file.read()
-                        st.image(patient_photo, width=200)
-                else:
-                    st.info("No picture will be added. An avatar will be created from initials.")
+            patient_photo = None
+            if photo_option == "No picture":
+                st.info("👤 A placeholder will be created from initials after submission")
+            elif photo_option == "Upload picture":
+                uploaded_file = st.file_uploader("Upload picture", type=['png', 'jpg', 'jpeg'])
+                if uploaded_file:
+                    patient_photo = uploaded_file.read()
+                    st.image(uploaded_file, width=200)
+            else:
+                st.info("📷 The patient's picture will be taken automatically based on the details you provide")
 
             st.divider()
 
@@ -189,7 +179,10 @@ class PatientCreator:
             pcp_name = st.text_input("Primary Care Physician Name", value="")
             pcp_contact = st.text_input("PCP Contact", value="")
 
-            # No-op placeholder now that avatar is handled on submit if no photo
+            # Generate avatar if needed (moved from later in form)
+            if photo_option == "No picture" and not patient_photo:
+                # Will generate after we have the name
+                pass
 
             # Submit button
             submitted = st.form_submit_button("✅ Create Patient Profile", type="primary", width='stretch')
@@ -199,8 +192,8 @@ class PatientCreator:
                     st.error("Please fill in required fields (First Name, Last Name)")
                     return None
 
-                # Ensure a photo exists if none was provided: create avatar from initials
-                if not patient_photo:
+                # Generate avatar if option selected
+                if photo_option == "No picture" and not patient_photo:
                     initials = get_patient_initials(first_name, last_name)
                     avatar = generate_avatar(initials, size=(200, 200))
                     patient_photo = save_avatar_to_bytes(avatar)
@@ -230,7 +223,7 @@ class PatientCreator:
                     "dashboard_source": True,  # Flag to indicate this came from dashboard
                     "created_at": datetime.now().isoformat(),
                     "photo": patient_photo,
-                    "photo_format": "upload" if photo_option in ["Take Picture", "Upload Picture"] else "avatar",
+                    "photo_format": "avatar" if photo_option == "No picture" else ("upload" if photo_option == "Upload picture" else "none"),
                     
                     # Clinical information (structure matches auto-generated profiles)
                     "clinical_information": {
@@ -353,10 +346,62 @@ class PatientCreator:
                     'birth_country': birth_country
                 }
 
-                # Show photo immediately at the top-right after creation
-                with right_col:
-                    if patient_photo:
-                        st.image(patient_photo, width=200, caption="Patient Photo")
+                # Take patient picture (runs image generation under the hood)
+                if photo_option == "Take patient picture":
+                    try:
+                        import sys
+                        from pathlib import Path
+                        sys.path.append(str(Path(__file__).parent.parent))
+                        from utils.ai_photo_generator import AIPhotoGenerator
+
+                        with st.spinner("📷 Taking patient picture..."):
+                            # Load key from Streamlit secrets if available
+                            # Prefer top-level, fallback to [api_keys] section
+                            gemini_key = None
+                            if "GOOGLE_API_KEY" in st.secrets:
+                                gemini_key = st.secrets["GOOGLE_API_KEY"]
+                            elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
+                                gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
+                            # Debug: surface detection info
+                            try:
+                                import sys as _sys
+                                key_preview = (gemini_key[:6] + "…" + gemini_key[-4:]) if gemini_key else "<none>"
+                                st.caption(f"Gemini key detected: {bool(gemini_key)} ({key_preview}); Python: {_sys.executable}")
+                            except Exception:
+                                pass
+                            if not gemini_key:
+                                st.error("GOOGLE_API_KEY not found in secrets. Add it in Streamlit Secrets or .streamlit/secrets.toml")
+                                generator = AIPhotoGenerator()
+                            else:
+                                # Check required package
+                                try:
+                                    from google.genai import Client  # type: ignore
+                                except Exception:
+                                    st.error("Missing dependency: google-genai. Install with: pip install google-genai")
+                                os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # for any downstream usage
+                                generator = AIPhotoGenerator(api_key=gemini_key, service="gemini")
+                            photo_bytes = generator.generate_patient_photo(patient_profile)
+
+                            if photo_bytes:
+                                patient_profile['photo'] = photo_bytes
+                                patient_profile['photo_format'] = 'captured'
+                                st.success("✅ Patient picture captured")
+                            else:
+                                if hasattr(generator, 'last_error') and generator.last_error:
+                                    st.error(f"Picture capture error: {generator.last_error}")
+                                # Fallback to avatar
+                                initials = get_patient_initials(first_name, last_name)
+                                avatar = generate_avatar(initials, size=(200, 200))
+                                patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                                patient_profile['photo_format'] = 'avatar'
+                                st.warning("⚠️ Using placeholder picture")
+                    except Exception as e:
+                        st.error(f"⚠️ Picture capture error: {e}")
+                        # Fallback to avatar
+                        initials = get_patient_initials(first_name, last_name)
+                        avatar = generate_avatar(initials, size=(200, 200))
+                        patient_profile['photo'] = save_avatar_to_bytes(avatar)
+                        patient_profile['photo_format'] = 'avatar'
 
                 # Store in session state
                 st.session_state['patient_profile'] = patient_profile
@@ -364,9 +409,17 @@ class PatientCreator:
 
                 st.success(f"✅ Patient profile created: {first_name} {last_name} (MRN: {mrn})")
 
-                # Optional additional preview (below)
-                if patient_profile.get('photo'):
-                    st.image(patient_profile['photo'], width=200, caption="Patient Photo")
+                # Show picture at top-left in a two-column layout
+                col_img, col_body = st.columns([1, 3], gap="large")
+                with col_img:
+                    if patient_profile.get('photo'):
+                        photo_format = patient_profile.get('photo_format', 'unknown')
+                        if photo_format in ('captured', 'upload', 'ai_generated'):
+                            st.image(patient_profile['photo'], width=200, caption="Patient picture")
+                        else:
+                            st.image(patient_profile['photo'], width=200, caption="Placeholder picture")
+                with col_body:
+                    st.write("")
 
                 return patient_profile
 
