@@ -282,7 +282,7 @@ with st.sidebar:
     import os
     logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
     if os.path.exists(logo_path):
-        st.image(logo_path, use_container_width=True)
+        st.image(logo_path, width=None)
     else:
         # Fallback: Use data URI with embedded SVG
         logo_svg = """
@@ -385,7 +385,7 @@ elif page == "👤 Create Patient":
 
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                if st.button("🎲 Generate Random Patient Profile", type="primary", use_container_width=True):
+                if st.button("🎲 Generate Random Patient Profile", type="primary", width=None):
                     with st.spinner("Generating patient profile and AI photo..."):
                         profile = creator.generate_random_profile(generate_ai_photo=True)
                         if profile:
@@ -984,7 +984,7 @@ elif page == "💾 Export Data":
                                             file_content,
                                             file_name=_P(path).name,
                                             key=f"download_{key}",
-                                            use_container_width=False
+                                            width=None
                                         )
                                 except Exception as e:
                                     st.error(f"Error reading {key}: {e}")

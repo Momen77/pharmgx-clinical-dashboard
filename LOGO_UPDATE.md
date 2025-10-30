@@ -31,7 +31,7 @@ A professional SVG logo using official Ghent University brand colors:
 import os
 logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
 if os.path.exists(logo_path):
-    st.image(logo_path, use_container_width=True)
+    st.image(logo_path, width=None)
 else:
     # Embedded SVG fallback
     st.markdown(logo_svg, unsafe_allow_html=True)
@@ -40,7 +40,7 @@ else:
 **Features**:
 - ✅ Tries to load local SVG file first
 - ✅ Falls back to embedded SVG if file not found
-- ✅ Uses `use_container_width=True` for responsive sizing
+- ✅ Uses `width=None` for responsive sizing
 - ✅ No external dependencies or broken URLs
 
 #### 3. Created Documentation (`assets/README.md`)
@@ -279,7 +279,7 @@ st.image("https://via.placeholder.com/200x60/1E64C8/FFFFFF?text=UGent+PGx")
 # ✅ Local SVG file with fallback
 logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
 if os.path.exists(logo_path):
-    st.image(logo_path, use_container_width=True)
+    st.image(logo_path, width=None)
 else:
     st.markdown(logo_svg, unsafe_allow_html=True)
 ```
@@ -311,7 +311,7 @@ else:
 for ext in ['svg', 'png']:
     logo_path = os.path.join(_PROJECT_ROOT, "assets", f"ugent_logo.{ext}")
     if os.path.exists(logo_path):
-        st.image(logo_path, use_container_width=True)
+        st.image(logo_path, width=None)
         break
 else:
     # Final fallback: embedded SVG
