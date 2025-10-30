@@ -684,30 +684,30 @@ elif page == "🔬 Run Test":
                     sb = Storyboard() if 'Storyboard' in globals() and Storyboard else None
                     if sb and hasattr(sb, 'set_genes'):
                         sb.set_genes(st.session_state.get('selected_genes', []))
-                # Independent storyboard playback (not tightly synced)
-                # Use a comfortable fixed speed (ms) without exposing UI controls
-                storyboard_speed = 3000
-                # Build a reasonable plan matching pipeline stages
-                sb_plan = [
-                    ("lab_prep", "init", "Starting lab preparation...", 0.06),
-                    ("lab_prep", "qaqc", "QC checks passed", 0.18),
-                    ("ngs", "seq", "Sequencing reads being generated...", 0.30),
-                    ("ngs", "call", "Variant calling in progress...", 0.40),
-                    ("annotation", "clinvar", "Annotating variants with ClinVar...", 0.52),
-                    ("annotation", "literature", "Searching literature databases...", 0.64),
-                    ("enrichment", "link", "Linking variants to drugs/diseases...", 0.76),
-                    ("linking", "conflicts", "Checking for clinical conflicts...", 0.86),
-                    ("report", "export", "Generating reports and visualizations...", 0.96),
-                    ("report", "complete", "Storyboard complete", 1.00),
-                ]
-                if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render'):
-                    sb.set_demo_plan([
-                        {"stage": s, "substage": sub, "message": msg, "progress": prog}
-                        for s, sub, msg, prog in sb_plan
-                    ], storyboard_speed)
-                    sb.render("Initializing storyboard...")
-                # Estimate when storyboard finishes (ms per step × steps + small buffer)
-                storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
+                    # Independent storyboard playback (not tightly synced)
+                    # Use a comfortable fixed speed (ms) without exposing UI controls
+                    storyboard_speed = 3000
+                    # Build a reasonable plan matching pipeline stages
+                    sb_plan = [
+                        ("lab_prep", "init", "Starting lab preparation...", 0.06),
+                        ("lab_prep", "qaqc", "QC checks passed", 0.18),
+                        ("ngs", "seq", "Sequencing reads being generated...", 0.30),
+                        ("ngs", "call", "Variant calling in progress...", 0.40),
+                        ("annotation", "clinvar", "Annotating variants with ClinVar...", 0.52),
+                        ("annotation", "literature", "Searching literature databases...", 0.64),
+                        ("enrichment", "link", "Linking variants to drugs/diseases...", 0.76),
+                        ("linking", "conflicts", "Checking for clinical conflicts...", 0.86),
+                        ("report", "export", "Generating reports and visualizations...", 0.96),
+                        ("report", "complete", "Storyboard complete", 1.00),
+                    ]
+                    if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render'):
+                        sb.set_demo_plan([
+                            {"stage": s, "substage": sub, "message": msg, "progress": prog}
+                            for s, sub, msg, prog in sb_plan
+                        ], storyboard_speed)
+                        sb.render("Initializing storyboard...")
+                    # Estimate when storyboard finishes (ms per step × steps + small buffer)
+                    storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
                 except Exception:
                     sb = None
 
