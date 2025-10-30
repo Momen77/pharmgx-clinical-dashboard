@@ -88,6 +88,29 @@ class AIPhotoGenerator:
         }
         ethnicity_desc = ethnicity_map.get(ethnicity, 'mixed ethnicity')
 
+        # Ethnicity/gender explicit facial feature descriptors (clinical defaults)
+        ethn = ethnicity.lower() if isinstance(ethnicity, str) else str(ethnicity).lower()
+        gender_str = gender.lower() if isinstance(gender, str) else str(gender).lower()
+        face_block = None
+        if 'middle eastern' in ethn or 'arab' in ethn:
+            face_block = f"Middle Eastern {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, olive or tan skin, brown eyes, thick dark eyebrows, Middle Eastern facial features"
+        elif 'asian' in ethn and ('east' in ethn or 'china' in birth_country.lower() or 'japan' in birth_country.lower() or 'korea' in birth_country.lower()):
+            face_block = f"East Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, pale or yellowish skin tone, almond-shaped eyes, straight black hair, East Asian facial features"
+        elif 'asian' in ethn:
+            face_block = f"South Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, light brown skin, dark eyes, dark straight or wavy hair, South Asian facial features"
+        elif 'african' in ethn or 'black' in ethn:
+            face_block = f"Black/African {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, dark brown or black skin, curly/coily hair, strong jawline, fuller lips, African facial features"
+        elif 'hispanic' in ethn or 'latino' in ethn:
+            face_block = f"Latino/Latina {('woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person')}, light brown or olive skin, dark eyes, straight or wavy dark hair, Latino facial features"
+        elif 'caucasian' in ethn or 'european' in ethn or 'white' in ethn:
+            face_block = f"White/European {('woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person')}, fair skin, brown, blonde or black straight/wavy hair, blue, green, or brown eyes, European facial features"
+        elif 'mixed' in ethn:
+            face_block = "person of mixed heritage, neutral facial features"
+        else:
+            face_block = "person of undetermined heritage, neutral facial features"
+        
+        prompt_parts = [face_block] + prompt_parts
+
         # Base description
         prompt_parts = [
             f"Professional medical portrait photograph of a {age}-year-old {gender.lower()} patient",
