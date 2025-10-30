@@ -421,11 +421,12 @@ class PatientCreator:
                         patient_profile['photo'] = save_avatar_to_bytes(avatar)
                         patient_profile['photo_format'] = 'avatar'
 
-                # Store in session state
+                # Store in session state and rerun to refresh top picture area
                 st.session_state['patient_profile'] = patient_profile
                 st.session_state['patient_created'] = True
 
                 st.success(f"✅ Patient profile created: {first_name} {last_name} (MRN: {mrn})")
+                st.rerun()
 
                 # Show picture at the top with the patient's name underneath
                 if patient_profile.get('photo'):
