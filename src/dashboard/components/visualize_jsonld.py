@@ -9,177 +9,76 @@ from collections import defaultdict
 
 
 def jsonld_to_hierarchy(jsonld_data):
-    """Convert JSON-LD to a clinically-relevant hierarchy for D3.js (no whitelist; IRI→IRI edges only)."""
+    """Convert JSON-LD to a clinically-relevant hierarchy for D3.js (direct field extraction)."""
     try:
-        g = Graph().parse(data=json.dumps(jsonld_data), format="json-ld")
-        # Build adjacency for any IRI→IRI triple (ignore literals)
-        links = defaultdict(list)
-        nodes_seen = set()
-        for subj, pred, obj in g:
-            s, o = str(subj), str(obj)
-            if (s.startswith("http://") or s.startswith("https://")) and (o.startswith("http://") or o.startswith("https://")):
-                links[s].append(o)
-                nodes_seen.add(s); nodes_seen.add(o)
+        # Direct extraction from structured JSON-LD fields (not RDF triples)
+        name = jsonld_data.get('name') or jsonld_data.get('identifier') or 'Patient'
+        root = {"name": name, "children": []}
 
-        # Helper: direct clinical fallback when graph is too small
-        def build_fallback_hierarchy(src: dict) -> dict:
-            name = src.get('name') or src.get('identifier') or 'Patient'
-            root = {"name": name, "children": []}
-            demo_children = []
-            demo = ((src.get('clinical_information') or {}).get('demographics')) or {}
-            if src.get('identifier'):
-                demo_children.append({"name": f"ID: {src.get('identifier')}"})
-            if src.get('dateCreated'):
-                demo_children.append({"name": f"Created: {src.get('dateCreated')}"})
-            if demo_children:
-                root["children"].append({"name": "Demographics", "children": demo_children})
-            genes = set((src.get('pharmacogenomics_profile') or {}).get('genes_analyzed') or [])
-            variants = src.get('variants') or []
+        # Demographics
+        demo_children = []
+        clin_info = jsonld_data.get('clinical_information', {})
+        demo = clin_info.get('demographics', {}) if isinstance(clin_info, dict) else {}
+        if jsonld_data.get('identifier'):
+            demo_children.append({"name": f"ID: {jsonld_data.get('identifier')}"})
+        if jsonld_data.get('dateCreated'):
+            demo_children.append({"name": f"Created: {jsonld_data.get('dateCreated')}"})
+        if demo.get('age'):
+            demo_children.append({"name": f"Age: {demo.get('age')}"})
+        if demo_children:
+            root["children"].append({"name": "Demographics", "children": demo_children})
+
+        # Genes -> Variants -> Drugs
+        pgx_profile = jsonld_data.get('pharmacogenomics_profile', {})
+        if isinstance(pgx_profile, dict):
+            genes = pgx_profile.get('genes_analyzed', [])
+            variants = jsonld_data.get('variants', [])
             gene_children = []
-            for gsym in genes:
-                v_children, count = [], 0
-                for v in variants:
-                    if v.get('gene') == gsym and (v.get('rsid') or '').startswith('rs'):
-                        label = v.get('rsid')
-                        if v.get('clinical_significance'):
-                            label = f"{label} ({v.get('clinical_significance')})"
-                        v_children.append({"name": label}); count += 1
-                        if count >= 3: break
-                gene_children.append({"name": gsym, "children": v_children or [{"name": "No variants"}]})
+            for gene_symbol in genes[:15]:  # Cap to 15 genes
+                vlist = [v for v in variants if v.get('gene') == gene_symbol][:5]  # Top 5 variants per gene
+                v_children = []
+                for var in vlist:
+                    rsid = var.get('rsid') or var.get('variant_id', '')
+                    if not rsid.startswith('rs') and var.get('variant_id'):
+                        rsid = var.get('variant_id')
+                    label = rsid if rsid else f"Variant {len(v_children) + 1}"
+                    if var.get('clinical_significance'):
+                        label = f"{label} ({var.get('clinical_significance')})"
+                    drug_children = []
+                    for d in var.get('drugs', [])[:5]:
+                        dn = d.get('name', 'Unknown Drug')
+                        if d.get('recommendation'):
+                            dn += f" - {d.get('recommendation', '')[:50]}..."
+                        drug_children.append({"name": dn})
+                    if drug_children:
+                        variant_node = {"name": label, "children": drug_children}
+                    else:
+                        variant_node = {"name": label}
+                    v_children.append(variant_node)
+                gene_children.append({"name": gene_symbol, "children": v_children or [{"name": "No variants"}]})
             if gene_children:
                 root["children"].append({"name": "Genes", "children": gene_children})
-            clin = src.get('clinical_information') or {}
-            conds = clin.get('current_conditions') or []
-            meds = clin.get('current_medications') or []
-            cond_children = [{"name": (c.get('rdfs:label') or c.get('name') or 'Condition')} for c in conds[:5]]
-            med_children = [{"name": (m.get('rdfs:label') or m.get('name') or 'Medication')} for m in meds[:5]]
+
+        # Clinical: Conditions & Medications
+        if isinstance(clin_info, dict):
+            conds = clin_info.get('current_conditions', [])
+            meds = clin_info.get('current_medications', [])
+            cond_children = []
+            for c in conds[:5]:
+                label = c.get('rdfs:label') or c.get('skos:prefLabel') or c.get('name') or 'Condition'
+                if c.get('snomed:code'):
+                    label = f"{label} ({c.get('snomed:code')})"
+                cond_children.append({"name": label})
             if cond_children:
                 root["children"].append({"name": "Conditions", "children": cond_children})
+            med_children = []
+            for m in meds[:5]:
+                label = m.get('rdfs:label') or m.get('name') or 'Medication'
+                med_children.append({"name": label})
             if med_children:
                 root["children"].append({"name": "Medications", "children": med_children})
-            return root
 
-        # Root detection from JSON-LD first
-        patient_root = None
-        if isinstance(jsonld_data.get('@type'), list) and any('schema:Patient' in t or t.endswith(':Patient') for t in jsonld_data.get('@type')):
-            patient_root = jsonld_data.get('@id')
-        # If not found, scan triples for schema:Patient typing
-        if not patient_root:
-            try:
-                for s, p, o in g.triples((None, None, None)):
-                    if str(p).endswith('type') and ('schema#Patient' in str(o) or 'schema.org/Patient' in str(o) or str(o).endswith(':Patient')):
-                        patient_root = str(s); break
-            except Exception:
-                pass
-        # Fallback to any subject if still missing
-        if not patient_root:
-            patient_root = list(links.keys())[0] if links else None
-
-        # If generic graph is too small, try clinical extraction from triples
-        if not links or len(nodes_seen) <= 3:
-            # Extract clinical entities and relations directly from triples
-            genes, variants, drugs, diseases = set(), set(), set(), set()
-            gene_to_variants = defaultdict(set)
-            variant_to_drugs = defaultdict(set)
-            variant_to_diseases = defaultdict(set)
-
-            for s, p, o in g.triples((None, None, None)):
-                ss, pp, oo = str(s), str(p).lower(), str(o)
-                if 'ncbigene' in ss or 'ncbigene' in oo:
-                    if 'ncbigene' in ss: genes.add(ss)
-                    if 'ncbigene' in oo: genes.add(oo)
-                if 'dbsnp' in ss or 'dbsnp' in oo or 'rs' in ss or 'rs' in oo:
-                    if 'http' in ss and ('dbsnp' in ss or '/rs' in ss): variants.add(ss)
-                    if 'http' in oo and ('dbsnp' in oo or '/rs' in oo): variants.add(oo)
-                if 'pharmgkb' in ss or 'drugbank' in ss or 'pharmgkb' in oo or 'drugbank' in oo:
-                    if 'http' in ss and ('pharmgkb' in ss or 'drugbank' in ss): drugs.add(ss)
-                    if 'http' in oo and ('pharmgkb' in oo or 'drugbank' in oo): drugs.add(oo)
-                if 'snomed.info/id' in ss or 'snomed.info/id' in oo:
-                    if 'http' in ss and 'snomed.info/id' in ss: diseases.add(ss)
-                    if 'http' in oo and 'snomed.info/id' in oo: diseases.add(oo)
-
-                # Relations
-                if (('dbsnp' in ss or '/rs' in ss) and 'ncbigene' in oo) or (('dbsnp' in oo or '/rs' in oo) and 'ncbigene' in ss):
-                    v = ss if ('dbsnp' in ss or '/rs' in ss) else oo
-                    giri = oo if 'ncbigene' in oo else ss
-                    gene_to_variants[giri].add(v)
-                if ('dbsnp' in ss or '/rs' in ss) and ('pharmgkb' in oo or 'drugbank' in oo):
-                    variant_to_drugs[ss].add(oo)
-                if ('dbsnp' in ss or '/rs' in ss) and ('snomed.info/id' in oo):
-                    variant_to_diseases[ss].add(oo)
-
-            # If still nothing, fall back to direct clinical view
-            has_any = genes or variants or drugs or diseases
-            if not has_any:
-                return build_fallback_hierarchy(jsonld_data)
-
-            # Build hierarchy: Patient -> Genes -> Variants -> (Drugs/Diseases)
-            def short(iri: str) -> str:
-                tail = iri.rsplit('/', 1)[-1]
-                if 'dbsnp' in iri and 'rs' in tail:
-                    return tail
-                if 'ncbigene' in iri:
-                    return 'Gene:' + tail
-                if 'snomed.info/id' in iri:
-                    return 'SNOMED:' + tail
-                if 'pharmgkb' in iri or 'drugbank' in iri:
-                    return tail
-                return tail
-
-            root_name = jsonld_data.get('name') or jsonld_data.get('identifier') or 'Patient'
-            root = {"name": root_name, "children": []}
-            gene_children = []
-            for giri in list(genes)[:20]:
-                vlist = list(gene_to_variants.get(giri, []))[:5]
-                v_children = []
-                for viri in vlist:
-                    leafs = []
-                    for d in list(variant_to_drugs.get(viri, []))[:3]:
-                        leafs.append({"name": short(d)})
-                    for dz in list(variant_to_diseases.get(viri, []))[:3]:
-                        leafs.append({"name": short(dz)})
-                    node = {"name": short(viri)}
-                    if leafs:
-                        node["children"] = leafs
-                    v_children.append(node)
-                gene_children.append({"name": short(giri), "children": v_children or [{"name": "No variants"}]})
-            if gene_children:
-                root["children"].append({"name": "Genes", "children": gene_children})
-            return root
-
-        visited = set()
-        max_depth = 4
-        max_children = 20
-
-        def label_of(iri: str) -> str:
-            # Prefer tail token
-            tail = iri.rsplit('/', 1)[-1]
-            if ':' in tail and len(tail) < 12:  # compact ids like rs123, Gene:ID
-                return tail
-            if 'dbsnp' in iri and 'rs' in iri:
-                return iri.split('/')[-1].replace('dbsnp:', '')
-            if 'ncbigene' in iri:
-                return 'Gene:' + iri.split('/')[-1].replace('ncbigene:', '')
-            if 'snomed.info/id' in iri:
-                return 'SNOMED:' + iri.split('/')[-1]
-            if 'ugent.be/person' in iri:
-                return 'Patient'
-            if 'pharmgkb' in iri or 'drugbank' in iri:
-                return 'Drug'
-            return tail
-
-        def make_tree(node, depth=0):
-            if node in visited or depth > max_depth:
-                return {"name": label_of(node)}
-            visited.add(node)
-            children_iris = links.get(node, [])[:max_children]
-            children = [make_tree(c, depth+1) for c in children_iris]
-            result = {"name": label_of(node)}
-            if children:
-                result["children"] = children
-            return result
-
-        return make_tree(patient_root or 'root')
+        return root
     except Exception as e:
         st.error(f"Error converting JSON-LD to hierarchy: {e}")
         return {"name": "root", "children": []}
