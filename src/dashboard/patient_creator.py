@@ -362,11 +362,17 @@ class PatientCreator:
                                 gemini_key = st.secrets["GOOGLE_API_KEY"]
                             elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
                                 gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
-                            if gemini_key:
+                            if not gemini_key:
+                                st.error("GOOGLE_API_KEY not found in secrets. Add it in Streamlit Secrets or .streamlit/secrets.toml")
+                                generator = AIPhotoGenerator()
+                            else:
+                                # Check required package
+                                try:
+                                    from google.genai import Client  # type: ignore
+                                except Exception:
+                                    st.error("Missing dependency: google-genai. Install with: pip install google-genai")
                                 os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # for any downstream usage
                                 generator = AIPhotoGenerator(api_key=gemini_key, service="gemini")
-                            else:
-                                generator = AIPhotoGenerator()
                             photo_bytes = generator.generate_patient_photo(patient_profile)
 
                             if photo_bytes:
@@ -549,11 +555,16 @@ class PatientCreator:
                     gemini_key = st.secrets["GOOGLE_API_KEY"]
                 elif "api_keys" in st.secrets and "GOOGLE_API_KEY" in st.secrets["api_keys"]:
                     gemini_key = st.secrets["api_keys"]["GOOGLE_API_KEY"]
-                if gemini_key:
+                if not gemini_key:
+                    st.error("GOOGLE_API_KEY not found in secrets. Add it in Streamlit Secrets or .streamlit/secrets.toml")
+                    generator = AIPhotoGenerator()
+                else:
+                    try:
+                        from google.genai import Client  # type: ignore
+                    except Exception:
+                        st.error("Missing dependency: google-genai. Install with: pip install google-genai")
                     os.environ.setdefault("GOOGLE_API_KEY", gemini_key)  # for any downstream usage
                     generator = AIPhotoGenerator(api_key=gemini_key, service="gemini")
-                else:
-                    generator = AIPhotoGenerator()
                 photo_bytes = generator.generate_patient_photo(patient_profile)
 
                 if photo_bytes:
