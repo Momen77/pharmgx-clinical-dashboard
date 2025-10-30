@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
-from logo_UGent_EN.logo_assets import UGENT_LOGO_MAIN_EN
+from dashboard.logo_UGent_EN.logo_assets import UGENT_LOGO_MAIN_EN
 import os
 
 # =========================
