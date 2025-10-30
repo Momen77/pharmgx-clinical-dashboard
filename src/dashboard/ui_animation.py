@@ -63,7 +63,9 @@ def create_storyboard_with_controls():
         st.info("Enhanced storyboard component not available")
         return None
 
+    # Force CSS injection and initial render
     sb = EnhancedStoryboardV2()
+    sb.render("Storyboard initialized")
 
     # Minimal controls for debug page
     st.markdown("### Storyboard Controls")
@@ -92,5 +94,9 @@ def create_storyboard_with_controls():
     with col6:
         if st.button("Stage: report"):
             sb.advance(stage="report", message="Generating reports...", progress=0.95)
+
+    # Explicit re-render button for environments that delay initial HTML draw
+    if st.button("🔁 Re-render storyboard"):
+        sb.render("Manual refresh")
 
     return sb
