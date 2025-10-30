@@ -47,7 +47,14 @@ def jsonld_to_hierarchy(jsonld_data):
                     drug_children = []
                     for d in var.get('drugs', [])[:5]:
                         dn = d.get('name', 'Unknown Drug')
-                        drug_children.append({"name": dn})
+                        drug_node = {"name": dn}
+                        # Add recommendation as child node if present
+                        if d.get('recommendation'):
+                            rec_text = d.get('recommendation', '')[:80]
+                            if len(d.get('recommendation', '')) > 80:
+                                rec_text += "..."
+                            drug_node["children"] = [{"name": rec_text}]
+                        drug_children.append(drug_node)
                     if drug_children:
                         variant_node = {"name": label, "children": drug_children}
                     else:
@@ -198,7 +205,7 @@ def render_d3_visualization(hierarchy_data):
         const data = {d3_data};
         const width = 1400, height = 900, radius = Math.min(width, height) / 2.2;
 
-        const tree = d3.tree().size([2 * Math.PI, radius - 20]).separation((a, b) => (a.parent == b.parent ? 25 : 30));
+        const tree = d3.tree().size([2 * Math.PI, radius - 10]).separation((a, b) => (a.parent == b.parent ? 35 : 45));
         const root = d3.hierarchy(data);
         tree(root);
 
