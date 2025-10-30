@@ -849,9 +849,7 @@ elif page == "🔬 Run Test":
                 if results is None:
                     raise RuntimeError("Pipeline completed but no results were returned")
                 
-                # Complete progress
-                progress_bar.progress(1.0)
-                status_text.text("✅ Analysis complete!")
+                # Complete progress handled by storyboard
                 
                 # Show what we got
                 with st.expander("🔍 Raw Results", expanded=False):
