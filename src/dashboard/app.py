@@ -722,6 +722,10 @@ elif page == "🔬 Run Test":
                             results = result_data["data"]
                         else:
                             # Re-raise exception from worker
+                            tb = result_data.get("traceback")
+                            if tb:
+                                # Also print full worker traceback to console for debugging
+                                print("Worker traceback:\n" + tb)
                             raise RuntimeError(result_data["error"])
                         worker_done = True
                     elif not worker.is_alive():
