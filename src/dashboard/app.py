@@ -677,6 +677,16 @@ elif page == "🔬 Run Test":
                 # Snapshot selected genes from session in main thread
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
+                # Prepare enhanced storyboard in Run Test (real pipeline)
+                try:
+                    # Reset storyboard placeholder so we don't stack instances
+                    st.session_state['_pgx_storyboard_ph'] = st.empty()
+                    sb = Storyboard() if 'Storyboard' in globals() and Storyboard else None
+                    if sb and hasattr(sb, 'set_genes'):
+                        sb.set_genes(st.session_state.get('selected_genes', []))
+                except Exception:
+                    sb = None
+
                 # Worker function that runs pipeline in background thread
                 def run_pipeline_worker():
                     """Run pipeline in background thread and put result in queue"""
@@ -744,6 +754,12 @@ elif page == "🔬 Run Test":
                             # Only update UI if enough time passed (throttling)
                             if time.time() - last_update > update_interval:
                                 process_event(event)
+                                # Advance storyboard with the same event
+                                try:
+                                    if sb and hasattr(sb, 'advance'):
+                                        sb.advance(event)
+                                except Exception:
+                                    pass
                                 last_update = time.time()
                             events_processed += 1
                         except queue.Empty:
@@ -775,6 +791,11 @@ elif page == "🔬 Run Test":
                     try:
                         event = event_queue.get_nowait()
                         process_event(event)
+                        try:
+                            if sb and hasattr(sb, 'advance'):
+                                sb.advance(event)
+                        except Exception:
+                            pass
                     except queue.Empty:
                         break
 
