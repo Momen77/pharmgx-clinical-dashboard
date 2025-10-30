@@ -162,28 +162,28 @@ def render_d3_visualization(hierarchy_data):
     <body>
       <div class="legend">
         <div class="legend-item">
-          <span class="legend-dot" style="background-color:#00BFFF;"></span>
+          <span class="legend-dot" style="background-color:#1f77b4;"></span>
+          <span>Patient</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background-color:#1e90ff;"></span>
           <span>Gene</span>
         </div>
         <div class="legend-item">
           <span class="legend-dot" style="background-color:#FF7F50;"></span>
-          <span>Variant</span>
+          <span>Variant (rsID)</span>
         </div>
         <div class="legend-item">
-          <span class="legend-dot" style="background-color:#32CD32;"></span>
+          <span class="legend-dot" style="background-color:#90EE90;"></span>
           <span>Drug</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-dot" style="background-color:#FFD700;"></span>
-          <span>Phenotype</span>
         </div>
         <div class="legend-item">
           <span class="legend-dot" style="background-color:#FF69B4;"></span>
           <span>Disease</span>
         </div>
         <div class="legend-item">
-          <span class="legend-dot" style="background-color:#9370DB;"></span>
-          <span>Evidence</span>
+          <span class="legend-dot" style="background-color:#17becf;"></span>
+          <span>Demographics</span>
         </div>
       </div>
       
@@ -198,9 +198,9 @@ def render_d3_visualization(hierarchy_data):
       
       <script>
         const data = {d3_data};
-        const width = 1200, height = 600, radius = Math.min(width, height) / 2.5;
+        const width = 1100, height = 600, radius = Math.min(width, height) / 2.5;
 
-        const tree = d3.tree().size([2 * Math.PI, radius - 100]).separation((a, b) => (a.parent == b.parent ? 2.5 : 3.5));
+        const tree = d3.tree().size([2 * Math.PI, radius - 100]).separation((a, b) => (a.parent == b.parent ? 4 : 5));
         const root = d3.hierarchy(data);
         tree(root);
 
@@ -209,16 +209,27 @@ def render_d3_visualization(hierarchy_data):
 
         const g = svg.append("g");
 
-        // Color mapping based on node name
+        // Color mapping based on node name and depth
         function getColor(name) {{
           const n = name.toLowerCase();
-          if (n.includes("gene") || n.includes("cyp") || n.includes("tpmt") || n.includes("dpyd")) return "#00BFFF";
-          if (n.includes("variant") || n.includes("rs") || n.includes("*")) return "#FF7F50";
-          if (n.includes("drug") || n.includes("medication") || n.includes("warfarin")) return "#32CD32";
-          if (n.includes("phenotype") || n.includes("metabolizer")) return "#FFD700";
-          if (n.includes("disease") || n.includes("condition")) return "#FF69B4";
-          if (n.includes("evidence") || n.includes("literature") || n.includes("pmid")) return "#9370DB";
-          return "#aaaaaa";
+          // Patient (root) - dark blue
+          if (n.includes("patient") || n === "demographics" || n.startsWith("id:") || n.startsWith("created:")) return "#1f77b4";
+          // Genes - bright blue
+          if (n.includes("genes")) return "#00BFFF";
+          // Gene symbols (children of Genes) - blue
+          if (n.match(/^(slco1b1|g6pd|cyp\d+|tpmt|dpyd|ugt1a1|nudt15|cfp|cbc|dpy-?d|dihydroxy|udp-glucur|thiopurine|nucleoside)$/i)) return "#1e90ff";
+          // Variants (rs IDs) - orange
+          if (n.includes("variant") || n.match(/^rs\d+/) || n.includes(":")) return "#FF7F50";
+          // Drugs - green
+          if (n.includes("drug")) return "#32CD32";
+          // Drug names or medications - light green
+          if (n.match(/^(fluvastatin|glyburide|artesunate|clopidogrel|warfarin|simvastatin|atorvastatin|metformin|acetaminophen|ibuprofen|aspirin)/i)) return "#90EE90";
+          // Conditions/Diseases - pink
+          if (n.includes("condition") || n.includes("disease")) return "#FF69B4";
+          // Demographics items - cyan
+          if (n.includes("age")) return "#17becf";
+          // Default - gray
+          return "#888888";
         }}
 
         const tooltip = d3.select(".tooltip");
