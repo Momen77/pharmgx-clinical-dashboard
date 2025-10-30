@@ -678,8 +678,34 @@ elif page == "🔬 Run Test":
                 def run_pipeline_worker():
                     """Run pipeline in background thread and put result in queue"""
                     try:
+                        # Ensure we use the latest PGxPipeline definition (avoid stale module)
+                        FreshPG = None
+                        try:
+                            import importlib, sys as _sys
+                            if "src.main" in _sys.modules:
+                                importlib.reload(_sys.modules["src.main"])  # type: ignore
+                                from src.main import PGxPipeline as _Fresh
+                                FreshPG = _Fresh
+                            elif "main" in _sys.modules:
+                                importlib.reload(_sys.modules["main"])  # type: ignore
+                                from main import PGxPipeline as _Fresh
+                                FreshPG = _Fresh
+                            else:
+                                try:
+                                    from src.main import PGxPipeline as _Fresh
+                                    FreshPG = _Fresh
+                                except Exception:
+                                    from main import PGxPipeline as _Fresh
+                                    FreshPG = _Fresh
+                        except Exception:
+                            pass
+
+                        PGClass = FreshPG or PGxPipeline
+                        if not callable(PGClass):
+                            raise RuntimeError("PGxPipeline class is not callable (import failed or stale module)")
+
                         # Create pipeline with event queue (thread-safe)
-                        pipeline = PGxPipeline(config_path=config_path, event_queue=event_queue)
+                        pipeline = PGClass(config_path=config_path, event_queue=event_queue)
 
                         # Run multi-gene analysis
                         result = pipeline.run_multi_gene(
