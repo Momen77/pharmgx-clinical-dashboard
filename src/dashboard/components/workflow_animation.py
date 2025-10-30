@@ -553,6 +553,17 @@ def _build_enhanced_css() -> str:
     .wf-gene-chip { padding: 8px 12px; background: #eff6ff; color: var(--pgx-primary); border: 1px solid #bfdbfe; border-radius: 999px; font-size: 0.85rem; font-weight: 700; }
     .wf-gene-chip.active { background: #dbeafe; }
     .wf-caption { font-size: 0.95rem; color: var(--pgx-text); margin-top: 8px; opacity: .9; }
+    .wf-source-wrap { margin-top: 14px; }
+    .wf-source-title { font-weight: 800; font-size: .95rem; color: var(--pgx-text); margin-bottom: 8px; }
+    .wf-source-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .wf-source-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--pgx-border); background: var(--pgx-panel); font-size: 0.8rem; color: var(--pgx-muted); box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+    .wf-source-chip strong { color: var(--pgx-text); }
+    .wf-output-wrap { margin-top: 14px; }
+    .wf-output-title { font-weight: 800; font-size: .95rem; color: var(--pgx-text); margin-bottom: 8px; }
+    .wf-output-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .wf-output-chip { padding: 6px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; border: 1px solid var(--pgx-border); background: var(--pgx-panel); box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+    .wf-output-chip.primary { background: linear-gradient(135deg, rgba(96,165,250,0.18), rgba(191,219,254,0.22)); border-color: var(--pgx-primary); color: var(--pgx-text); }
+    .wf-output-chip code { background: rgba(0,0,0,0.04); padding: 2px 6px; border-radius: 6px; }
     </style>
     """
 
@@ -630,6 +641,41 @@ class EnhancedStoryboardV2:
 
         caption_html = f"<div class='wf-caption'>💬 {caption}</div>" if caption else ""
 
+        # Data sources chips
+        sources = [
+            ("🧬", "dbSNP"), ("🧾", "ClinVar"), ("💊", "PharmGKB"), ("📚", "Europe PMC"),
+            ("🧫", "UniProt"), ("🧬", "EMBL-EBI Proteins"), ("🧪", "ChEMBL"), ("🏷️", "OpenFDA"), ("🧭", "SNOMED CT"),
+        ]
+        sources_html = [
+            "<div class='wf-source-wrap'>",
+            "<div class='wf-source-title'>Data sources used</div>",
+            "<div class='wf-source-chips'>"
+        ] + [
+            f"<span class='wf-source-chip'>{icon} <strong>{name}</strong></span>" for icon, name in sources
+        ] + [
+            "</div>",
+            "</div>"
+        ]
+
+        # Key outputs chips
+        outputs = [
+            ("📄", "HTML report", True),
+            ("🔗", "JSON-LD graph", True),
+            ("🧩", "RDF triples (TTL)", True),
+            ("🧾", "Summary JSON", False),
+        ]
+        outputs_html = [
+            "<div class='wf-output-wrap'>",
+            "<div class='wf-output-title'>Key outputs</div>",
+            "<div class='wf-output-chips'>"
+        ] + [
+            f"<span class='wf-output-chip{' primary' if primary else ''}'>" \
+            f"{icon} {label}</span>" for icon, label, primary in outputs
+        ] + [
+            "</div>",
+            "</div>"
+        ]
+
         full_html = (
             _build_enhanced_css()
             + "<div class='wf-wrap'>"
@@ -638,6 +684,8 @@ class EnhancedStoryboardV2:
             + chips_html
             + network_html
             + progress_html
+            + "".join(sources_html)
+            + "".join(outputs_html)
             + caption_html
             + "</div>"
         )
@@ -712,9 +760,12 @@ class EnhancedStoryboardV2:
             dbs = ["dbSNP", "ClinVar", "PharmGKB"]
             ann_lit = self.state.get('literature', 0)
             highlights = [
-                ("🧾", "Pathogenic variants flagged", "Automatic ClinVar clinical significance checks"),
-                ("🔗", "HGVS normalized", "Unified variant representation applied"),
-                ("📚", f"Literature hits: {ann_lit}", "PMIDs and abstracts summarized"),
+                ("🧬", "dbSNP rsIDs resolved", "Map variants to stable rs identifiers (dbSNP)"),
+                ("🧾", "ClinVar significance checked", "Aggregate clinical significance and phenotype notes"),
+                ("💊", "PharmGKB evidence gathered", "Drug–gene relationships and phenotypes"),
+                ("🧫", "UniProt protein context", "Protein function/domains for impacted genes"),
+                ("🧬", "EMBL-EBI Proteins API", "Protein metadata and cross-references"),
+                ("📚", f"Europe PMC literature hits: {ann_lit}", "Relevant PMIDs and summaries"),
             ]
             items = []
             for icon, title, desc in highlights:
@@ -733,12 +784,13 @@ class EnhancedStoryboardV2:
             return db_html + "<div style='margin-top:8px; display:flex; flex-direction:column; gap:6px;'>" + "".join(items) + "</div>"
         
         elif stage_id == "drug":
-            # Drug interaction summary badges
+            # Drug interaction summary badges (PharmGKB, ChEMBL, OpenFDA, SNOMED)
             drugs = max(1, int(self.state.get('drugs', 0)))
             badges = [
-                ("⚠️", "Potential interactions", "Review dose adjustments and monitoring"),
-                ("🧪", "Gene-drug links", "Actionable CPIC/DPWG guidance available"),
-                ("🧭", "Clinical pathways", "Alternative therapies considered"),
+                ("⚠️", "Potential interactions", "PharmGKB drug–gene associations assessed"),
+                ("🧪", "Mechanistic links", "ChEMBL relationships and bioactivity references"),
+                ("🏷️", "Label insights", "OpenFDA label texts scanned for PGx notes"),
+                ("🧭", "Clinical concepts", "SNOMED CT coding for diseases/drugs"),
             ]
             rows = []
             for icon, title, note in badges:
