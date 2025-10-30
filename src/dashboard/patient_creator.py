@@ -198,12 +198,14 @@ class PatientCreator:
                 
                 # Map gender to schema.org format
                 gender_uri = f"http://schema.org/{gender}" if gender in ["Male", "Female"] else "http://schema.org/Male"
-                
-                # Create patient_id from MRN
-                patient_id = mrn.replace("MRN-", "patient_")
-                
+
+                # Use MRN directly as identifier (no transformation needed)
+                patient_id = mrn
+
                 patient_profile = {
                     "patient_id": patient_id,
+                    "identifier": mrn,  # Use MRN as primary identifier
+                    "mrn": mrn,  # Keep explicit MRN field too
                     "dashboard_source": True,  # Flag to indicate this came from dashboard
                     "created_at": datetime.now().isoformat(),
                     "photo": patient_photo,
