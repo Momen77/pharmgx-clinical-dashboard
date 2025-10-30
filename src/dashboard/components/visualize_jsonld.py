@@ -193,14 +193,14 @@ def render_d3_visualization(hierarchy_data):
         <button class="control-btn" onclick="collapseAll()">Collapse All</button>
       </div>
       
-      <svg width="1200" height="600"></svg>
+      <svg width="1100" height="600"></svg>
       <div class="tooltip" style="opacity:0"></div>
       
       <script>
         const data = {d3_data};
         const width = 1200, height = 600, radius = Math.min(width, height) / 2.5;
 
-        const tree = d3.tree().size([2 * Math.PI, radius - 100]).separation((a, b) => (a.parent == b.parent ? 1.5 : 2));
+        const tree = d3.tree().size([2 * Math.PI, radius - 100]).separation((a, b) => (a.parent == b.parent ? 2.5 : 3.5));
         const root = d3.hierarchy(data);
         tree(root);
 
@@ -356,7 +356,7 @@ def render_d3_visualization(hierarchy_data):
     </html>
     """
 
-    st.components.v1.html(html, height=650, scrolling=False)
+    st.components.v1.html(html, height=800, scrolling=False)
 
 
 def get_node_details(jsonld_data, node_name):
