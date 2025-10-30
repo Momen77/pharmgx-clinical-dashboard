@@ -220,17 +220,38 @@ class AIPhotoGenerator:
                     aspect_ratio="1:1",
                 )
 
-            if cfg is not None:
-                response = client.models.generate_images(
-                    model="imagen-3.0-generate-001",
-                    prompt=prompt,
-                    config=cfg
-                )
-            else:
-                response = client.models.generate_images(
-                    model="imagen-3.0-generate-001",
-                    prompt=prompt
-                )
+            # Try supported models in order, stop on first that works
+            candidate_models = [
+                "imagen-3.0-generate-001",
+                "imagen-3.0-fast",
+                "imagen-3.0-nano"
+            ]
+
+            response = None
+            last_exc: Optional[Exception] = None
+            for model_id in candidate_models:
+                try:
+                    if cfg is not None:
+                        response = client.models.generate_images(
+                            model=model_id,
+                            prompt=prompt,
+                            config=cfg
+                        )
+                    else:
+                        response = client.models.generate_images(
+                            model=model_id,
+                            prompt=prompt
+                        )
+                    break
+                except Exception as e:
+                    last_exc = e
+                    # Try next model on NOT_FOUND or unsupported errors
+                    continue
+
+            if response is None:
+                self.last_error = f"All candidate models unavailable. Last error: {last_exc}"
+                print(f"❌ {self.last_error}")
+                return None
 
             # Extract bytes across possible response shapes
             image_bytes: Optional[bytes] = None
