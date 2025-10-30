@@ -763,7 +763,18 @@ class EnhancedStoryboardV2:
                             step();
                         }catch(e){}
                     }
-                    let i=0; function next(){ if(i>=plan.length) return; const ev=plan[i++]; setStage(ev.stage, ev.message, ev.progress); animateMicrosteps(speed*0.7); setTimeout(next, Math.max(300, speed)); };
+                    let lastStage = null;
+                    let i=0; function next(){
+                        if(i>=plan.length) return;
+                        const ev=plan[i++];
+                        const mapped = map[ev.stage] || ev.stage;
+                        setStage(ev.stage, ev.message, ev.progress);
+                        if(mapped !== lastStage){
+                            animateMicrosteps(speed*0.7);
+                            lastStage = mapped;
+                        }
+                        setTimeout(next, Math.max(300, speed));
+                    };
                     setTimeout(next, Math.max(300, speed));
                 } catch(e) { /* no-op */ }
             })();
