@@ -499,27 +499,23 @@ elif page == "🔬 Run Test":
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
-                
-                # Create event bus - simple implementation
-                class EventBus:
-                    def __init__(self):
-                        self.subscribers = []
-                    
-                    def subscribe(self, callback):
-                        self.subscribers.append(callback)
-                    
-                    def emit(self, event):
-                        for callback in self.subscribers:
-                            try:
-                                callback(event)
-                            except Exception as e:
-                                print(f"Event callback error: {e}")
-                
-                event_bus = EventBus()
-                
-                current_progress = [0]  # Use list to allow mutation in callback
                 substep_text = st.empty()  # For sub-step details
-                
+
+                # ==============================================
+                # THREAD-SAFE QUEUE-BASED EVENT HANDLING
+                # ==============================================
+                # Use queue to avoid ScriptRunContext errors when
+                # worker threads emit events
+                import queue
+                import threading
+                import time
+
+                event_queue = queue.Queue()
+                result_queue = queue.Queue()
+                cancel_event = threading.Event()
+
+                current_progress = [0]  # Use list to allow mutation
+
                 # Define detailed sub-steps for each stage
                 stage_substeps = {
                     "lab_prep": [
@@ -565,11 +561,12 @@ elif page == "🔬 Run Test":
                         "Export complete"
                     ]
                 }
-                
+
                 current_stage = [None]
                 substep_index = [0]
-                
-                def update_progress(event):
+
+                def process_event(event):
+                    """Process a single event and update UI - MAIN THREAD ONLY"""
                     stage_progress_map = {
                         "lab_prep": (0.0, 0.2),
                         "ngs": (0.2, 0.4),
@@ -578,28 +575,28 @@ elif page == "🔬 Run Test":
                         "linking": (0.8, 0.9),
                         "report": (0.9, 1.0)
                     }
-                    
+
                     stage = event.stage
-                    
+
                     # Update stage if changed
                     if current_stage[0] != stage:
                         current_stage[0] = stage
                         substep_index[0] = 0
-                    
+
                     # Get progress range for this stage
                     if stage in stage_progress_map:
                         start_prog, end_prog = stage_progress_map[stage]
-                        
+
                         # Get substeps for this stage
                         substeps = stage_substeps.get(stage, [])
                         if substeps:
                             # Calculate progress within stage
                             substep_progress = substep_index[0] / len(substeps)
                             progress = start_prog + (end_prog - start_prog) * substep_progress
-                            
+
                             # Increment substep
                             substep_index[0] = min(substep_index[0] + 1, len(substeps) - 1)
-                            
+
                             # Show current substep
                             if substep_index[0] < len(substeps):
                                 substep_text.caption(f"↳ {substeps[substep_index[0]]}")
@@ -607,24 +604,87 @@ elif page == "🔬 Run Test":
                             progress = start_prog
                     else:
                         progress = current_progress[0]
-                    
+
                     current_progress[0] = progress
                     progress_bar.progress(min(progress, 1.0))
-                    
+
                     # Main status message
                     message = getattr(event, 'message', f"Processing {event.stage}...")
                     status_text.text(f"⏳ {message}")
-                
-                event_bus.subscribe(update_progress)
-                
-                # Run pipeline with event bus
-                pipeline = PGxPipeline(config_path=config_path, event_bus=event_bus)
-                
-                # Run multi-gene analysis
-                results = pipeline.run_multi_gene(
-                    gene_symbols=st.session_state['selected_genes'],
-                    patient_profile=profile
-                )
+
+                # Worker function that runs pipeline in background thread
+                def run_pipeline_worker():
+                    """Run pipeline in background thread and put result in queue"""
+                    try:
+                        # Create pipeline with event queue (thread-safe)
+                        pipeline = PGxPipeline(config_path=config_path, event_queue=event_queue)
+
+                        # Run multi-gene analysis
+                        result = pipeline.run_multi_gene(
+                            gene_symbols=st.session_state['selected_genes'],
+                            patient_profile=profile
+                        )
+                        result_queue.put({"success": True, "data": result})
+                    except Exception as e:
+                        import traceback
+                        result_queue.put({
+                            "success": False,
+                            "error": str(e),
+                            "traceback": traceback.format_exc()
+                        })
+
+                # Start worker thread
+                worker = threading.Thread(target=run_pipeline_worker, daemon=True)
+                worker.start()
+
+                # Event consumption loop - RUNS IN MAIN THREAD
+                # This is safe for Streamlit as all UI updates happen in main thread
+                results = None
+                worker_done = False
+                last_update = time.time()
+                update_interval = 0.1  # Update UI every 100ms max
+
+                while not worker_done:
+                    # Process all available events (batch processing for performance)
+                    events_processed = 0
+                    while not event_queue.empty() and events_processed < 10:
+                        try:
+                            event = event_queue.get_nowait()
+                            # Only update UI if enough time passed (throttling)
+                            if time.time() - last_update > update_interval:
+                                process_event(event)
+                                last_update = time.time()
+                            events_processed += 1
+                        except queue.Empty:
+                            break
+
+                    # Check if worker is done
+                    if not result_queue.empty():
+                        result_data = result_queue.get()
+                        if result_data["success"]:
+                            results = result_data["data"]
+                        else:
+                            # Re-raise exception from worker
+                            raise RuntimeError(result_data["error"])
+                        worker_done = True
+                    elif not worker.is_alive():
+                        # Worker died without putting result
+                        worker_done = True
+
+                    # Small sleep to prevent busy waiting
+                    time.sleep(0.05)
+
+                # Process any remaining events
+                while not event_queue.empty():
+                    try:
+                        event = event_queue.get_nowait()
+                        process_event(event)
+                    except queue.Empty:
+                        break
+
+                # Ensure results is not None
+                if results is None:
+                    raise RuntimeError("Pipeline completed but no results were returned")
                 
                 # Complete progress
                 progress_bar.progress(1.0)
