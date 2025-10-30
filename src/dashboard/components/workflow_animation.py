@@ -611,10 +611,11 @@ class EnhancedStoryboardV2:
             css_class = "wf-stage"
             if stage_id == self.stage:
                 css_class += " active"
-            elif self._is_stage_done(stage_id) and self.stage != "report":
-                css_class += " hidden"
             elif self._is_stage_done(stage_id) and self.stage == "report":
                 css_class += " done"
+            else:
+                # Hide all non-active, not-done stages to avoid initial multi-stage layout
+                css_class += " hidden"
             stages_html.append(f"""
             <div class='{css_class}'>
                 <div class='wf-stage-icon'>{icon}</div>

@@ -544,7 +544,7 @@ elif page == "🔬 Run Test":
                 # Deprecated: old Streamlit progress UI (replaced by storyboard progress)
                 progress_bar = None
                 status_text = None
-                substep_text = st.empty()  # For sub-step details
+                substep_text = None  # Deprecated: storyboard handles sub-steps
 
                 # ==============================================
                 # THREAD-SAFE QUEUE-BASED EVENT HANDLING
@@ -578,7 +578,6 @@ elif page == "🔬 Run Test":
                     ],
                     "annotation": [
                         "Fetching clinical significance data...",
-                        "Querying ClinVar database...",
                         "Enriching with PharmGKB annotations...",
                         "Mapping to SNOMED CT ontology...",
                         "Clinical annotation complete"
@@ -643,8 +642,7 @@ elif page == "🔬 Run Test":
                             substep_index[0] = min(substep_index[0] + 1, len(substeps) - 1)
 
                             # Show current substep
-                            if substep_index[0] < len(substeps):
-                                substep_text.caption(f"↳ {substeps[substep_index[0]]}")
+                            # Suppress legacy substep text; storyboard shows microsteps
                         else:
                             progress = start_prog
                     else:

@@ -9,24 +9,61 @@ from collections import defaultdict
 
 
 def jsonld_to_hierarchy(jsonld_data):
-    """Convert JSON-LD to hierarchical structure for D3.js"""
+    """Convert JSON-LD to a clinically-relevant hierarchy for D3.js (whitelisted)."""
     try:
         g = Graph().parse(data=json.dumps(jsonld_data), format="json-ld")
-        links = defaultdict(list)
-        
-        for subj, pred, obj in g:
-            subj, obj = str(subj), str(obj)
-            links[subj].append(obj)
+        allowed_node_patterns = (
+            "identifiers.org/dbsnp/rs",
+            "identifiers.org/ncbigene/",
+            "snomed.info/id/",
+            "pharmgkb",
+            "drugbank",
+            "ugent.be/person/",
+        )
+        allowed_pred_keywords = (
+            "hasvariant", "has_gene", "hasgene", "affectsgene",
+            "drug", "phenotype", "disease"
+        )
 
-        root = list(links.keys())[0] if links else "root"
+        # Build filtered adjacency
+        links = defaultdict(list)
+        nodes_seen = set()
+        for subj, pred, obj in g:
+            s, p, o = str(subj), str(pred).lower(), str(obj)
+            if not any(k in s for k in allowed_node_patterns):
+                continue
+            if not any(k in o for k in allowed_node_patterns):
+                continue
+            if not any(k in p for k in allowed_pred_keywords):
+                continue
+            links[s].append(o)
+            nodes_seen.add(s); nodes_seen.add(o)
+
+        # Choose patient as root if present
+        roots = [n for n in nodes_seen if "ugent.be/person/" in n]
+        root = roots[0] if roots else (list(links.keys())[0] if links else "root")
+
         visited = set()
 
-        def make_tree(node):
-            if node in visited:
-                return {"name": node.split("/")[-1]}
+        def label_of(iri: str) -> str:
+            if "identifiers.org/dbsnp/rs" in iri:
+                return iri.split("/")[-1]  # rsID
+            if "identifiers.org/ncbigene/" in iri:
+                return "Gene:" + iri.split("/")[-1]
+            if "snomed.info/id/" in iri:
+                return "SNOMED:" + iri.split("/")[-1]
+            if "ugent.be/person/" in iri:
+                return "Patient"
+            if "pharmgkb" in iri or "drugbank" in iri:
+                return "Drug"
+            return iri.split("/")[-1]
+
+        def make_tree(node, depth=0, max_depth=4):
+            if node in visited or depth > max_depth:
+                return {"name": label_of(node)}
             visited.add(node)
-            children = [make_tree(c) for c in links.get(node, [])]
-            result = {"name": node.split("/")[-1]}
+            children = [make_tree(c, depth+1, max_depth) for c in links.get(node, [])]
+            result = {"name": label_of(node)}
             if children:
                 result["children"] = children
             return result
