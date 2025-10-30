@@ -3,7 +3,7 @@ Patient profile creator with comprehensive demographics form
 """
 import streamlit as st
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import random
 from pathlib import Path
 import sys
@@ -51,6 +51,18 @@ class PatientCreator:
         """Render comprehensive patient demographics form"""
         st.header("📋 Create Patient Profile")
 
+        # Live Date of Birth and Age (outside the form so age updates immediately)
+        st.subheader("Date of Birth")
+        dob_default = date.today() - timedelta(days=365*45)
+        date_of_birth = st.date_input(
+            "Date of Birth",
+            value=dob_default,
+            min_value=date(1900, 1, 1),
+            max_value=date.today()
+        )
+        age = (date.today() - date_of_birth).days // 365
+        st.info(f"Age: {age} years")
+
         with st.form("patient_form"):
             # Patient Photo Section - AT THE TOP
             st.subheader("📸 Patient Picture")
@@ -80,13 +92,8 @@ class PatientCreator:
                 preferred_name = st.text_input("Preferred Name", value="")
             
             with col2:
-                date_of_birth = st.date_input(
-                    "Date of Birth *",
-                    value=datetime.now() - timedelta(days=365*45),
-                    max_value=datetime.now()
-                )
-                age = (datetime.now().date() - date_of_birth).days // 365
-                st.info(f"Age: {age} years")
+                # Date of birth is selected above to allow live age updates
+                st.write("")
                 
                 gender = st.selectbox(
                     "Gender *",
