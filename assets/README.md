@@ -4,15 +4,23 @@ This directory contains logo files and other static assets for the Pharmacogenom
 
 ## Logo Files
 
-### Current Logo
+### Official UGent Logos (Current)
 
-**File**: `ugent_logo.svg`
+The dashboard now uses **official Ghent University logos**:
 
-This is a simplified logo using official Ghent University colors:
-- **Primary Blue**: `#1E64C8`
-- **Secondary Yellow**: `#FFD200`
+1. **`ugent_faculty_logo.png`** (Primary) - Faculty of Pharmaceutical Sciences logo
+   - High resolution (2400px width)
+   - RGB color variant for digital use
+   - Used in: Sidebar, Home page, PDF reports
 
-The logo displays "GHENT UNIVERSITY" with "Pharmacogenomics Laboratory" subtitle.
+2. **`ugent_main_logo.png`** (Fallback) - Main Ghent University logo
+   - High resolution (2400px width)
+   - RGB color variant for digital use
+
+3. **`ugent_logo.svg`** (Legacy) - Custom simplified logo
+   - Simplified logo using official UGent colors
+   - Primary Blue: `#1E64C8`, Secondary Yellow: `#FFD200`
+   - Used as final fallback if official logos are missing
 
 ---
 
@@ -47,25 +55,31 @@ For official use, contact Ghent University's communications department to obtain
 
 ## Logo Usage
 
-The dashboard automatically:
-1. **First** checks for `assets/ugent_logo.svg` or `assets/ugent_logo.png`
-2. **Fallback** to the embedded simplified SVG logo if file not found
+The dashboard uses a **priority-based logo loading system**:
 
-To use the official logo:
-- Place your downloaded logo file in this directory as `ugent_logo.svg` or `ugent_logo.png`
-- Restart the Streamlit dashboard
-- The application will automatically use your logo
+1. **First Priority**: `ugent_faculty_logo.png` - Official Faculty of Pharmaceutical Sciences logo
+2. **Second Priority**: `ugent_main_logo.png` - Official main UGent logo
+3. **Third Priority**: `ugent_logo.svg` - Custom simplified logo
+4. **Final Fallback**: Embedded SVG (if all files are missing)
+
+### Where Logos Appear
+
+- **Sidebar**: Displays faculty logo with "Pharmacogenomics Laboratory" subtitle
+- **Home Page**: Large faculty logo with institution name in header
+- **PDF Reports**: Faculty logo on cover page with full institution details
+- **All pages**: Consistent branding throughout the application
 
 ---
 
 ## Supported Formats
 
-- **SVG** (Recommended - scalable vector graphics)
-- **PNG** (Also supported - raster image)
+- **PNG** (Current - high-resolution raster images, 2400px width)
+- **SVG** (Supported - scalable vector graphics)
 
-**File naming**:
-- `ugent_logo.svg` (preferred)
-- `ugent_logo.png` (alternative)
+**Current Files**:
+- `ugent_faculty_logo.png` - Faculty of Pharmaceutical Sciences (61 KB)
+- `ugent_main_logo.png` - Main university logo (45 KB)
+- `ugent_logo.svg` - Custom simplified logo (692 bytes)
 
 ---
 
@@ -112,5 +126,15 @@ Make sure to document any additional assets in this README.
 
 ---
 
+## Source of Official Logos
+
+The official UGent logos in this directory were sourced from:
+- **Location**: `logo_UGent_EN/` directory (project root)
+- **Variant**: RGB 2400px color-on-white PNG files
+- **Official**: Compliant with UGent branding guidelines
+
+---
+
 **Last Updated**: 2025-10-30
+**Status**: ✅ Official UGent logos integrated
 **Maintained by**: Pharmacogenomics Dashboard Team

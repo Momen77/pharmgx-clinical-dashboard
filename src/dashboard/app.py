@@ -278,13 +278,26 @@ st.session_state.setdefault('test_running', False)
 
 # Sidebar nav
 with st.sidebar:
-    # Try to load local logo first, fallback to embedded SVG
+    # Display official UGent Faculty of Pharmaceutical Sciences logo
     import os
-    logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
-    if os.path.exists(logo_path):
-        st.image(logo_path, use_container_width=True)
+
+    # Try official faculty logo first, then main logo, then fallback
+    faculty_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_faculty_logo.png")
+    main_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_main_logo.png")
+    svg_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_logo.svg")
+
+    if os.path.exists(faculty_logo_path):
+        # Official Faculty of Pharmaceutical Sciences logo
+        st.image(faculty_logo_path, use_container_width=True)
+        st.markdown("**Pharmacogenomics Laboratory**")
+    elif os.path.exists(main_logo_path):
+        # Official UGent main logo
+        st.image(main_logo_path, use_container_width=True)
+    elif os.path.exists(svg_logo_path):
+        # Custom SVG logo
+        st.image(svg_logo_path, use_container_width=True)
     else:
-        # Fallback: Use data URI with embedded SVG
+        # Fallback: Use embedded SVG
         logo_svg = """
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100">
           <rect width="400" height="100" fill="#1E64C8"/>
@@ -298,6 +311,8 @@ with st.sidebar:
         </svg>
         """
         st.markdown(logo_svg, unsafe_allow_html=True)
+
+    st.divider()
     st.title("Workflow")
     
     # Show workflow steps with status indicators
@@ -329,8 +344,19 @@ with st.sidebar:
 # Pages
 # =========================
 if page == "🏠 Home":
-    st.title("🧬 UGent Pharmacogenomics Testing Dashboard")
-    st.markdown("Welcome to the Clinical Pharmacogenomics Testing Platform")
+    # Display header with logo
+    col_logo, col_title = st.columns([1, 3])
+    with col_logo:
+        faculty_logo_path = os.path.join(_PROJECT_ROOT, "assets", "ugent_faculty_logo.png")
+        if os.path.exists(faculty_logo_path):
+            st.image(faculty_logo_path, width=150)
+    with col_title:
+        st.title("🧬 Pharmacogenomics Testing Dashboard")
+        st.markdown("**Faculty of Pharmaceutical Sciences**")
+        st.markdown("Ghent University")
+
+    st.divider()
+    st.markdown("### Welcome to the Clinical Pharmacogenomics Testing Platform")
     c1, c2, c3 = st.columns(3)
     c1.metric("Patients Tested", "1,234")
     c2.metric("Genes Analyzed", "25+")

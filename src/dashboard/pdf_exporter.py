@@ -10,6 +10,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from PIL import Image as PILImage
 import io
+import os
+from pathlib import Path
 from datetime import datetime
 
 
@@ -85,9 +87,32 @@ class PDFExporter:
         return output_path
     
     def _create_cover_page(self, patient_profile: dict, test_results: dict):
-        """Create cover page with patient photo"""
+        """Create cover page with patient photo and UGent logo"""
         elements = []
-        
+
+        # Add UGent logo at the top
+        try:
+            # Get project root (go up from src/dashboard to project root)
+            dashboard_dir = Path(__file__).parent
+            project_root = dashboard_dir.parent.parent
+            logo_path = project_root / "assets" / "ugent_faculty_logo.png"
+
+            if logo_path.exists():
+                logo_img = Image(str(logo_path), width=2.5*inch, height=2.5*inch, kind='proportional')
+                elements.append(logo_img)
+                elements.append(Spacer(1, 0.2*inch))
+
+                # Add institution text
+                institution = Paragraph(
+                    "<para align='center'><b>Ghent University</b><br/>Faculty of Pharmaceutical Sciences<br/>Pharmacogenomics Laboratory</para>",
+                    self.styles['Normal']
+                )
+                elements.append(institution)
+                elements.append(Spacer(1, 0.3*inch))
+        except Exception as e:
+            # If logo loading fails, continue without it
+            pass
+
         # Title
         title = Paragraph("Pharmacogenomics Test Report", self.styles['UGentTitle'])
         elements.append(title)
