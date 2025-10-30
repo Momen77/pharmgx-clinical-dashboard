@@ -708,8 +708,11 @@ elif page == "🔬 Run Test":
                         if result_data["success"]:
                             results = result_data["data"]
                         else:
-                            # Re-raise exception from worker
-                            raise RuntimeError(result_data["error"])
+                            # Defensive: Ensure the error message is always a string
+                            error_msg = result_data.get("error")
+                            if not isinstance(error_msg, str) or not error_msg:
+                                error_msg = "Unknown error"
+                            raise RuntimeError(error_msg)
                         worker_done = True
                     elif not worker.is_alive():
                         # Worker died without putting result
@@ -774,7 +777,11 @@ elif page == "🔬 Run Test":
                     for t, p in results['comprehensive_outputs'].items():
                         st.text(f"• {t}: {p}")
             else:
-                st.error(f"❌ Test failed: {results.get('error', 'Unknown error')}")
+                # Defensive: ensure error is always printed as a string
+                error_msg = results.get('error')
+                if not isinstance(error_msg, str) or not error_msg:
+                    error_msg = "Unknown error"
+                st.error(f"❌ Test failed: {error_msg}")
 
 elif page == "📊 View Results":
     st.title("📊 Clinical Report")

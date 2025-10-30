@@ -173,19 +173,14 @@ class AIPhotoGenerator:
         if body_desc:
             prompt_parts.append(body_desc)
 
-        # Stronger visual anchors for higher BMI to avoid average-looking faces
+        # Stronger visual anchors for higher BMI (exaggerated)
         try:
             if bmi_value is not None and bmi_value >= 30:
-                prompt_parts.append("rounded cheeks, soft jawline")
-                prompt_parts.append("slight double chin visible")
-                prompt_parts.append("broader neck and shoulders proportionate to body size")
-                prompt_parts.append("upper torso visible to reflect body habitus")
+                prompt_parts.append("extremely full rounded cheeks, highly prominent double chin, extremely wide face, dramatically broad neck and shoulders, very full/rounded upper torso, visible arm fullness, deep neck skin folds")
             if bmi_value is not None and bmi_value >= 40:
-                prompt_parts.append("very full facial features, clear fullness under chin")
-                prompt_parts.append("sturdy build, substantial upper torso presence")
+                prompt_parts.append("face and neck appear profoundly large, excess fullness under chin, arms full and thick with body-wide fullness")
             if bmi_value is not None and bmi_value < 18.5:
-                prompt_parts.append("slender build, subtle gaunt cheeks, prominent cheekbones")
-                prompt_parts.append("narrow shoulders and neck proportionate to low body weight")
+                prompt_parts.append("very slender, pronounced gaunt cheeks, sharply visible cheekbones, extremely thin neck and shoulders, collarbones sharply protruding, bony hands visible if in frame")
         except Exception:
             pass
 
@@ -198,41 +193,57 @@ class AIPhotoGenerator:
         # Add clothing
         prompt_parts.append("wearing casual comfortable clothing appropriate for a clinic visit")
 
-        # Regional/cultural clothing influence based on birthplace/ethnicity (kept subtle and clinical-appropriate)
+        # Gender-aware regional/cultural attire
         try:
             country = str(birth_country or "").lower()
+            gender_l = str(gender).lower().strip()
             region_hint = None
-            if country:
-                if any(k in country for k in ["saudi", "uae", "emirates", "qatar", "oman", "kuwait", "bahrain"]):
-                    region_hint = "subtle gulf regional influence in attire (e.g., neutral thobe/abaya styling cues, clinic-appropriate)"
-                elif any(k in country for k in ["egypt", "morocco", "tunisia", "algeria"]):
-                    region_hint = "north african influence in casual clinic attire (neutral tones, modest fit)"
-                elif any(k in country for k in ["pakistan", "india", "bangladesh", "sri lanka"]):
-                    region_hint = "south asian influence (simple kurta/salwar-inspired casual styling, neutral clinic colors)"
-                elif any(k in country for k in ["china", "japan", "korea", "taiwan", "singapore", "vietnam", "thailand", "malaysia", "indonesia"]):
-                    region_hint = "east/southeast asian smart-casual clinic attire (minimalist, neutral palette)"
-                elif any(k in country for k in ["nigeria", "ghana", "kenya", "south africa", "ethiopia", "uganda", "tanzania"]):
-                    region_hint = "sub-saharan african casual clinic attire (subtle patterned fabrics, modest fit)"
-                elif any(k in country for k in ["mexico", "brazil", "argentina", "chile", "colombia", "peru"]):
-                    region_hint = "latin american casual clinic attire (warm neutral palette)"
-                elif any(k in country for k in ["turkey", "iran", "iraq", "jordan", "lebanon", "syria", "yemen"]):
-                    region_hint = "middle eastern modest clinic attire (long sleeves, neutral tones)"
-                elif any(k in country for k in ["france", "germany", "netherlands", "belgium", "spain", "italy", "sweden", "norway", "denmark", "uk", "ireland", "poland"]):
-                    region_hint = "european casual clinic attire (layered neutrals)"
-                elif any(k in country for k in ["usa", "united states", "canada", "australia", "new zealand"]):
-                    region_hint = "western casual clinic attire (plain tee/shirt, neutral cardigan or jacket)"
+            # Gulf/Saudi
+            if any(k in country for k in ["saudi", "uae", "emirates", "qatar", "oman", "kuwait", "bahrain"]):
+                if gender_l == "female":
+                    region_hint = "modest black abaya covering body, black hijab fully covering hair—no scarf on face, clinic-appropriate"
+                else:
+                    region_hint = "white thobe (long garment, ankle-length), no head covering or scarf, cropped hair, clinic-appropriate"
+            elif any(k in country for k in ["egypt", "morocco", "algeria", "tunisia"]):
+                if gender_l == "female":
+                    region_hint = "long modest dress, abaya, or skirt/top, light scarf or hijab tightly covering hair, no scarf on face"
+                else:
+                    region_hint = "collared shirt and pants, possibly traditional galabeya, no headscarf, clinic-appropriate"
+            elif any(k in country for k in ["pakistan", "india", "bangladesh", "sri lanka"]):
+                if gender_l == "female":
+                    region_hint = "neutral color kurta-type long tunic and pants, dupatta or hijab covering hair, no scarf on face"
+                else:
+                    region_hint = "kurta or collared shirt and loose pants, short/cropped hair, no headscarf"
+            elif any(k in country for k in ["china", "japan", "korea", "taiwan", "singapore", "vietnam", "thailand", "malaysia", "indonesia"]):
+                region_hint = "smart-casual modern clinical attire, minimalist and neutral colors, no visible religious head coverings"
+            elif any(k in country for k in ["nigeria", "ghana", "kenya", "south africa", "ethiopia", "uganda", "tanzania"]):
+                if gender_l == "female":
+                    region_hint = "patterned long dress or skirt/top, colorful head tie or scarf, clinic-appropriate dress"
+                else:
+                    region_hint = "colorful collared shirt and trousers, no head covering, short hair"
+            elif any(k in country for k in ["mexico", "brazil", "argentina", "chile", "colombia", "peru"]):
+                region_hint = "latin american casual attire, warm earth tones, clinic-appropriate, no head covering"
+            elif any(k in country for k in ["turkey", "iran", "iraq", "jordan", "lebanon", "syria", "yemen"]):
+                if gender_l == "female":
+                    region_hint = "long modest clinic coat or dress, well-fitted headscarf (hijab) covering all hair, no scarf on face"
+                else:
+                    region_hint = "button-down shirt and long trousers, no head covering, short/cropped hair"
+            elif any(k in country for k in ["france", "germany", "netherlands", "belgium", "spain", "italy", "sweden", "norway", "denmark", "uk", "ireland", "poland"]):
+                region_hint = "european clinic attire, casual layered look, no head covering"
+            elif any(k in country for k in ["usa", "united states", "canada", "australia", "new zealand"]):
+                region_hint = "western casual attire, plain t-shirt or shirt, cardigan/jacket, no head covering"
+            # fallback by ethnicity if needed
             if not region_hint:
-                # fallback via ethnicity keywords
-                eth = str(ethnicity).lower()
-                if "asian" in eth:
-                    region_hint = "east/south asian influence in clinic attire (minimalist, neutral colors)"
-                elif any(x in eth for x in ["african", "black"]):
-                    region_hint = "subtle african-inspired casual clinic attire (modest patterns)"
-                elif any(x in eth for x in ["middle eastern", "arab"]):
-                    region_hint = "middle eastern modest clinic attire"
-                elif any(x in eth for x in ["hispanic", "latino"]):
-                    region_hint = "latin american casual clinic attire"
-                elif any(x in eth for x in ["european", "caucasian"]):
+                eth_l = str(ethnicity).lower()
+                if "asian" in eth_l:
+                    region_hint = "east/south asian clinical attire (long tunic or medical scrubs for female, collared shirt for male)"
+                elif any(x in eth_l for x in ["african", "black"]):
+                    region_hint = "african-inspired clinical attire, modestly patterned dress for female, colorful shirt for male"
+                elif any(x in eth_l for x in ["middle eastern", "arab"]):
+                    region_hint = "middle eastern modest clinic attire (scarf for female, uncovered hair for male)"
+                elif any(x in eth_l for x in ["hispanic", "latino"]):
+                    region_hint = "latin american casual clinic attire (warm colors)"
+                elif any(x in eth_l for x in ["european", "caucasian"]):
                     region_hint = "european/western casual clinic attire"
             if region_hint:
                 prompt_parts.append(region_hint)
