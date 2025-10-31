@@ -129,16 +129,27 @@ class VariantPhenotypeLinker:
         }
     
     def _extract_variant_drugs(self, variants: List[Dict]) -> List[Dict]:
-        """Extract all drugs affected by variants"""
+        """Extract all drugs affected by variants (tolerant to different shapes)"""
         drugs = []
         drug_variants_map = {}
-        
+
         for variant in variants:
             gene = variant.get("gene")
             variant_id = variant.get("variant_id") or variant.get("rsid")
-            
-            if "pharmgkb" in variant and "drugs" in variant["pharmgkb"]:
-                for drug in variant["pharmgkb"]["drugs"]:
+
+            # Gather drug list from multiple possible locations
+            pk_drugs = []
+            try:
+                if isinstance(variant.get("pharmgkb"), dict):
+                    pk_drugs = variant["pharmgkb"].get("drugs") or []
+                if not pk_drugs and isinstance(variant.get("raw_data"), dict):
+                    pk_drugs = (variant["raw_data"].get("pharmgkb") or {}).get("drugs") or []
+                if not pk_drugs:
+                    pk_drugs = variant.get("drugs") or []
+            except Exception:
+                pk_drugs = []
+
+            for drug in pk_drugs:
                     drug_name = drug.get("name")
                     if drug_name:
                         drug_key = drug_name.lower()
@@ -169,17 +180,21 @@ class VariantPhenotypeLinker:
         return list(drug_variants_map.values())
     
     def _extract_variant_phenotypes(self, variants: List[Dict]) -> List[Dict]:
-        """Extract phenotypes from variants"""
+        """Extract phenotypes from variants (variant, raw_data)"""
         phenotypes = []
         
         for variant in variants:
             gene = variant.get("gene")
             variant_id = variant.get("variant_id") or variant.get("rsid")
             
-            # From PharmGKB
-            if "pharmgkb" in variant:
-                if "phenotypes" in variant["pharmgkb"]:
-                    for phenotype_text in variant["pharmgkb"]["phenotypes"]:
+            # From PharmGKB (variant or raw_data)
+            try:
+                pk = variant.get("pharmgkb") or (variant.get("raw_data", {}).get("pharmgkb") if isinstance(variant.get("raw_data"), dict) else {}) or {}
+            except Exception:
+                pk = {}
+            if pk:
+                if "phenotypes" in pk:
+                    for phenotype_text in pk.get("phenotypes", []) or []:
                         phenotypes.append({
                             "text": phenotype_text,
                             "gene": gene,
@@ -188,8 +203,8 @@ class VariantPhenotypeLinker:
                         })
                 
                 # From annotations
-                if "annotations" in variant["pharmgkb"]:
-                    for annotation in variant["pharmgkb"]["annotations"]:
+                if "annotations" in pk:
+                    for annotation in pk.get("annotations", []) or []:
                         if "allelePhenotypes" in annotation:
                             for allele_pheno in annotation["allelePhenotypes"]:
                                 if "phenotype" in allele_pheno:
@@ -214,7 +229,7 @@ class VariantPhenotypeLinker:
         return phenotypes
     
     def _extract_variant_diseases(self, variants: List[Dict]) -> List[Dict]:
-        """Extract diseases associated with variants"""
+        """Extract diseases associated with variants (variant, raw_data, PharmGKB)"""
         diseases = []
         seen = set()
         
@@ -222,9 +237,10 @@ class VariantPhenotypeLinker:
             gene = variant.get("gene")
             variant_id = variant.get("variant_id") or variant.get("rsid")
             
-            # From disease associations
-            if "disease_associations" in variant:
-                for disease in variant["disease_associations"]:
+            # From disease associations (variant or raw_data)
+            disease_assoc_list = variant.get("disease_associations") or (variant.get("raw_data", {}).get("disease_associations") if isinstance(variant.get("raw_data"), dict) else []) or []
+            if disease_assoc_list:
+                for disease in disease_assoc_list:
                     disease_text = disease.get("name") or disease if isinstance(disease, str) else str(disease)
                     disease_key = f"{gene}:{disease_text}"
                     if disease_key not in seen:
@@ -233,12 +249,16 @@ class VariantPhenotypeLinker:
                             "name": disease_text,
                             "gene": gene,
                             "variant_id": variant_id,
-                            "source": disease.get("source", "Unknown")
+                            "source": disease.get("source", "Unknown") if isinstance(disease, dict) else "Unknown"
                         })
             
             # From PharmGKB annotations
-            if "pharmgkb" in variant and "annotations" in variant["pharmgkb"]:
-                for annotation in variant["pharmgkb"]["annotations"]:
+            try:
+                pk = variant.get("pharmgkb") or (variant.get("raw_data", {}).get("pharmgkb") if isinstance(variant.get("raw_data"), dict) else {}) or {}
+            except Exception:
+                pk = {}
+            if pk and "annotations" in pk:
+                for annotation in pk.get("annotations", []) or []:
                     if "relatedDiseases" in annotation:
                         for disease_obj in annotation["relatedDiseases"]:
                             disease_name = disease_obj.get("name", "")
@@ -490,8 +510,18 @@ class VariantPhenotypeLinker:
         # Find variants affecting this drug
         affecting_variants = []
         for variant in variants:
-            if "pharmgkb" in variant and "drugs" in variant["pharmgkb"]:
-                for drug in variant["pharmgkb"]["drugs"]:
+            # Consolidate drug list from possible locations
+            pk_drugs = []
+            try:
+                if isinstance(variant.get("pharmgkb"), dict):
+                    pk_drugs = variant["pharmgkb"].get("drugs") or []
+                if not pk_drugs and isinstance(variant.get("raw_data"), dict):
+                    pk_drugs = (variant["raw_data"].get("pharmgkb") or {}).get("drugs") or []
+                if not pk_drugs:
+                    pk_drugs = variant.get("drugs") or []
+            except Exception:
+                pk_drugs = []
+            for drug in pk_drugs:
                     if drug.get("name", "").lower() == drug_name.lower():
                         affecting_variants.append({
                             "gene": variant.get("gene"),
@@ -726,7 +756,12 @@ class VariantPhenotypeLinker:
             },
             "variant_summary": {
                 "total_variants": len(variants),
-                "variants_with_drug_data": len([v for v in variants if "pharmgkb" in v and "drugs" in v.get("pharmgkb", {})])
+                "variants_with_drug_data": len([
+                    v for v in variants
+                    if (isinstance(v.get("pharmgkb"), dict) and (v["pharmgkb"].get("drugs") or []))
+                    or (isinstance(v.get("raw_data"), dict) and isinstance(v["raw_data"].get("pharmgkb"), dict) and (v["raw_data"]["pharmgkb"].get("drugs") or []))
+                    or (v.get("drugs") or [])
+                ])
             },
             "analysis_timestamp": datetime.now().isoformat()
         }
