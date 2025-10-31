@@ -465,6 +465,7 @@ class PGxPipeline:
                 from utils.population_frequencies import classify_population_significance, summarize_ethnicity_context
                 from utils.dosing_adjustments import suggest_ethnicity_adjustments
                 patient_ethnicity = None
+                patient_ethnicity_snomed_code = None
                 try:
                     demo = comprehensive_profile.get("clinical_information", {}).get("demographics", {})
                     eth = demo.get("ethnicity")
@@ -472,6 +473,14 @@ class PGxPipeline:
                         patient_ethnicity = eth[0]
                     elif isinstance(eth, str):
                         patient_ethnicity = eth
+                    # Attach SNOMED code for patient's ethnicity if available
+                    eth_snomed = comprehensive_profile.get("clinical_information", {}).get("ethnicity_snomed")
+                    if isinstance(eth_snomed, list) and patient_ethnicity:
+                        for ent in eth_snomed:
+                            label = ent.get("label") or ent.get("rdfs:label") or ent.get("skos:prefLabel")
+                            if label == patient_ethnicity:
+                                patient_ethnicity_snomed_code = ent.get("snomed:code")
+                                break
                 except Exception:
                     patient_ethnicity = None
 
@@ -488,6 +497,8 @@ class PGxPipeline:
                         patient_ethnicity,
                         freqs,
                     )
+                    if patient_ethnicity_snomed_code:
+                        v["patient_ethnicity_snomed_code"] = patient_ethnicity_snomed_code
 
                 # Ethnicity-aware medication adjustment hints (non-binding)
                 adjustments = suggest_ethnicity_adjustments(all_variants, patient_ethnicity)

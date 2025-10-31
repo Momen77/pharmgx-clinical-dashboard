@@ -7,6 +7,8 @@ import requests
 
 
 ENSEMBL_VARIATION_URL = "https://rest.ensembl.org/variation/homo_sapiens/{rsid}?content-type=application/json"
+GNOMAD_API_URL = "https://gnomad.broadinstitute.org/api"
+DBSNP_SUMMARY_URL = "https://api.ncbi.nlm.nih.gov/variation/v0/beta/refsnp/{rsid_num}"
 
 
 # Map upstream population labels to our canonical ethnicity categories
@@ -54,30 +56,58 @@ class PopulationFrequencyService:
         if cached is not None:
             return cached
 
-        data = self._fetch_ensembl(rsid)
-        if data is None:
-            result = {"frequencies": _category_template(), "source": "unavailable"}
-            self._save_cache(rsid, result)
-            return result
-
+        source = None
         freqs = _category_template()
-        for pop in data.get("populations", []):
-            # Expect keys like {"name": "1000GENOMES:phase_3:EUR", "frequency": 0.15, ...}
-            label = pop.get("name") or ""
-            freq = pop.get("frequency")
-            if freq is None:
-                continue
-            cat = _POPULATION_MAP.get(label)
-            if not cat:
-                continue
-            # If multiple upstream sets provide a value, prefer the max (most inclusive) or keep first
-            if freqs[cat] is None:
-                freqs[cat] = float(freq)
-            else:
-                # keep the larger frequency to avoid under-reporting
-                freqs[cat] = max(freqs[cat], float(freq))
 
-        result = {"frequencies": freqs, "source": "Ensembl"}
+        # Primary: Ensembl
+        data = self._fetch_ensembl(rsid)
+        if data is not None:
+            source = "Ensembl"
+            for pop in data.get("populations", []):
+                label = pop.get("name") or ""
+                freq = pop.get("frequency")
+                if freq is None:
+                    continue
+                cat = _POPULATION_MAP.get(label)
+                if not cat:
+                    continue
+                if freqs[cat] is None:
+                    freqs[cat] = float(freq)
+                else:
+                    freqs[cat] = max(freqs[cat], float(freq))
+
+        # Secondary: gnomAD GraphQL (only if still all None)
+        if source is None or all(v is None for v in freqs.values()):
+            gnomad = self._fetch_gnomad(rsid)
+            if gnomad is not None:
+                source = "gnomAD"
+                # gnomAD uses subpopulations; collapse to canonical buckets
+                for bucket, vals in gnomad.items():
+                    # vals is a list of frequencies in that canonical bucket
+                    if not vals:
+                        continue
+                    val = max(vals)  # take max observed among subpops
+                    if freqs[bucket] is None:
+                        freqs[bucket] = val
+                    else:
+                        freqs[bucket] = max(freqs[bucket], val)
+
+        # Tertiary: dbSNP summary (if still empty). Note: dbSNP has limited pop data
+        if source is None or all(v is None for v in freqs.values()):
+            dbsnp = self._fetch_dbsnp(rsid)
+            if dbsnp is not None:
+                source = "dbSNP"
+                for key, cat in (
+                    ("AFR", "African"),
+                    ("EAS", "Asian"),
+                    ("EUR", "Caucasian/European"),
+                    ("AMR", "Hispanic/Latino"),
+                ):
+                    v = dbsnp.get(key)
+                    if isinstance(v, (int, float)) and 0 <= v <= 1:
+                        freqs[cat] = float(v) if freqs[cat] is None else max(freqs[cat], float(v))
+
+        result = {"frequencies": freqs, "source": source or "unavailable"}
         self._save_cache(rsid, result)
         return result
 
@@ -93,6 +123,91 @@ class PopulationFrequencyService:
         except Exception:
             return None
         return None
+
+    def _fetch_gnomad(self, rsid: str) -> Optional[Dict[str, list]]:
+        """Fetch population AFs from gnomAD GraphQL and map to canonical buckets.
+        Returns a dict of canonical bucket -> list[float].
+        """
+        try:
+            query = {
+                "query": (
+                    "query($rsid: String!) { \n"
+                    "  variant(variantId: $rsid) { \n"
+                    "    genome { ac af an populations { id ac an ac_hom } } \n"
+                    "    exome { ac af an populations { id ac an ac_hom } } \n"
+                    "  } \n"
+                    "}"
+                ),
+                "variables": {"rsid": rsid}
+            }
+            resp = requests.post(GNOMAD_API_URL, json=query, headers={"User-Agent": "pgx-kg/ethnicity-af"}, timeout=20)
+            if not resp.ok:
+                return None
+            data = resp.json().get("data", {})
+            variant = data.get("variant") or {}
+            buckets = {"African": [], "Asian": [], "Caucasian/European": [], "Hispanic/Latino": [], "Middle Eastern": [], "Mixed": []}
+            def collect(pop_list):
+                for p in (pop_list or []):
+                    pid = (p.get("id") or "").upper()
+                    ac = p.get("ac") or 0
+                    an = p.get("an") or 0
+                    if not an:
+                        continue
+                    af = ac / an
+                    # Map common gnomAD pop IDs
+                    if pid in ("AFR",):
+                        buckets["African"].append(af)
+                    elif pid in ("EAS", "SAS"):
+                        buckets["Asian"].append(af)
+                    elif pid in ("NFE", "FIN", "ASJ"):
+                        buckets["Caucasian/European"].append(af)
+                    elif pid in ("AMR",):
+                        buckets["Hispanic/Latino"].append(af)
+                    else:
+                        buckets["Mixed"].append(af)
+            if variant.get("genome"):
+                collect(variant["genome"].get("populations"))
+            if variant.get("exome"):
+                collect(variant["exome"].get("populations"))
+            return buckets
+        except Exception:
+            return None
+
+    def _fetch_dbsnp(self, rsid: str) -> Optional[Dict[str, float]]:
+        """Fetch coarse AFs from dbSNP summary if available."""
+        try:
+            if not rsid.startswith("rs"):
+                return None
+            num = rsid.replace("rs", "")
+            url = DBSNP_SUMMARY_URL.format(rsid_num=num)
+            resp = requests.get(url, headers={"User-Agent": "pgx-kg/ethnicity-af"}, timeout=15)
+            if not resp.ok:
+                return None
+            data = resp.json()
+            # dbSNP schema is complex; try to aggregate if present
+            # We look for "primary_snapshot_data" -> "allele_annotations" -> "frequency" style entries
+            out = {}
+            try:
+                psd = data.get("primary_snapshot_data") or {}
+                anns = psd.get("allele_annotations") or []
+                for ann in anns:
+                    for freq in (ann.get("frequency") or []):
+                        # freq example may include study_name like "1000Genomes" and pop like "AFR"
+                        pop = freq.get("population") or {}
+                        pop_code = (pop.get("name") or "").upper()
+                        af = freq.get("allele_count")
+                        an = freq.get("allele_number")
+                        if isinstance(af, int) and isinstance(an, int) and an > 0:
+                            val = af / an
+                            if pop_code in ("AFR", "EAS", "EUR", "AMR"):
+                                # Keep the max seen
+                                if pop_code not in out or val > out[pop_code]:
+                                    out[pop_code] = val
+            except Exception:
+                pass
+            return out or None
+        except Exception:
+            return None
 
     def _cache_path(self, rsid: str) -> Path:
         return self.cache_dir / f"{rsid}.json"
