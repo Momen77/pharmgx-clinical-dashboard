@@ -459,25 +459,139 @@ class PatientCreator:
         import random
         from datetime import datetime, timedelta
 
-        # Random names
-        first_names = ["John", "Jane", "Michael", "Sarah", "David", "Emma", "James", "Olivia", "Robert", "Sophia"]
-        last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Martinez", "Anderson"]
+        # Diverse ethnicity options matching the manual form
+        ethnicity_options = [
+            "African", "Asian", "Caucasian/European", "Hispanic/Latino",
+            "Middle Eastern", "Native American", "Pacific Islander", "Mixed"
+        ]
 
-        first_name = random.choice(first_names)
-        last_name = random.choice(last_names)
+        # Select ethnicity first to match names
+        ethnicity = [random.choice(ethnicity_options)]
+        ethnicity_key = ethnicity[0]
+
+        # Diverse names by ethnicity and gender
+        names_by_ethnicity = {
+            "African": {
+                "Male": {
+                    "first": ["Kwame", "Jabari", "Kofi", "Ade", "Chike", "Tunde", "Sekou", "Amadi", "Themba", "Zuri"],
+                    "last": ["Okafor", "Mensah", "Adeyemi", "Kamara", "Nkrumah", "Diallo", "Banda", "Mwangi", "Ngozi", "Okeke"]
+                },
+                "Female": {
+                    "first": ["Amara", "Zola", "Nia", "Ayana", "Safiya", "Kaya", "Thandiwe", "Imani", "Asha", "Nala"],
+                    "last": ["Okafor", "Mensah", "Adeyemi", "Kamara", "Nkrumah", "Diallo", "Banda", "Mwangi", "Ngozi", "Okeke"]
+                }
+            },
+            "Asian": {
+                "Male": {
+                    "first": ["Wei", "Hiroshi", "Min-jun", "Raj", "Arjun", "Chen", "Kenji", "Ravi", "Jin", "Ankit"],
+                    "last": ["Wang", "Tanaka", "Kim", "Patel", "Singh", "Li", "Yamamoto", "Chen", "Park", "Kumar"]
+                },
+                "Female": {
+                    "first": ["Mei", "Yuki", "Ji-woo", "Priya", "Aisha", "Lin", "Sakura", "Suki", "Devi", "Hana"],
+                    "last": ["Wang", "Tanaka", "Kim", "Patel", "Singh", "Li", "Yamamoto", "Chen", "Park", "Kumar"]
+                }
+            },
+            "Caucasian/European": {
+                "Male": {
+                    "first": ["James", "William", "Thomas", "Oliver", "Alexander", "Henry", "Charles", "Daniel", "Lucas", "Michael"],
+                    "last": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Anderson", "Taylor"]
+                },
+                "Female": {
+                    "first": ["Emma", "Olivia", "Sophia", "Charlotte", "Amelia", "Isabella", "Mia", "Evelyn", "Harper", "Emily"],
+                    "last": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Anderson", "Taylor"]
+                }
+            },
+            "Hispanic/Latino": {
+                "Male": {
+                    "first": ["Carlos", "Miguel", "Diego", "Luis", "Jose", "Juan", "Antonio", "Fernando", "Ricardo", "Alejandro"],
+                    "last": ["Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez", "Ramirez", "Torres"]
+                },
+                "Female": {
+                    "first": ["Maria", "Sofia", "Isabella", "Camila", "Valentina", "Lucia", "Elena", "Ana", "Carmen", "Rosa"],
+                    "last": ["Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez", "Ramirez", "Torres"]
+                }
+            },
+            "Middle Eastern": {
+                "Male": {
+                    "first": ["Omar", "Ali", "Hassan", "Ahmed", "Yusuf", "Khalil", "Rashid", "Tariq", "Karim", "Samir"],
+                    "last": ["Al-Masri", "Al-Rashid", "Al-Farsi", "Al-Mansour", "Al-Hassan", "Al-Jabbar", "Al-Sayed", "Al-Najjar", "Al-Amin", "Al-Hakim"]
+                },
+                "Female": {
+                    "first": ["Layla", "Fatima", "Zainab", "Aisha", "Noor", "Yasmin", "Mariam", "Amina", "Hana", "Salma"],
+                    "last": ["Al-Masri", "Al-Rashid", "Al-Farsi", "Al-Mansour", "Al-Hassan", "Al-Jabbar", "Al-Sayed", "Al-Najjar", "Al-Amin", "Al-Hakim"]
+                }
+            },
+            "Native American": {
+                "Male": {
+                    "first": ["Takoda", "Chayton", "Elan", "Ahanu", "Koda", "Tahoma", "Mato", "Nashoba", "Mikasi", "Waya"],
+                    "last": ["Running Bear", "Black Elk", "Red Cloud", "Swift Eagle", "Little Wolf", "Sitting Bull", "Lone Wolf", "White Horse", "Gray Eagle", "Thunder Hawk"]
+                },
+                "Female": {
+                    "first": ["Aiyana", "Kiona", "Tallulah", "Winona", "Cocheta", "Sahkyo", "Kaya", "Nita", "Taini", "Ayasha"],
+                    "last": ["Running Bear", "Black Elk", "Red Cloud", "Swift Eagle", "Little Wolf", "Sitting Bull", "Lone Wolf", "White Horse", "Gray Eagle", "Thunder Hawk"]
+                }
+            },
+            "Pacific Islander": {
+                "Male": {
+                    "first": ["Keanu", "Koa", "Makoa", "Tane", "Rangi", "Mana", "Kai", "Aolani", "Hoku", "Ikaika"],
+                    "last": ["Kealoha", "Kalani", "Kahale", "Mahoe", "Nakamura", "Tavita", "Tuiasosopo", "Fetu", "Moana", "Tui"]
+                },
+                "Female": {
+                    "first": ["Leilani", "Moana", "Nani", "Kailani", "Hina", "Alana", "Mahina", "Iolana", "Keahi", "Nalani"],
+                    "last": ["Kealoha", "Kalani", "Kahale", "Mahoe", "Nakamura", "Tavita", "Tuiasosopo", "Fetu", "Moana", "Tui"]
+                }
+            },
+            "Mixed": {
+                "Male": {
+                    "first": ["Jordan", "Jayden", "Marcus", "Andre", "Malik", "Isaiah", "Xavier", "Elijah", "Cameron", "Derek"],
+                    "last": ["Washington", "Jackson", "Thompson", "Rivera", "Santos", "Mitchell", "Brooks", "Powell", "Foster", "Coleman"]
+                },
+                "Female": {
+                    "first": ["Maya", "Aaliyah", "Jasmine", "Kiara", "Bianca", "Sierra", "Gabriela", "Naomi", "Zara", "Anaya"],
+                    "last": ["Washington", "Jackson", "Thompson", "Rivera", "Santos", "Mitchell", "Brooks", "Powell", "Foster", "Coleman"]
+                }
+            }
+        }
+
+        # Randomly select biological sex and gender (can be different for some profiles)
+        biological_sex = random.choice(["Male", "Female"])
+
+        # 95% of the time gender matches biological sex
+        if random.random() < 0.95:
+            gender = biological_sex
+        else:
+            gender = random.choice(["Male", "Female", "Other", "Prefer not to say"])
+
+        # Get names based on biological sex (for photo generation) and ethnicity
+        # Use biological_sex for name selection to match photo appearance
+        name_gender = biological_sex if biological_sex in ["Male", "Female"] else "Male"
+
+        # Get appropriate names for ethnicity and gender
+        if ethnicity_key in names_by_ethnicity:
+            first_name = random.choice(names_by_ethnicity[ethnicity_key][name_gender]["first"])
+            last_name = random.choice(names_by_ethnicity[ethnicity_key][name_gender]["last"])
+        else:
+            # Fallback to Mixed names if ethnicity not in dictionary
+            first_name = random.choice(names_by_ethnicity["Mixed"][name_gender]["first"])
+            last_name = random.choice(names_by_ethnicity["Mixed"][name_gender]["last"])
+
+        # Generate middle name (optional, 70% chance)
+        middle_name = ""
+        if random.random() < 0.7:
+            if ethnicity_key in names_by_ethnicity:
+                middle_name = random.choice(names_by_ethnicity[ethnicity_key][name_gender]["first"])
+            else:
+                middle_name = random.choice(names_by_ethnicity["Mixed"][name_gender]["first"])
 
         # Random demographics
         age = random.randint(25, 75)
         date_of_birth = datetime.now() - timedelta(days=365*age)
-        gender = random.choice(["Male", "Female"])
-        biological_sex = gender
-        ethnicity = [random.choice(["African", "Asian", "Caucasian/European", "Hispanic/Latino", "Mixed"])]
 
         # Random MRN
         mrn = f"MRN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-        # Random measurements
-        if gender == "Male":
+        # Random measurements based on biological sex (for realistic proportions)
+        if biological_sex == "Male":
             height_cm = random.uniform(165, 190)
             weight_kg = random.uniform(65, 95)
         else:
@@ -489,6 +603,94 @@ class PatientCreator:
 
         # Use MRN directly as ID
         patient_id = mrn
+
+        # Generate diverse birth countries based on ethnicity
+        birth_countries_by_ethnicity = {
+            "African": ["Nigeria", "Kenya", "Ghana", "Ethiopia", "South Africa", "Egypt", "Morocco", "Tanzania", "Uganda", "Senegal"],
+            "Asian": ["China", "India", "Japan", "South Korea", "Pakistan", "Bangladesh", "Vietnam", "Thailand", "Philippines", "Indonesia"],
+            "Caucasian/European": ["USA", "UK", "Germany", "France", "Italy", "Spain", "Poland", "Netherlands", "Belgium", "Sweden"],
+            "Hispanic/Latino": ["Mexico", "Colombia", "Argentina", "Peru", "Venezuela", "Chile", "Ecuador", "Guatemala", "Cuba", "Dominican Republic"],
+            "Middle Eastern": ["Saudi Arabia", "UAE", "Egypt", "Turkey", "Iran", "Iraq", "Jordan", "Lebanon", "Syria", "Morocco"],
+            "Native American": ["USA", "Canada", "Mexico", "Guatemala", "Peru"],
+            "Pacific Islander": ["Hawaii", "Samoa", "Tonga", "Fiji", "New Zealand", "Tahiti", "Guam"],
+            "Mixed": ["USA", "Canada", "UK", "Brazil", "South Africa", "Australia"]
+        }
+
+        birth_country = random.choice(birth_countries_by_ethnicity.get(ethnicity_key, ["USA"]))
+
+        # Generate diverse birth and current cities
+        cities_by_country = {
+            "USA": ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose"],
+            "Belgium": ["Brussels", "Antwerp", "Ghent", "Bruges", "Liège", "Namur", "Leuven"],
+            "Nigeria": ["Lagos", "Abuja", "Kano", "Ibadan", "Port Harcourt"],
+            "Kenya": ["Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret"],
+            "India": ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune"],
+            "China": ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu", "Hangzhou"],
+            "Mexico": ["Mexico City", "Guadalajara", "Monterrey", "Puebla", "Tijuana"],
+            # Add more as needed...
+        }
+
+        # Birth city based on birth country
+        birth_city = random.choice(cities_by_country.get(birth_country, [birth_country]))
+
+        # Current location (60% chance same as birth, 40% migrated)
+        if random.random() < 0.6:
+            current_country = birth_country
+            current_city = birth_city
+        else:
+            # Migrated - common destinations
+            current_country = random.choice(["Belgium", "USA", "UK", "Germany", "Canada", "Australia"])
+            current_city = random.choice(cities_by_country.get(current_country, [current_country]))
+
+        # Generate contact information
+        phone = f"+{random.randint(1, 99)}-{random.randint(100, 999)}-{random.randint(1000000, 9999999)}"
+        email = f"{first_name.lower()}.{last_name.lower().replace(' ', '')}@example.com"
+
+        # Emergency contact
+        emergency_contact_names = {
+            "Male": ["spouse", "partner", "brother", "father", "son"],
+            "Female": ["spouse", "partner", "sister", "mother", "daughter"]
+        }
+        emergency_relation = random.choice(emergency_contact_names.get(biological_sex, ["spouse"]))
+        emergency_contact = f"{first_name}'s {emergency_relation}"
+        emergency_phone = f"+{random.randint(1, 99)}-{random.randint(100, 999)}-{random.randint(1000000, 9999999)}"
+
+        # Address and postal code
+        address = f"{random.randint(1, 9999)} {random.choice(['Main', 'Oak', 'Maple', 'Cedar', 'Elm', 'Pine', 'Washington', 'Park', 'Lake'])} {random.choice(['Street', 'Avenue', 'Road', 'Boulevard', 'Lane', 'Drive'])}"
+        postal_code = f"{random.randint(1000, 9999)}"
+
+        # Language based on birth country
+        languages_by_country = {
+            "Belgium": "Dutch",
+            "France": "French",
+            "Germany": "German",
+            "Spain": "Spanish",
+            "China": "Chinese",
+            "Japan": "Japanese",
+            "India": "Hindi",
+            "Mexico": "Spanish",
+            "Brazil": "Portuguese",
+            "Saudi Arabia": "Arabic",
+            "Egypt": "Arabic",
+            "Nigeria": "English",
+            "Kenya": "English"
+        }
+        language = languages_by_country.get(birth_country, "English")
+        interpreter_needed = language not in ["English", "Dutch", "French", "German"] and random.random() < 0.3
+
+        # Insurance information (70% have insurance)
+        if random.random() < 0.7:
+            insurance_providers = ["Blue Cross", "Aetna", "United Healthcare", "Cigna", "Humana", "Kaiser Permanente", "Medicare", "Medicaid"]
+            insurance_provider = random.choice(insurance_providers)
+            insurance_policy = f"{random.choice(['BC', 'AE', 'UH', 'CI', 'HM', 'KP'])}-{random.randint(100000, 999999)}"
+        else:
+            insurance_provider = ""
+            insurance_policy = ""
+
+        # Primary care physician
+        pcp_names = ["Dr. Smith", "Dr. Johnson", "Dr. Williams", "Dr. Brown", "Dr. Jones", "Dr. Garcia", "Dr. Martinez", "Dr. Lee", "Dr. Patel", "Dr. Kim"]
+        pcp_name = random.choice(pcp_names)
+        pcp_contact = f"+{random.randint(1, 99)}-{random.randint(100, 999)}-{random.randint(1000000, 9999999)}"
 
         patient_profile = {
             "patient_id": patient_id,
@@ -506,12 +708,17 @@ class PatientCreator:
                     "foaf:familyName": last_name,
                     "schema:givenName": first_name,
                     "schema:familyName": last_name,
+                    "schema:additionalName": middle_name,
                     "preferredName": first_name,
                     "schema:birthDate": date_of_birth.isoformat(),
                     "age": age,
                     "schema:gender": gender_uri,
                     "biological_sex": biological_sex,
                     "ethnicity": ethnicity,
+                    "schema:birthPlace": {
+                        "gn:name": birth_city,
+                        "country": birth_country
+                    },
                     "schema:weight": {
                         "@type": "schema:QuantitativeValue",
                         "schema:value": round(weight_kg, 1),
@@ -526,6 +733,28 @@ class PatientCreator:
                     },
                     "bmi": round(bmi, 1),
                     "mrn": mrn,
+                    "current_location": {
+                        "address": address,
+                        "city": current_city,
+                        "country": current_country,
+                        "postal_code": postal_code
+                    },
+                    "contact": {
+                        "phone": phone,
+                        "email": email,
+                        "emergency_contact": emergency_contact,
+                        "emergency_phone": emergency_phone
+                    },
+                    "language": language,
+                    "interpreter_needed": interpreter_needed,
+                    "insurance": {
+                        "provider": insurance_provider,
+                        "policy_number": insurance_policy
+                    },
+                    "pcp": {
+                        "name": pcp_name,
+                        "contact": pcp_contact
+                    },
                     "note": "Auto-generated patient profile for testing"
                 },
                 "current_conditions": [],
@@ -562,10 +791,11 @@ class PatientCreator:
             # If generation fails, just use empty lists
             pass
 
-        # Add top-level demographics shortcut
+        # Add top-level demographics shortcut (for compatibility with other components)
         patient_profile['demographics'] = {
             'first_name': first_name,
             'last_name': last_name,
+            'middle_name': middle_name,
             'preferred_name': first_name,
             'mrn': mrn,
             'age': age,
@@ -573,7 +803,25 @@ class PatientCreator:
             'biological_sex': biological_sex,
             'date_of_birth': date_of_birth.isoformat(),
             'ethnicity': ethnicity,
-            'birth_country': 'USA'  # Default for random generation
+            'birth_city': birth_city,
+            'birth_country': birth_country,
+            'current_city': current_city,
+            'current_country': current_country,
+            'address': address,
+            'postal_code': postal_code,
+            'phone': phone,
+            'email': email,
+            'emergency_contact': emergency_contact,
+            'emergency_phone': emergency_phone,
+            'language': language,
+            'interpreter_needed': interpreter_needed,
+            'insurance_provider': insurance_provider,
+            'insurance_policy': insurance_policy,
+            'pcp_name': pcp_name,
+            'pcp_contact': pcp_contact,
+            'height': height_cm,
+            'weight': weight_kg,
+            'bmi': round(bmi, 1)
         }
 
         # Generate AI photo if requested
