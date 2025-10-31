@@ -80,7 +80,8 @@ class AIPhotoGenerator:
         try:
             # Extract key demographics with defensive type handling
             age = demo.get('age') or 45
-            gender = demo.get('gender') or 'Male'
+            # Use biological_sex for photo generation (physical appearance), fall back to gender
+            gender = demo.get('biological_sex') or demo.get('gender') or 'Male'
             ethnicity_raw = demo.get('ethnicity')
             if isinstance(ethnicity_raw, list) and len(ethnicity_raw) > 0:
                 ethnicity = ethnicity_raw[0]
