@@ -123,14 +123,28 @@ def normalize_dashboard_profile_to_jsonld(dashboard_profile: Dict[str, Any]) -> 
         ci["demographics"] = ci_demo
 
     # Bring over current conditions/medications/labs if present
+    # Check both at root level (for backward compatibility) AND in clinical_information
+    source_ci = dashboard_profile.get("clinical_information", {})
+
     if dashboard_profile.get("current_conditions"):
         ci["current_conditions"] = dashboard_profile["current_conditions"]
+    elif source_ci.get("current_conditions"):
+        ci["current_conditions"] = source_ci["current_conditions"]
+
     if dashboard_profile.get("current_medications"):
         ci["current_medications"] = dashboard_profile["current_medications"]
+    elif source_ci.get("current_medications"):
+        ci["current_medications"] = source_ci["current_medications"]
+
     if dashboard_profile.get("organ_function"):
         ci["organ_function"] = dashboard_profile["organ_function"]
+    elif source_ci.get("organ_function"):
+        ci["organ_function"] = source_ci["organ_function"]
+
     if dashboard_profile.get("lifestyle_factors"):
         ci["lifestyle_factors"] = dashboard_profile["lifestyle_factors"]
+    elif source_ci.get("lifestyle_factors"):
+        ci["lifestyle_factors"] = source_ci["lifestyle_factors"]
 
     # Also copy any manual_enrichment block into clinical_information
     if dashboard_profile.get("manual_enrichment"):
