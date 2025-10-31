@@ -784,7 +784,7 @@ class EnhancedStoryboardV2:
             script = script_tpl.replace("__PLAN__", plan_json).replace("__SPEED__", str(speed_json))
             full_html += script
         with ph.container():
-            components.html(full_html, height=800, scrolling=True)
+            components.html(full_html, height=1100, scrolling=False)
 
     def set_demo_plan(self, plan: List[Dict[str, Any]], speed_ms: int = 800):
         """Set a client-side demo plan for smooth built-in animation without Streamlit rerenders."""
