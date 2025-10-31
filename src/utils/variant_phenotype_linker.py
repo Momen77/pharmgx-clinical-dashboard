@@ -562,16 +562,89 @@ class VariantPhenotypeLinker:
                 or ""
             )
         patient_med_names = {_med_display_name2(med).lower(): med for med in patient_medications}
+
+        # Helper to extract DrugBank id from a medication dict
+        def _drugbank_id(med: Dict) -> Optional[str]:
+            return med.get("drugbank:id") or med.get("drugbank_id")
+
+        # Optional gene->metabolizer map if present on profile
+        def _get_gene_metabolizer(gene_symbol: str) -> Tuple[Optional[str], Optional[str]]:
+            # Try known locations in the profile for phenotype/diplotype
+            phenotype = None
+            diplotype = None
+            try:
+                # Some profiles may carry a per-gene block
+                per_gene = {}
+                if isinstance(variants, list):
+                    # If any variant objects embed metabolizer info per gene (rare)
+                    for v in variants:
+                        if v.get("gene") == gene_symbol:
+                            mp = v.get("metabolizer_phenotype") or {}
+                            if isinstance(mp, dict):
+                                phenotype = phenotype or mp.get("phenotype")
+                                diplotype = diplotype or mp.get("diplotype")
+                # Fallback: none
+            except Exception:
+                pass
+            return phenotype, diplotype
+
+        # Exact NAME match links
         for variant_drug in variant_drugs:
             drug_name = variant_drug.get("name", "").lower()
             if drug_name in patient_med_names:
+                patient_med = patient_med_names[drug_name]
                 for variant_ref in variant_drug.get("variants", []):
+                    gene_symbol = variant_ref.get("gene")
+                    phenotype_label, diplotype_label = _get_gene_metabolizer(gene_symbol or "")
                     links["medication_to_variant"].append({
-                        "medication": patient_med_names[drug_name],
+                        "medication": _med_display_name2(patient_med),
+                        "drugbank_id": _drugbank_id(patient_med),
+                        "gene": gene_symbol,
+                        "diplotype": diplotype_label,
+                        "phenotype": phenotype_label,
+                        "interaction_type": variant_drug.get("interaction_type"),
+                        "clinical_significance": (variant_drug.get("evidence_levels") or [None])[0],
+                        "recommendation": (variant_drug.get("recommendations") or [{}])[0].get("recommendation"),
                         "variant": variant_ref,
                         "drug_name": variant_drug.get("name"),
-                        "link_type": "PATIENT_MEDICATION_AFFECTED_BY_VARIANT"
+                        "link_type": "PATIENT_MEDICATION_AFFECTED_BY_VARIANT",
+                        "match_method": "EXACT_NAME"
                     })
+
+        # SNOMED CT CODE match links (more robust)
+        patient_snomed_codes = {
+            mapping.get("code"): mapping.get("medication")
+            for mapping in patient_medication_codes.values()
+            if isinstance(mapping, dict) and mapping.get("code") and mapping.get("medication")
+        }
+        variant_snomed_codes = {
+            mapping.get("code"): mapping.get("drug_info")
+            for mapping in variant_drug_codes.values()
+            if isinstance(mapping, dict) and mapping.get("code") and mapping.get("drug_info")
+        }
+
+        matching_codes = set(patient_snomed_codes.keys()) & set(variant_snomed_codes.keys())
+        for snomed_code in matching_codes:
+            patient_med = patient_snomed_codes[snomed_code]
+            variant_drug = variant_snomed_codes[snomed_code]
+            for variant_ref in variant_drug.get("variants", []):
+                gene_symbol = variant_ref.get("gene")
+                phenotype_label, diplotype_label = _get_gene_metabolizer(gene_symbol or "")
+                links["medication_to_variant"].append({
+                    "medication": _med_display_name2(patient_med),
+                    "drugbank_id": _drugbank_id(patient_med),
+                    "gene": gene_symbol,
+                    "diplotype": diplotype_label,
+                    "phenotype": phenotype_label,
+                    "interaction_type": variant_drug.get("interaction_type"),
+                    "clinical_significance": (variant_drug.get("evidence_levels") or [None])[0],
+                    "recommendation": (variant_drug.get("recommendations") or [{}])[0].get("recommendation"),
+                    "variant": variant_ref,
+                    "drug_name": variant_drug.get("name"),
+                    "snomed_code": snomed_code,
+                    "link_type": "PATIENT_MEDICATION_AFFECTED_BY_VARIANT",
+                    "match_method": "SNOMED_CT_CODE"
+                })
         
         # Link conditions to variant-related diseases (using SNOMED CT)
         patient_condition_snomed = {
@@ -605,13 +678,18 @@ class VariantPhenotypeLinker:
                 "link_type": "VARIANT_ASSOCIATED_WITH_PHENOTYPE"
             })
         
-        # Link drugs to variants
+        # Link drugs to variants (drug-centric), include SNOMED and evidence context if available
         for variant_drug in variant_drugs:
+            snomed_entry = variant_drug_codes.get(variant_drug.get("name")) or {}
+            snomed_code = snomed_entry.get("code") if isinstance(snomed_entry, dict) else None
             for variant_ref in variant_drug.get("variants", []):
                 links["drug_to_variant"].append({
                     "drug_name": variant_drug.get("name"),
+                    "snomed_code": snomed_code,
                     "variant": variant_ref,
+                    "interaction_type": variant_drug.get("interaction_type"),
                     "recommendations": variant_drug.get("recommendations", []),
+                    "evidence_levels": variant_drug.get("evidence_levels", []),
                     "link_type": "DRUG_AFFECTED_BY_VARIANT"
                 })
         
