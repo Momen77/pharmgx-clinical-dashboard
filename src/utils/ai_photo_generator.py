@@ -474,12 +474,8 @@ class AIPhotoGenerator:
                 "imagen-4.0-generate-001",
                 "imagen-4.0-ultra-generate-001",
                 "imagen-4.0-fast-generate-001",
-                # Imagen 3 updated code (2025)
-                "imagen-3.0-generate-002",
-                "imagen-3.0-generate-001",
-                "imagen-3.0-fast-generate-001",
-                # NOTE: imagen-3.0-fast, imagen-3.0-nano, and imagen-3.0-capability-001 are DEPRECATED
-                # They are removed from the list to avoid 404 errors
+                # NOTE: Most Imagen 3 models are deprecated. Only Imagen 4 is actively supported.
+                # The auto-discovery fallback will handle finding available Imagen 3 models if needed.
             ]
 
             response = None
