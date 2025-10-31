@@ -24,7 +24,8 @@ dependencies:
     - qrcode>=7.4.0
     
     # AI photo generation (optional)
-    - google-genai>=0.2.0
+    # Use latest version for best Imagen model support
+    - google-genai>=0.7.0
     
     # Testing and development
     - pytest>=7.4.0

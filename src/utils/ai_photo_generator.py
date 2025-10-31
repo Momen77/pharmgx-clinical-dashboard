@@ -466,6 +466,7 @@ class AIPhotoGenerator:
                     aspect_ratio="1:1",
                 )
 
+            print(f"🎨 Starting image generation with Google Imagen API (SDK version: {version})...")
             # Try supported models in order, stop on first that works
             # Prefer latest public model codes; fall back to older ones if enabled
             candidate_models = [
@@ -512,12 +513,19 @@ class AIPhotoGenerator:
                 print("🔍 No pre-configured models worked. Discovering available models...")
                 try:
                     models = client.models.list()
+                    model_list = list(models)  # Convert to list for easier iteration
+                    # Debug: print capabilities for first few imagen models
+                    imagen_preview = [m for m in model_list if "imagen" in getattr(m, "name", "").lower()][:3]
+                    for m in imagen_preview:
+                        caps = getattr(m, "supported_generation_methods", []) or getattr(m, "supportedMethods", [])
+                        print(f"🔍 Model {getattr(m, 'name', 'unknown')}: methods={caps}")
+                    
                     # Prefer imagen-4, then imagen-3 families that support generate_images
                     def supports_image_gen(m):
                         caps = getattr(m, "supported_generation_methods", []) or getattr(m, "supportedMethods", [])
                         return any("generate_images" in str(c).lower() for c in caps)
 
-                    image_models = [m for m in models if supports_image_gen(m)]
+                    image_models = [m for m in model_list if supports_image_gen(m)]
                     # Sort preference: imagen-4 first, then imagen-3, else anything with generate_images
                     def score(m):
                         name = getattr(m, "name", "") or ""
@@ -536,14 +544,39 @@ class AIPhotoGenerator:
                         else:
                             response = client.models.generate_images(model=chosen, prompt=prompt)
                     else:
-                        all_model_names = [getattr(m, "name", "unknown") for m in models]
-                        self.last_error = f"No image-capable models available for this API key/project. Available models: {all_model_names}. Last error: {last_exc}"
-                        print(f"❌ {self.last_error}")
-                        return None
+                        # If no models passed the filter, try imagen models anyway by name
+                        print("⚠️  No models matched generate_images capability filter. Trying imagen models by name...")
+                        imagen_models = [m for m in model_list if "imagen" in getattr(m, "name", "").lower()]
+                        if imagen_models:
+                            imagen_models.sort(key=lambda m: (
+                                0 if "imagen-4" in getattr(m, "name", "") else 1,
+                                0 if "generate" in getattr(m, "name", "") else 1
+                            ))
+                            chosen = imagen_models[0].name
+                            print(f"📸 Trying imagen model by name: {chosen}")
+                            try:
+                                if cfg is not None:
+                                    response = client.models.generate_images(model=chosen, prompt=prompt, config=cfg)
+                                else:
+                                    response = client.models.generate_images(model=chosen, prompt=prompt)
+                            except Exception as e:
+                                print(f"❌ Auto-discovery failed: {e}")
+                                self.last_error = f"Tried auto-discovered model {chosen} but it failed: {e}"
+                        else:
+                            all_model_names = [getattr(m, "name", "unknown") for m in model_list]
+                            self.last_error = f"No image-capable models available for this API key/project. Available models: {all_model_names}. Last error: {last_exc}"
+                            print(f"❌ {self.last_error}")
+                            return None
                 except Exception as e:
                     self.last_error = f"Model discovery failed and candidates unavailable. Last error: {last_exc}; discovery error: {e}"
                     print(f"❌ {self.last_error}")
                     return None
+
+            # Check if we got a response before trying to extract bytes
+            if response is None:
+                self.last_error = f"All model attempts failed. Last error: {last_exc}"
+                print(f"❌ {self.last_error}")
+                return None
 
             # Extract bytes across possible response shapes
             image_bytes: Optional[bytes] = None
