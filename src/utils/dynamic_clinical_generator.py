@@ -41,40 +41,44 @@ class DynamicClinicalGenerator:
     def get_conditions_by_age_lifestyle(self, age: int, lifestyle_factors: List[Dict]) -> List[Dict]:
         """
         Dynamically query SNOMED CT for conditions based on age and lifestyle
-        
+
         Args:
             age: Patient age
             lifestyle_factors: List of lifestyle factors (smoking, alcohol, etc.)
-            
+
         Returns:
             List of condition dictionaries with SNOMED CT codes
         """
         conditions = []
-        
+
         # Define age-based condition search terms
         age_queries = self._get_age_based_queries(age)
-        
+
         # Define lifestyle-based condition queries
         lifestyle_queries = self._get_lifestyle_queries(lifestyle_factors)
-        
+
         # Combine and query SNOMED CT
         all_queries = age_queries + lifestyle_queries
-        
-        # Query each term and select conditions probabilistically
+
+        # Try ALL queries (not probabilistic) to maximize API data retrieval
+        print(f"  🔍 Attempting to query {len(all_queries)} potential conditions from APIs...")
         for query_term, probability in all_queries:
-            if random.random() < probability:
+            # Increased probability threshold to get more conditions from APIs
+            if random.random() < min(probability * 2.5, 0.95):  # Boost probabilities, cap at 95%
                 condition = self._search_snomed_condition(query_term)
                 if condition:
                     conditions.append(condition)
-        
-        # Add random common conditions with base probabilities
+                    print(f"    ✅ Found via API: {condition.get('rdfs:label')}")
+
+        # Add random common conditions with boosted probabilities
         common_conditions = self._get_common_conditions_by_age(age)
         for condition_query, prob in common_conditions:
-            if random.random() < prob:
+            if random.random() < min(prob * 2.0, 0.90):  # Boost common condition probabilities
                 condition = self._search_snomed_condition(condition_query)
                 if condition:
                     conditions.append(condition)
-        
+                    print(f"    ✅ Found via API: {condition.get('rdfs:label')}")
+
         # Remove duplicates
         seen_codes = set()
         unique_conditions = []
@@ -84,8 +88,11 @@ class DynamicClinicalGenerator:
                 seen_codes.add(code)
                 unique_conditions.append(cond)
 
-        # FALLBACK: If no conditions were found (APIs failed), use static data
-        if not unique_conditions:
+        print(f"  📊 Total conditions from APIs: {len(unique_conditions)}")
+
+        # FALLBACK: If insufficient conditions (< 2), use static data as LAST RESORT
+        if len(unique_conditions) < 2:
+            print(f"  ⚠️  Only {len(unique_conditions)} conditions from APIs - using static fallback for comprehensive data")
             unique_conditions = self._get_static_conditions_by_age(age, lifestyle_factors)
 
         return unique_conditions[:5]  # Limit to 5 conditions max
@@ -1018,89 +1025,112 @@ class DynamicClinicalGenerator:
 
         conditions = []
 
-        # Age-based selection (probabilistic)
+        # Age-based selection with MUCH HIGHER probabilities for comprehensive profiles
         if age >= 60:
-            # Older adults more likely to have chronic conditions
-            if random.random() < 0.35:
+            # Older adults - typically have 3-4 chronic conditions
+            if random.random() < 0.85:  # 85% chance
                 conditions.append(static_conditions["hypertension"])
-            if random.random() < 0.25:
-                conditions.append(static_conditions["diabetes_type2"])
-            if random.random() < 0.30:
+            if random.random() < 0.70:  # 70% chance
                 conditions.append(static_conditions["hyperlipidemia"])
-            if random.random() < 0.20:
+            if random.random() < 0.60:  # 60% chance
+                conditions.append(static_conditions["diabetes_type2"])
+            if random.random() < 0.50:  # 50% chance
                 conditions.append(static_conditions["osteoarthritis"])
-            if random.random() < 0.15:
+            if random.random() < 0.40:  # 40% chance
                 conditions.append(static_conditions["gerd"])
         elif age >= 40:
-            # Middle-aged
-            if random.random() < 0.25:
+            # Middle-aged - typically have 2-3 conditions
+            if random.random() < 0.70:  # 70% chance
                 conditions.append(static_conditions["hypertension"])
-            if random.random() < 0.18:
-                conditions.append(static_conditions["diabetes_type2"])
-            if random.random() < 0.20:
+            if random.random() < 0.65:  # 65% chance
                 conditions.append(static_conditions["hyperlipidemia"])
-            if random.random() < 0.15:
+            if random.random() < 0.45:  # 45% chance
+                conditions.append(static_conditions["diabetes_type2"])
+            if random.random() < 0.50:  # 50% chance
                 conditions.append(static_conditions["gerd"])
-            if random.random() < 0.12:
+            if random.random() < 0.35:  # 35% chance
                 conditions.append(static_conditions["depression"])
         else:
-            # Younger adults
-            if random.random() < 0.15:
+            # Younger adults - typically have 2-3 conditions
+            if random.random() < 0.50:  # 50% chance
                 conditions.append(static_conditions["asthma"])
-            if random.random() < 0.12:
+            if random.random() < 0.45:  # 45% chance
                 conditions.append(static_conditions["anxiety"])
-            if random.random() < 0.10:
+            if random.random() < 0.55:  # 55% chance
                 conditions.append(static_conditions["allergic_rhinitis"])
-            if random.random() < 0.10:
+            if random.random() < 0.40:  # 40% chance
                 conditions.append(static_conditions["depression"])
 
         # Lifestyle-based additions
         is_smoker = any(f.get('factor_type') == 'smoking' and f.get('status') == 'current'
                        for f in lifestyle_factors if isinstance(f, dict))
-        if is_smoker and random.random() < 0.25:
+        if is_smoker and random.random() < 0.60:  # 60% for smokers
             conditions.append(static_conditions["copd"])
 
-        # Ensure at least 1-2 conditions for realistic profiles
-        if not conditions:
-            # Pick 1-2 common conditions randomly
-            pool = ["hyperlipidemia", "gerd", "allergic_rhinitis"]
-            for _ in range(random.randint(1, 2)):
-                cond_key = random.choice(pool)
+        # GUARANTEE at least 3 conditions for comprehensive profiles
+        if len(conditions) < 3:
+            # Add common conditions until we have at least 3
+            pool_keys = ["hyperlipidemia", "gerd", "allergic_rhinitis", "hypertension", "anxiety"]
+            random.shuffle(pool_keys)
+            for cond_key in pool_keys:
                 if static_conditions[cond_key] not in conditions:
                     conditions.append(static_conditions[cond_key])
+                    if len(conditions) >= 3:
+                        break
 
-        return conditions[:5]  # Limit to 5
+        print(f"    📋 Static fallback generated {len(conditions)} conditions")
+        return conditions[:5]  # Limit to 5 max
 
     def _get_static_medications_for_conditions(self, conditions: List[Dict]) -> List[Dict]:
         """
         Static fallback: Generate medications based on conditions
         Used when API calls fail to ensure profiles always have medication data
+        Now includes MULTIPLE medications per condition for realistic combination therapy
         """
-        # Common medications for conditions (real DrugBank IDs)
+        # Comprehensive medication map with MULTIPLE drugs per condition (real DrugBank IDs)
         medication_map = {
-            "38341003": [  # Hypertension
+            "38341003": [  # Hypertension - typically needs 2-3 drugs
                 {
                     "@id": "http://go.drugbank.com/drugs/DB00945",
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB00945",
                     "rdfs:label": "Aspirin",
-                    "indication": "Cardiovascular protection"
+                    "indication": "Cardiovascular protection",
+                    "source": "evidence_based"
                 },
                 {
                     "@id": "http://go.drugbank.com/drugs/DB00492",
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB00492",
                     "rdfs:label": "Fosinopril",
-                    "indication": "Hypertension"
+                    "indication": "Hypertension (ACE inhibitor)",
+                    "source": "evidence_based"
+                },
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00999",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00999",
+                    "rdfs:label": "Hydrochlorothiazide",
+                    "indication": "Hypertension (diuretic)",
+                    "source": "evidence_based"
                 }
             ],
-            "44054006": [  # Diabetes type 2
+            "44054006": [  # Diabetes type 2 - often needs 2 drugs
                 {
                     "@id": "http://go.drugbank.com/drugs/DB00331",
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB00331",
                     "rdfs:label": "Metformin",
-                    "indication": "Type 2 diabetes mellitus"
+                    "indication": "Type 2 diabetes mellitus (first-line)",
+                    "source": "evidence_based"
+                },
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00046",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00046",
+                    "rdfs:label": "Insulin lispro",
+                    "indication": "Type 2 diabetes mellitus (supplemental)",
+                    "source": "evidence_based"
                 }
             ],
             "55822004": [  # Hyperlipidemia
@@ -1109,16 +1139,34 @@ class DynamicClinicalGenerator:
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB01076",
                     "rdfs:label": "Atorvastatin",
-                    "indication": "Hyperlipidemia"
+                    "indication": "Hyperlipidemia (statin)",
+                    "source": "evidence_based"
+                },
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00973",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00973",
+                    "rdfs:label": "Ezetimibe",
+                    "indication": "Hyperlipidemia (cholesterol absorption inhibitor)",
+                    "source": "evidence_based"
                 }
             ],
-            "396275006": [  # Osteoarthritis
+            "396275006": [  # Osteoarthritis - may need 2 drugs
                 {
                     "@id": "http://go.drugbank.com/drugs/DB00328",
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB00328",
                     "rdfs:label": "Indomethacin",
-                    "indication": "Pain and inflammation"
+                    "indication": "Pain and inflammation (NSAID)",
+                    "source": "evidence_based"
+                },
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00316",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00316",
+                    "rdfs:label": "Acetaminophen",
+                    "indication": "Pain relief",
+                    "source": "evidence_based"
                 }
             ],
             "235595009": [  # GERD
@@ -1127,16 +1175,26 @@ class DynamicClinicalGenerator:
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB00338",
                     "rdfs:label": "Omeprazole",
-                    "indication": "Gastroesophageal reflux disease"
+                    "indication": "Gastroesophageal reflux disease (PPI)",
+                    "source": "evidence_based"
                 }
             ],
-            "195967001": [  # Asthma
+            "195967001": [  # Asthma - typically needs 2 drugs (controller + rescue)
                 {
-                    "@id": "http://go.drugbank.com/drugs/DB00841",
+                    "@id": "http://go.drugbank.com/drugs/DB01001",
                     "@type": "sdisco:Drug",
-                    "drugbank:id": "DB00841",
-                    "rdfs:label": "Dobutamine",
-                    "indication": "Asthma"
+                    "drugbank:id": "DB01001",
+                    "rdfs:label": "Salbutamol",
+                    "indication": "Asthma (rescue inhaler)",
+                    "source": "evidence_based"
+                },
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00588",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00588",
+                    "rdfs:label": "Fluticasone",
+                    "indication": "Asthma (controller inhaler)",
+                    "source": "evidence_based"
                 }
             ],
             "35489007": [  # Depression
@@ -1145,7 +1203,8 @@ class DynamicClinicalGenerator:
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB00472",
                     "rdfs:label": "Fluoxetine",
-                    "indication": "Depression"
+                    "indication": "Depression (SSRI)",
+                    "source": "evidence_based"
                 }
             ],
             "48694002": [  # Anxiety
@@ -1154,16 +1213,26 @@ class DynamicClinicalGenerator:
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB00404",
                     "rdfs:label": "Alprazolam",
-                    "indication": "Anxiety disorder"
+                    "indication": "Anxiety disorder (benzodiazepine)",
+                    "source": "evidence_based"
                 }
             ],
-            "13645005": [  # COPD
+            "13645005": [  # COPD - typically needs 2-3 drugs
                 {
-                    "@id": "http://go.drugbank.com/drugs/DB00802",
+                    "@id": "http://go.drugbank.com/drugs/DB00697",
                     "@type": "sdisco:Drug",
-                    "drugbank:id": "DB00802",
-                    "rdfs:label": "Alfacalcidol",
-                    "indication": "COPD"
+                    "drugbank:id": "DB00697",
+                    "rdfs:label": "Tiotropium",
+                    "indication": "COPD (long-acting bronchodilator)",
+                    "source": "evidence_based"
+                },
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB01001",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB01001",
+                    "rdfs:label": "Salbutamol",
+                    "indication": "COPD (rescue bronchodilator)",
+                    "source": "evidence_based"
                 }
             ],
             "61582004": [  # Allergic rhinitis
@@ -1172,7 +1241,8 @@ class DynamicClinicalGenerator:
                     "@type": "sdisco:Drug",
                     "drugbank:id": "DB00341",
                     "rdfs:label": "Cetirizine",
-                    "indication": "Allergic rhinitis"
+                    "indication": "Allergic rhinitis (antihistamine)",
+                    "source": "evidence_based"
                 }
             ]
         }
@@ -1180,7 +1250,7 @@ class DynamicClinicalGenerator:
         medications = []
         seen_drugbank_ids = set()
 
-        # Get medications for each condition
+        # Get ALL medications for each condition (not just first one)
         for condition in conditions:
             snomed_code = condition.get("snomed:code")
             if snomed_code in medication_map:
@@ -1189,6 +1259,8 @@ class DynamicClinicalGenerator:
                     if drugbank_id not in seen_drugbank_ids:
                         medications.append(med)
                         seen_drugbank_ids.add(drugbank_id)
+                        print(f"      💊 Added medication: {med.get('rdfs:label')}")
 
-        return medications[:8]  # Limit to 8 medications
+        print(f"    📋 Static fallback generated {len(medications)} medications for {len(conditions)} conditions")
+        return medications[:10]  # Increased limit to 10 medications
 
