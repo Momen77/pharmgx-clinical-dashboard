@@ -140,12 +140,22 @@ class PatientCreator:
             # Ethnicity
             st.subheader("Ethnicity & Race")
             ethnicity_options = [
-                "African", "Asian", "Caucasian/European", "Hispanic/Latino",
-                "Middle Eastern", "Native American", "Pacific Islander", "Mixed", "Other"
+                "African",
+                "South Asian",
+                "East Asian",
+                "Southeast Asian",
+                "Caucasian/European",
+                "Hispanic/Latino",
+                "Middle Eastern",
+                "Native American",
+                "Pacific Islander",
+                "Mixed",
+                "Other"
             ]
             ethnicity = st.multiselect(
                 "Select Ethnicity/Race (important for PGx variant frequencies)",
-                ethnicity_options
+                ethnicity_options,
+                help="Examples: South Asian (Indian, Pakistani, Bangladeshi), East Asian (Chinese, Japanese, Korean), Southeast Asian (Thai, Vietnamese, Filipino). Indians typically fall under South Asian (within Asian)."
             )
             
             # Birthplace and Location
@@ -179,8 +189,29 @@ class PatientCreator:
                 mrn = st.text_input("Medical Record Number (MRN)", 
                                    value=f"MRN-{datetime.now().strftime('%Y%m%d%H%M%S')}" if mrn_auto else "")
             with col2:
-                language = st.selectbox("Primary Language", 
-                                       ["English", "Dutch", "French", "German", "Spanish", "Other"])
+                language = st.selectbox(
+                    "Primary Language",
+                    [
+                        "English",
+                        "Arabic",
+                        "Chinese",
+                        "Dutch",
+                        "French",
+                        "German",
+                        "Hindi",
+                        "Italian",
+                        "Japanese",
+                        "Korean",
+                        "Portuguese",
+                        "Russian",
+                        "Spanish",
+                        "Turkish",
+                        "Urdu",
+                        "Bengali",
+                        "Persian (Farsi)",
+                        "Other",
+                    ],
+                )
                 interpreter_needed = st.checkbox("Interpreter needed", value=False)
             
             # Insurance (Optional)
