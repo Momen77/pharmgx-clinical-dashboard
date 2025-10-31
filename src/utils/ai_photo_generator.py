@@ -466,7 +466,7 @@ class AIPhotoGenerator:
                     aspect_ratio="1:1",
                 )
 
-            print(f"🎨 Starting image generation with Google Imagen API (SDK version: {version})...")
+            print(f"🎨 Starting image generation")
             # Try supported models in order, stop on first that works
             # Prefer latest public model codes; fall back to older ones if enabled
             candidate_models = [
@@ -478,8 +478,7 @@ class AIPhotoGenerator:
                 "imagen-3.0-generate-002",
                 "imagen-3.0-generate-001",
                 "imagen-3.0-fast-generate-001",
-                "imagen-3.0-capability-001"
-                # NOTE: imagen-3.0-fast and imagen-3.0-nano are DEPRECATED as of Feb 2025
+                # NOTE: imagen-3.0-fast, imagen-3.0-nano, and imagen-3.0-capability-001 are DEPRECATED
                 # They are removed from the list to avoid 404 errors
             ]
 
@@ -505,7 +504,9 @@ class AIPhotoGenerator:
                     # Try next model on NOT_FOUND or unsupported errors
                     error_str = str(e)
                     if "404" in error_str or "NOT_FOUND" in error_str:
-                        print(f"⚠️  Model {model_id} not found, trying next...")
+                        print(f"⚠️  Model {model_id} not found (404), trying next...")
+                    else:
+                        print(f"⚠️  Model {model_id} failed with error: {str(e)[:200]}")
                     continue
 
             if response is None:
