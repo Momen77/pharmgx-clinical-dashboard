@@ -129,13 +129,33 @@ class AIPhotoGenerator:
             # Overwrite prompt_parts with more specific face_block
             prompt_parts = [face_block]
 
-            # Base description
-            prompt_parts += [
-                f"Professional medical portrait photograph of a {age}-year-old {gender.lower()} patient",
+            # Base description with strong gender anchoring
+            gender_l = gender.lower().strip()
+            gender_anchor = "adult person"
+            gender_positive = None
+            gender_negative = None
+            if gender_l == "male":
+                gender_anchor = "adult man, male"
+                # Strong positive/negative anchors to avoid gender flips in some models
+                gender_positive = "clearly male facial features, masculine jawline, no makeup"
+                gender_negative = "not female, not woman, no feminine makeup"
+            elif gender_l == "female":
+                gender_anchor = "adult woman, female"
+                gender_positive = "clearly female facial features, soft feminine traits"
+                gender_negative = "not male, not man, no facial hair"
+
+            base_desc = [
+                f"Professional medical portrait photograph of a {age}-year-old {gender_anchor}",
                 f"of {ethnicity_desc}",
                 "neutral background, soft lighting, facing camera",
                 "realistic photographic style, high quality"
             ]
+            if gender_positive:
+                base_desc.append(gender_positive)
+            if gender_negative:
+                base_desc.append(gender_negative)
+
+            prompt_parts += base_desc
         except Exception as e:
             # Log details for debugging
             self.last_error = (
