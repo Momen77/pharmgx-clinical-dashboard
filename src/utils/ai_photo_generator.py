@@ -469,15 +469,17 @@ class AIPhotoGenerator:
             # Try supported models in order, stop on first that works
             # Prefer latest public model codes; fall back to older ones if enabled
             candidate_models = [
-                # Imagen 4 family (2025)
+                # Imagen 4 family (2025) - Generally Available
                 "imagen-4.0-generate-001",
                 "imagen-4.0-ultra-generate-001",
                 "imagen-4.0-fast-generate-001",
-                # Imagen 3 updated code (Feb 2025)
+                # Imagen 3 updated code (2025)
                 "imagen-3.0-generate-002",
-                # Older/alternative names (if project has legacy access)
-                "imagen-3.0-fast",
-                "imagen-3.0-nano"
+                "imagen-3.0-generate-001",
+                "imagen-3.0-fast-generate-001",
+                "imagen-3.0-capability-001"
+                # NOTE: imagen-3.0-fast and imagen-3.0-nano are DEPRECATED as of Feb 2025
+                # They are removed from the list to avoid 404 errors
             ]
 
             response = None
@@ -495,14 +497,19 @@ class AIPhotoGenerator:
                             model=model_id,
                             prompt=prompt
                         )
+                    print(f"✅ Successfully using model: {model_id}")
                     break
                 except Exception as e:
                     last_exc = e
                     # Try next model on NOT_FOUND or unsupported errors
+                    error_str = str(e)
+                    if "404" in error_str or "NOT_FOUND" in error_str:
+                        print(f"⚠️  Model {model_id} not found, trying next...")
                     continue
 
             if response is None:
                 # As a last resort, discover available models dynamically
+                print("🔍 No pre-configured models worked. Discovering available models...")
                 try:
                     models = client.models.list()
                     # Prefer imagen-4, then imagen-3 families that support generate_images
@@ -523,12 +530,14 @@ class AIPhotoGenerator:
 
                     if image_models:
                         chosen = image_models[0].name
+                        print(f"📸 Auto-discovered working model: {chosen}")
                         if cfg is not None:
                             response = client.models.generate_images(model=chosen, prompt=prompt, config=cfg)
                         else:
                             response = client.models.generate_images(model=chosen, prompt=prompt)
                     else:
-                        self.last_error = f"No image-capable models available for this API key/project. Last error: {last_exc}"
+                        all_model_names = [getattr(m, "name", "unknown") for m in models]
+                        self.last_error = f"No image-capable models available for this API key/project. Available models: {all_model_names}. Last error: {last_exc}"
                         print(f"❌ {self.last_error}")
                         return None
                 except Exception as e:
