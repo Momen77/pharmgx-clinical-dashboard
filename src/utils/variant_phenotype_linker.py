@@ -287,7 +287,13 @@ class VariantPhenotypeLinker:
         mappings = {}
         
         for med in medications:
-            drug_name = med.get("name") or med.get("drug_name", "")
+            drug_name = (
+                med.get("name")
+                or med.get("drug_name")
+                or med.get("rdfs:label")
+                or med.get("schema:name")
+                or ""
+            )
             if not drug_name:
                 continue
             
@@ -413,7 +419,15 @@ class VariantPhenotypeLinker:
         conflicts = []
         
         # Normalize drug names for comparison
-        patient_drug_names = {med.get("name", "").lower(): med for med in patient_medications}
+        def _med_display_name(m: Dict) -> str:
+            return (
+                m.get("name")
+                or m.get("drug_name")
+                or m.get("rdfs:label")
+                or m.get("schema:name")
+                or ""
+            )
+        patient_drug_names = {_med_display_name(med).lower(): med for med in patient_medications}
         variant_drug_names = {drug.get("name", "").lower(): drug for drug in variant_drugs}
         
         # Check exact name matches
@@ -539,7 +553,15 @@ class VariantPhenotypeLinker:
         }
         
         # Link medications to variants
-        patient_med_names = {med.get("name", "").lower(): med for med in patient_medications}
+        def _med_display_name2(m: Dict) -> str:
+            return (
+                m.get("name")
+                or m.get("drug_name")
+                or m.get("rdfs:label")
+                or m.get("schema:name")
+                or ""
+            )
+        patient_med_names = {_med_display_name2(med).lower(): med for med in patient_medications}
         for variant_drug in variant_drugs:
             drug_name = variant_drug.get("name", "").lower()
             if drug_name in patient_med_names:

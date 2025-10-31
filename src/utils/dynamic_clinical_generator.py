@@ -862,34 +862,86 @@ class DynamicClinicalGenerator:
             return None
         
         try:
-            # Search SNOMED CT for substance
+            # Search SNOMED CT for substance with multiple strategies
             url = f"{self.bioportal_base}/search"
-            params = {
-                "q": f"{drug_name} (substance)",
+            base_params = {
                 "ontologies": "SNOMEDCT",
                 "apikey": self.bioportal_api_key,
-                "pagesize": 1
+                "pagesize": 5
             }
-            
+
+            def extract_first_code(resp: Dict) -> Optional[str]:
+                if resp and resp.get("collection"):
+                    # Prefer substance or product concepts if available
+                    for item in resp["collection"]:
+                        types = (item.get("@type") or []) if isinstance(item.get("@type"), list) else [item.get("@type")]
+                        if any(t and "Substance" in t for t in types) or any(t and "Product" in t for t in types):
+                            uri = item.get("@id", "")
+                            return uri.split("/")[-1] if uri else None
+                    # Fallback: first result
+                    uri = resp["collection"][0].get("@id", "")
+                    return uri.split("/")[-1] if uri else None
+                return None
+
+            # Strategy A: explicit substance qualifier
+            params = {**base_params, "q": f"{drug_name} (substance)"}
             response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
-            
-            if response and response.get("collection"):
-                result = response["collection"][0]
-                snomed_uri = result.get("@id", "")
-                snomed_code = snomed_uri.split("/")[-1] if snomed_uri else None
-                return snomed_code
-            
-            # Fallback: try without "(substance)" qualifier
-            params["q"] = drug_name
+            code = extract_first_code(response)
+            if code:
+                return code
+
+            # Strategy B: plain drug name
+            params = {**base_params, "q": drug_name}
             response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
-            
-            if response and response.get("collection"):
-                result = response["collection"][0]
-                snomed_uri = result.get("@id", "")
-                snomed_code = snomed_uri.split("/")[-1] if snomed_uri else None
-                return snomed_code
-                
-        except Exception as e:
+            code = extract_first_code(response)
+            if code:
+                return code
+
+            # Strategy C: common synonyms (lowercase variants)
+            synonyms = {drug_name}
+            lower = drug_name.lower()
+            if lower.endswith("e"):  # e.g., omeprazole
+                synonyms.add(lower)
+            if "-" in lower:
+                synonyms.add(lower.replace("-", " "))
+            for term in synonyms:
+                params = {**base_params, "q": term}
+                response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
+                code = extract_first_code(response)
+                if code:
+                    return code
+
+            # Strategy D: RxNorm-assisted search – standardize name via RxNorm
+            rxnorm = self._get_rxnorm_for_drug(drug_name)
+            rx_name_candidates: List[str] = []
+            if rxnorm and rxnorm.get("rxnorm_cui"):
+                # Get standardized RxNorm name (if available)
+                try:
+                    cui = rxnorm["rxnorm_cui"]
+                    # Use RxNorm display name endpoint
+                    rx_resp = self.rxnorm_client.get(f"rxcui/{cui}/property.json?propName=RxNorm%20Name")
+                    rx_name = None
+                    if rx_resp and rx_resp.get("propConceptGroup"):
+                        groups = rx_resp["propConceptGroup"].get("propConcept") or []
+                        if groups and isinstance(groups, list):
+                            rx_name = groups[0].get("propValue")
+                    if rx_name:
+                        rx_name_candidates.append(rx_name)
+                except Exception:
+                    pass
+            for term in rx_name_candidates:
+                params = {**base_params, "q": term}
+                response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
+                code = extract_first_code(response)
+                if code:
+                    return code
+                params = {**base_params, "q": f"{term} (substance)"}
+                response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
+                code = extract_first_code(response)
+                if code:
+                    return code
+
+        except Exception:
             # Silent fail - SNOMED CT is optional
             pass
         

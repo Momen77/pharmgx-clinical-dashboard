@@ -952,12 +952,62 @@ class PGxPipeline:
                 condition_meds = self.dynamic_clinical.get_drugs_for_condition(snomed_code, condition_label)
                 medications.extend(condition_meds)
         
-        return {
+        clinical_info = {
             "demographics": demographics,
             "current_conditions": conditions,
             "current_medications": medications,
             "organ_function": self._generate_organ_function(),
             "lifestyle_factors": lifestyle_factors
+        }
+
+        # Post-generation SNOMED validation summary
+        clinical_info["snomed_validation"] = self._validate_snomed(clinical_info)
+
+        return clinical_info
+
+    def _validate_snomed(self, clinical_info: dict) -> dict:
+        """Validate presence of SNOMED codes across clinical info and emit a concise summary"""
+        missing = {"conditions": [], "medications": [], "lifestyle": [], "labs": []}
+
+        # Conditions
+        for c in clinical_info.get("current_conditions", []) or []:
+            if not c.get("snomed:code"):
+                missing["conditions"].append(c.get("rdfs:label") or c.get("skos:prefLabel") or c.get("search_term") or "")
+
+        # Medications
+        for m in clinical_info.get("current_medications", []) or []:
+            if not m.get("snomed:code"):
+                name = m.get("name") or m.get("drug_name") or m.get("rdfs:label") or m.get("schema:name") or ""
+                missing["medications"].append(name)
+
+        # Lifestyle
+        for lf in clinical_info.get("lifestyle_factors", []) or []:
+            if not lf.get("snomed:code") and lf.get("factor_type") in ("smoking", "alcohol", "diet"):
+                missing["lifestyle"].append(lf.get("rdfs:label") or lf.get("skos:prefLabel") or lf.get("factor_type") or "")
+
+        # Labs
+        organ = clinical_info.get("organ_function", {}) or {}
+        kidney = (organ.get("kidney_function", {}) or {}).get("creatinine_clearance", {})
+        if kidney and not kidney.get("snomed:code"):
+            missing["labs"].append("creatinine_clearance")
+        alt = (organ.get("liver_function", {}) or {}).get("alt", {})
+        if alt and not alt.get("snomed:code"):
+            missing["labs"].append("ALT")
+        ast = (organ.get("liver_function", {}) or {}).get("ast", {})
+        if ast and not ast.get("snomed:code"):
+            missing["labs"].append("AST")
+
+        totals = {
+            "conditions": len(clinical_info.get("current_conditions", []) or []),
+            "medications": len(clinical_info.get("current_medications", []) or []),
+            "lifestyle": len(clinical_info.get("lifestyle_factors", []) or []),
+            "labs": 3  # we check 3 lab entries above
+        }
+
+        return {
+            "totals": totals,
+            "missing_counts": {k: len(v) for k, v in missing.items()},
+            "missing_examples": {k: v[:5] for k, v in missing.items() if v}
         }
     
     def _generate_demographics(self) -> dict:
@@ -1343,6 +1393,61 @@ class PGxPipeline:
         smoking_copy.pop("probability")
         factors.append(smoking_copy)
         
+        # Alcohol consumption
+        alcohol_options = [
+            {
+                "@id": "http://snomed.info/id/228273003",
+                "@type": "sdisco:LifestyleFactor",
+                "snomed:code": "228273003",
+                "rdfs:label": "Drinks alcohol",
+                "skos:prefLabel": "Moderate alcohol consumption",
+                "factor_type": "alcohol",
+                "frequency": f"{random.randint(1, 14)} drinks/week",
+                "note": "May affect CYP2E1 and liver function"
+            },
+            {
+                "@id": "http://snomed.info/id/228276006",
+                "@type": "sdisco:LifestyleFactor",
+                "snomed:code": "228276006",
+                "rdfs:label": "Does not drink alcohol",
+                "skos:prefLabel": "Non-drinker",
+                "factor_type": "alcohol",
+                "note": "No alcohol-related drug interactions"
+            }
+        ]
+        factors.append(random.choice(alcohol_options))
+
+        # Exercise frequency (no stable SNOMED code used here yet)
+        exercise_choice = random.choice([
+            {
+                "@type": "sdisco:LifestyleFactor",
+                "factor_type": "exercise",
+                "rdfs:label": "Regular exercise",
+                "frequency": f"{random.randint(2, 7)} times/week",
+                "note": "May improve drug metabolism"
+            },
+            {
+                "@type": "sdisco:LifestyleFactor",
+                "factor_type": "exercise",
+                "rdfs:label": "Sedentary lifestyle",
+                "frequency": "Minimal physical activity",
+                "note": "May affect drug distribution"
+            }
+        ])
+        factors.append(exercise_choice)
+
+        # Grapefruit consumption (important for CYP3A4)
+        if random.random() < 0.3:
+            factors.append({
+                "@id": "http://snomed.info/id/226529007",
+                "@type": "sdisco:LifestyleFactor",
+                "snomed:code": "226529007",
+                "factor_type": "diet",
+                "rdfs:label": "Regular grapefruit consumption",
+                "frequency": "Daily",
+                "note": "IMPORTANT: Inhibits CYP3A4 - affects many drugs"
+            })
+
         return factors
     
     def _generate_clinical_summary(self, variants: list) -> dict:
