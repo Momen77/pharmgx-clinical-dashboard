@@ -83,7 +83,11 @@ class DynamicClinicalGenerator:
             if code and code not in seen_codes:
                 seen_codes.add(code)
                 unique_conditions.append(cond)
-        
+
+        # FALLBACK: If no conditions were found (APIs failed), use static data
+        if not unique_conditions:
+            unique_conditions = self._get_static_conditions_by_age(age, lifestyle_factors)
+
         return unique_conditions[:5]  # Limit to 5 conditions max
     
     def _get_age_based_queries(self, age: int) -> List[tuple]:
@@ -334,6 +338,16 @@ class DynamicClinicalGenerator:
                     selected.extend(random.sample(remaining, min(needed, len(remaining))))
             
             return selected[:num_drugs_needed]
+
+        # FALLBACK: If no medications found (all APIs failed), use static mapping
+        if not unique_meds:
+            print(f"    ⚠️  No drugs found via APIs, using static fallback for: {condition_label}")
+            static_meds = self._get_static_medications_for_conditions([{
+                "snomed:code": snomed_code,
+                "rdfs:label": condition_label
+            }])
+            return static_meds
+
         return unique_meds
     
     def _determine_drug_count_needed(self, condition_label: str, snomed_code: str) -> int:
@@ -910,6 +924,271 @@ class DynamicClinicalGenerator:
         
         if significant_words:
             return significant_words[0].lower()
-        
+
         return condition_label.split()[0] if condition_label else ""
+
+    def _get_static_conditions_by_age(self, age: int, lifestyle_factors: List[Dict]) -> List[Dict]:
+        """
+        Static fallback: Generate realistic conditions based on age and lifestyle
+        Used when API calls fail to ensure profiles always have some clinical data
+        """
+        # Common conditions with SNOMED codes (real codes for common conditions)
+        static_conditions = {
+            "hypertension": {
+                "@id": "http://snomed.info/id/38341003",
+                "@type": "sdisco:Condition",
+                "snomed:code": "38341003",
+                "rdfs:label": "Essential hypertension",
+                "skos:prefLabel": "Essential hypertension",
+                "search_term": "hypertension"
+            },
+            "diabetes_type2": {
+                "@id": "http://snomed.info/id/44054006",
+                "@type": "sdisco:Condition",
+                "snomed:code": "44054006",
+                "rdfs:label": "Diabetes mellitus type 2",
+                "skos:prefLabel": "Diabetes mellitus type 2",
+                "search_term": "diabetes type 2"
+            },
+            "hyperlipidemia": {
+                "@id": "http://snomed.info/id/55822004",
+                "@type": "sdisco:Condition",
+                "snomed:code": "55822004",
+                "rdfs:label": "Hyperlipidemia",
+                "skos:prefLabel": "Hyperlipidemia",
+                "search_term": "high cholesterol"
+            },
+            "osteoarthritis": {
+                "@id": "http://snomed.info/id/396275006",
+                "@type": "sdisco:Condition",
+                "snomed:code": "396275006",
+                "rdfs:label": "Osteoarthritis",
+                "skos:prefLabel": "Osteoarthritis",
+                "search_term": "osteoarthritis"
+            },
+            "gerd": {
+                "@id": "http://snomed.info/id/235595009",
+                "@type": "sdisco:Condition",
+                "snomed:code": "235595009",
+                "rdfs:label": "Gastroesophageal reflux disease",
+                "skos:prefLabel": "GERD",
+                "search_term": "GERD"
+            },
+            "asthma": {
+                "@id": "http://snomed.info/id/195967001",
+                "@type": "sdisco:Condition",
+                "snomed:code": "195967001",
+                "rdfs:label": "Asthma",
+                "skos:prefLabel": "Asthma",
+                "search_term": "asthma"
+            },
+            "depression": {
+                "@id": "http://snomed.info/id/35489007",
+                "@type": "sdisco:Condition",
+                "snomed:code": "35489007",
+                "rdfs:label": "Depressive disorder",
+                "skos:prefLabel": "Depression",
+                "search_term": "depression"
+            },
+            "anxiety": {
+                "@id": "http://snomed.info/id/48694002",
+                "@type": "sdisco:Condition",
+                "snomed:code": "48694002",
+                "rdfs:label": "Anxiety disorder",
+                "skos:prefLabel": "Anxiety",
+                "search_term": "anxiety"
+            },
+            "copd": {
+                "@id": "http://snomed.info/id/13645005",
+                "@type": "sdisco:Condition",
+                "snomed:code": "13645005",
+                "rdfs:label": "Chronic obstructive pulmonary disease",
+                "skos:prefLabel": "COPD",
+                "search_term": "COPD"
+            },
+            "allergic_rhinitis": {
+                "@id": "http://snomed.info/id/61582004",
+                "@type": "sdisco:Condition",
+                "snomed:code": "61582004",
+                "rdfs:label": "Allergic rhinitis",
+                "skos:prefLabel": "Allergic rhinitis",
+                "search_term": "allergies"
+            }
+        }
+
+        conditions = []
+
+        # Age-based selection (probabilistic)
+        if age >= 60:
+            # Older adults more likely to have chronic conditions
+            if random.random() < 0.35:
+                conditions.append(static_conditions["hypertension"])
+            if random.random() < 0.25:
+                conditions.append(static_conditions["diabetes_type2"])
+            if random.random() < 0.30:
+                conditions.append(static_conditions["hyperlipidemia"])
+            if random.random() < 0.20:
+                conditions.append(static_conditions["osteoarthritis"])
+            if random.random() < 0.15:
+                conditions.append(static_conditions["gerd"])
+        elif age >= 40:
+            # Middle-aged
+            if random.random() < 0.25:
+                conditions.append(static_conditions["hypertension"])
+            if random.random() < 0.18:
+                conditions.append(static_conditions["diabetes_type2"])
+            if random.random() < 0.20:
+                conditions.append(static_conditions["hyperlipidemia"])
+            if random.random() < 0.15:
+                conditions.append(static_conditions["gerd"])
+            if random.random() < 0.12:
+                conditions.append(static_conditions["depression"])
+        else:
+            # Younger adults
+            if random.random() < 0.15:
+                conditions.append(static_conditions["asthma"])
+            if random.random() < 0.12:
+                conditions.append(static_conditions["anxiety"])
+            if random.random() < 0.10:
+                conditions.append(static_conditions["allergic_rhinitis"])
+            if random.random() < 0.10:
+                conditions.append(static_conditions["depression"])
+
+        # Lifestyle-based additions
+        is_smoker = any(f.get('factor_type') == 'smoking' and f.get('status') == 'current'
+                       for f in lifestyle_factors if isinstance(f, dict))
+        if is_smoker and random.random() < 0.25:
+            conditions.append(static_conditions["copd"])
+
+        # Ensure at least 1-2 conditions for realistic profiles
+        if not conditions:
+            # Pick 1-2 common conditions randomly
+            pool = ["hyperlipidemia", "gerd", "allergic_rhinitis"]
+            for _ in range(random.randint(1, 2)):
+                cond_key = random.choice(pool)
+                if static_conditions[cond_key] not in conditions:
+                    conditions.append(static_conditions[cond_key])
+
+        return conditions[:5]  # Limit to 5
+
+    def _get_static_medications_for_conditions(self, conditions: List[Dict]) -> List[Dict]:
+        """
+        Static fallback: Generate medications based on conditions
+        Used when API calls fail to ensure profiles always have medication data
+        """
+        # Common medications for conditions (real DrugBank IDs)
+        medication_map = {
+            "38341003": [  # Hypertension
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00945",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00945",
+                    "rdfs:label": "Aspirin",
+                    "indication": "Cardiovascular protection"
+                },
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00492",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00492",
+                    "rdfs:label": "Fosinopril",
+                    "indication": "Hypertension"
+                }
+            ],
+            "44054006": [  # Diabetes type 2
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00331",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00331",
+                    "rdfs:label": "Metformin",
+                    "indication": "Type 2 diabetes mellitus"
+                }
+            ],
+            "55822004": [  # Hyperlipidemia
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB01076",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB01076",
+                    "rdfs:label": "Atorvastatin",
+                    "indication": "Hyperlipidemia"
+                }
+            ],
+            "396275006": [  # Osteoarthritis
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00328",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00328",
+                    "rdfs:label": "Indomethacin",
+                    "indication": "Pain and inflammation"
+                }
+            ],
+            "235595009": [  # GERD
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00338",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00338",
+                    "rdfs:label": "Omeprazole",
+                    "indication": "Gastroesophageal reflux disease"
+                }
+            ],
+            "195967001": [  # Asthma
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00841",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00841",
+                    "rdfs:label": "Dobutamine",
+                    "indication": "Asthma"
+                }
+            ],
+            "35489007": [  # Depression
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00472",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00472",
+                    "rdfs:label": "Fluoxetine",
+                    "indication": "Depression"
+                }
+            ],
+            "48694002": [  # Anxiety
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00404",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00404",
+                    "rdfs:label": "Alprazolam",
+                    "indication": "Anxiety disorder"
+                }
+            ],
+            "13645005": [  # COPD
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00802",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00802",
+                    "rdfs:label": "Alfacalcidol",
+                    "indication": "COPD"
+                }
+            ],
+            "61582004": [  # Allergic rhinitis
+                {
+                    "@id": "http://go.drugbank.com/drugs/DB00341",
+                    "@type": "sdisco:Drug",
+                    "drugbank:id": "DB00341",
+                    "rdfs:label": "Cetirizine",
+                    "indication": "Allergic rhinitis"
+                }
+            ]
+        }
+
+        medications = []
+        seen_drugbank_ids = set()
+
+        # Get medications for each condition
+        for condition in conditions:
+            snomed_code = condition.get("snomed:code")
+            if snomed_code in medication_map:
+                for med in medication_map[snomed_code]:
+                    drugbank_id = med.get("drugbank:id")
+                    if drugbank_id not in seen_drugbank_ids:
+                        medications.append(med)
+                        seen_drugbank_ids.add(drugbank_id)
+
+        return medications[:8]  # Limit to 8 medications
 
