@@ -561,6 +561,10 @@ elif page == "🔬 Run Test":
                 import threading
                 import time
 
+                # Initialize storyboard_finish_time IMMEDIATELY after imports
+                # This ensures it's always defined even if later code fails
+                storyboard_finish_time = time.time() + 120  # Default: 2 minutes from now
+
                 event_queue = queue.Queue()
                 result_queue = queue.Queue()
                 cancel_event = threading.Event()
@@ -663,8 +667,7 @@ elif page == "🔬 Run Test":
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
                 # Prepare enhanced storyboard in Run Test (real pipeline)
-                # Initialize storyboard_finish_time to a default value
-                storyboard_finish_time = time.time() + 120  # Default: 2 minutes from now
+                # storyboard_finish_time already initialized above after imports
                 sb = None
                 
                 try:
