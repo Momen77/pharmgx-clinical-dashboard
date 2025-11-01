@@ -479,12 +479,13 @@ elif page == "🔬 Run Test":
                 key="run_test_main_button"
             )
 
-        # Set session state when button is clicked to hide test summary
+        # Only show test summary if test is NOT running
+        # When button is clicked, set test_running flag and hide summary
         if run_test_button:
-            st.session_state['test_started'] = True
-
-        # Only show test summary if test hasn't started
-        if not st.session_state.get('test_started', False):
+            st.session_state['test_running'] = True
+        
+        # Hide test summary when test is running
+        if not st.session_state.get('test_running', False):
             # Show test summary
             st.subheader("Test Summary")
 
@@ -544,13 +545,6 @@ elif page == "🔬 Run Test":
                 st.write(f"Config path: {config_path}")
                 st.write(f"Profile keys: {list(profile.keys())}")
 
-            # Initialize imports and storyboard_finish_time BEFORE try block
-            # This ensures the variable is always defined, even if try block fails
-            import queue
-            import threading
-            import time
-            storyboard_finish_time = time.time() + 120  # Default: 2 minutes from now
-
             try:
                 # Run pipeline (storyboard handles visual stages and status)
                 
@@ -564,6 +558,9 @@ elif page == "🔬 Run Test":
                 # ==============================================
                 # Use queue to avoid ScriptRunContext errors when
                 # worker threads emit events
+                import queue
+                import threading
+                import time
 
                 event_queue = queue.Queue()
                 result_queue = queue.Queue()
@@ -666,10 +663,7 @@ elif page == "🔬 Run Test":
                 # Snapshot selected genes from session in main thread
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
-                # Prepare enhanced storyboard in Run Test (real pipeline)
-                # storyboard_finish_time already initialized above after imports
-                sb = None
-                
+            # Prepare enhanced storyboard in Run Test (real pipeline)
                 try:
                     # Reset storyboard placeholder so we don't stack instances
                     if not st.session_state.get('_sb_initialized'):
@@ -704,7 +698,6 @@ elif page == "🔬 Run Test":
                     storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
                 except Exception:
                     sb = None
-                    # storyboard_finish_time already initialized above
 
                 # Worker function that runs pipeline in background thread
                 def run_pipeline_worker():
@@ -840,6 +833,7 @@ elif page == "🔬 Run Test":
                     st.json(results)
             
             except Exception as e:
+                st.session_state['test_running'] = False  # Reset flag on error
                 st.error(f"❌ Pipeline failed: {e}")
                 import traceback
                 with st.expander("🐛 Error Details", expanded=True):
@@ -850,6 +844,7 @@ elif page == "🔬 Run Test":
             if results.get('success'):
                 st.session_state['test_results'] = results
                 st.session_state['test_complete'] = True
+                st.session_state['test_running'] = False  # Reset flag when test completes
                 st.success("✅ Analysis Complete!")
                 st.info("➡️ **Next:** Go to **📊 View Results** to see the full report and interactive knowledge graph.")
 
@@ -875,6 +870,7 @@ elif page == "🔬 Run Test":
                     for t, p in results['comprehensive_outputs'].items():
                         st.text(f"• {t}: {p}")
             else:
+                st.session_state['test_running'] = False  # Reset flag on failure
                 st.error(f"❌ Test failed: {results.get('error', 'Unknown error')}")
 
 elif page == "📊 View Results":
