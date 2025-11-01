@@ -841,6 +841,12 @@ class PGxPipeline:
         if dashboard_profile and "clinical_information" in dashboard_profile:
             print("✅ Using patient profile from dashboard")
             clinical_info = dashboard_profile["clinical_information"]
+            # Enrich medications from dashboard with SNOMED codes
+            if "current_medications" in clinical_info:
+                print("🔍 Enriching medications with SNOMED codes...")
+                from utils.medication_enricher import MedicationEnricher
+                enricher = MedicationEnricher(self.dynamic_clinical)
+                clinical_info["current_medications"] = enricher.enrich_medications(clinical_info["current_medications"])
             # Don't override patient_id - it was already extracted correctly in run_multi_gene
         else:
             print("🔄 Generating new clinical information")

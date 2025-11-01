@@ -538,13 +538,18 @@ class DynamicClinicalGenerator:
                             if condition_result and condition_result.get("snomed:code"):
                                 condition_snomed_code = condition_result["snomed:code"]
                     
-                    # Always add treats_condition if we have a code
-                    if condition_snomed_code:
+                    # Always add treats_condition if we have a VALID code (never null)
+                    if condition_snomed_code and str(condition_snomed_code).strip() and str(condition_snomed_code) != "None":
                         medication["treats_condition"] = {
                             "snomed:code": condition_snomed_code,
                             "rdfs:label": condition_label_for_search,
                             "@id": f"http://snomed.info/id/{condition_snomed_code}"
                         }
+                    # Remove any existing null treats_condition
+                    elif "treats_condition" in medication:
+                        existing_tc = medication.get("treats_condition", {})
+                        if not existing_tc.get("snomed:code") or str(existing_tc.get("snomed:code")) == "None":
+                            del medication["treats_condition"]
                     
                     if rxnorm_info:
                         medication["rxnorm"] = rxnorm_info
@@ -870,20 +875,25 @@ class DynamicClinicalGenerator:
             }
             
             # ALWAYS add treats_condition with SNOMED code - try to find it if missing
-            condition_snomed_code = snomed_code
+            condition_snomed_code = snomed_code if snomed_code and str(snomed_code).strip() and str(snomed_code) != "None" else None
             if not condition_snomed_code:
                 # Try to find SNOMED code for condition if not provided
                 condition_result = self._search_snomed_condition(condition_label)
                 if condition_result and condition_result.get("snomed:code"):
                     condition_snomed_code = condition_result["snomed:code"]
             
-            # Always add treats_condition if we have a code (never null)
-            if condition_snomed_code:
+            # CRITICAL: Only add treats_condition if we have a VALID non-null code (never null)
+            if condition_snomed_code and str(condition_snomed_code).strip() and str(condition_snomed_code) != "None":
                 medication["treats_condition"] = {
                     "snomed:code": condition_snomed_code,
                     "rdfs:label": condition_label,
                     "@id": f"http://snomed.info/id/{condition_snomed_code}"
                 }
+            # If we have an existing treats_condition with null, remove it
+            elif "treats_condition" in medication:
+                existing_tc = medication.get("treats_condition", {})
+                if not existing_tc.get("snomed:code") or str(existing_tc.get("snomed:code")) == "None":
+                    del medication["treats_condition"]
             
             if rxnorm_info:
                 medication["rxnorm"] = rxnorm_info
