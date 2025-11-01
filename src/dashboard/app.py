@@ -557,6 +557,11 @@ elif page == "🔬 Run Test":
                 import threading
                 import time
 
+                # Initialize storyboard variables early to prevent NameError
+                # These must be initialized before any code path that might use them
+                storyboard_finish_time = time.time() + 600  # Default: 10 minutes in the future
+                storyboard_speed = 10000  # Default storyboard speed (ms per step)
+
                 event_queue = queue.Queue()
                 result_queue = queue.Queue()
                 cancel_event = threading.Event()
@@ -659,8 +664,7 @@ elif page == "🔬 Run Test":
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
                 # Prepare enhanced storyboard in Run Test (real pipeline)
-                # Initialize storyboard_finish_time to prevent NameError if exception occurs
-                storyboard_finish_time = time.time() + 600  # Default: 10 minutes in the future
+                # storyboard_finish_time already initialized above
                 sb = None
                 try:
                     # Reset storyboard placeholder so we don't stack instances
