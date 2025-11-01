@@ -692,7 +692,7 @@ elif page == "🔬 Run Test":
                 except Exception:
                     sb = None
                     # Set a default finish time far in the future if storyboard init fails
-                    storyboard_finish_time = time.time() + 999999
+                    storyboard_finish_time = time.time() 
 
                 # Worker function that runs pipeline in background thread
                 def run_pipeline_worker():
