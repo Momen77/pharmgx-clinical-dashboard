@@ -197,6 +197,7 @@ class PatientCreator:
                         "Chinese",
                         "Dutch",
                         "French",
+                        "Georgian",
                         "German",
                         "Hindi",
                         "Italian",
