@@ -662,7 +662,9 @@ class PGxPipeline:
                         rs = variant_info.get("rsid")
                         if rs:
                             rsid_full = rs if rs.startswith("rs") else f"rs{rs}"
-                            pf_payload = popfreq_service.get_population_frequencies(rsid_full)
+                            # Pass variant raw_data to extract genomic coordinates if available
+                            variant_raw = variant_info.get("raw_data") or variant
+                            pf_payload = popfreq_service.get_population_frequencies(rsid_full, variant_raw_data=variant_raw)
                             freqs = pf_payload.get("frequencies", {})
                             variant_info["population_frequencies"] = freqs
                             variant_info["population_frequency_source"] = pf_payload.get("source")

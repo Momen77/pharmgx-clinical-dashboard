@@ -104,20 +104,63 @@ class VariantDiscoverer:
         
         return data
     
-    def filter_clinical_variants(self, raw_data: Dict) -> List[Dict]:
+    def filter_clinical_variants(self, raw_data: Dict, prefer_population_data: bool = True, prefer_evidence: bool = True) -> List[Dict]:
         """
         Keep only clinically significant variants
+        Optionally prioritizes variants with population frequency data and evidence citations
         
         Args:
             raw_data: Raw variant data from EMBL-EBI
+            prefer_population_data: If True, prioritize variants with populationFrequencies in UniProt data
+            prefer_evidence: If True, prioritize variants with evidence citations (PubMed, etc.)
             
         Returns:
-            List of clinically significant variants
+            List of clinically significant variants (sorted by priority if preferences enabled)
         """
         variants = [
             feature for feature in raw_data.get("features", [])
             if "clinicalSignificances" in feature
         ]
+        
+        # Score variants: higher score = better for population frequency data
+        if prefer_population_data or prefer_evidence:
+            scored_variants = []
+            for variant in variants:
+                score = 0
+                
+                # Prefer variants with embedded population frequency data from UniProt
+                if prefer_population_data:
+                    pop_freqs = variant.get("populationFrequencies", [])
+                    if pop_freqs:
+                        # Has population data in UniProt - high priority
+                        score += 100
+                        # Bonus for having multiple sources (ClinVar + gnomAD)
+                        sources = set(p.get("source", "") for p in pop_freqs if p.get("frequency") is not None)
+                        if len(sources) > 1:
+                            score += 20
+                
+                # Prefer variants with evidence citations (PubMed, etc.)
+                if prefer_evidence:
+                    evidences = variant.get("evidences", [])
+                    if evidences:
+                        score += 50
+                        # Bonus for PubMed citations (clinical/literature evidence)
+                        pubmed_count = sum(1 for e in evidences if e.get("source", {}).get("name") == "pubmed")
+                        if pubmed_count > 0:
+                            score += 30
+                
+                scored_variants.append((score, variant))
+            
+            # Sort by score (descending) - variants with population data and evidence first
+            scored_variants.sort(key=lambda x: x[0], reverse=True)
+            variants = [v for _, v in scored_variants]
+            
+            if prefer_population_data:
+                has_pop = sum(1 for v in variants if v.get("populationFrequencies"))
+                print(f"   {has_pop}/{len(variants)} variants have embedded population frequency data")
+            if prefer_evidence:
+                has_ev = sum(1 for v in variants if v.get("evidences"))
+                print(f"   {has_ev}/{len(variants)} variants have evidence citations")
         
         print(f"   Filtered to {len(variants)} clinically significant variants")
         return variants
@@ -208,11 +251,26 @@ class VariantDiscoverer:
             if category in categorized_variants and categorized_variants[category]:
                 variants = categorized_variants[category]
                 
-                # Select the first variant from this category
+                # Within each category, prefer variants with population frequency data and evidence
+                # Sort variants by: 1) has populationFrequencies, 2) has evidences, 3) original order
+                def variant_priority(v):
+                    score = 0
+                    if v.get("populationFrequencies"):
+                        score += 10  # Prioritize variants with embedded population data
+                    if v.get("evidences"):
+                        score += 5   # Then prefer variants with evidence citations
+                    return -score  # Negative for descending sort
+                
+                variants = sorted(variants, key=variant_priority)
+                
+                # Select the first (highest priority) variant from this category
                 if len(selected_variants) < 2:
                     variant = variants[0].copy()  # Make a copy to preserve evidences
                     selected_variants.append(variant)
                     print(f"   Selected {category} variant: {variant.get('ftId', 'Unknown')}")
+                    if variant.get('populationFrequencies'):
+                        pop_sources = [p.get("source", "") for p in variant['populationFrequencies'] if p.get("frequency") is not None]
+                        print(f"      Has population frequency data from: {', '.join(set(pop_sources))}")
                     if variant.get('evidences'):
                         print(f"      Has {len(variant['evidences'])} evidence entries")
                 
