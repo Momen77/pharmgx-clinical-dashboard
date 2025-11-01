@@ -1663,6 +1663,7 @@ class PGxPipeline:
         """Generate all output formats: JSON-LD, TTL, HTML, Summary JSON, etc."""
         from pathlib import Path
         import json
+        import threading
         
         outputs = {}
         patient_id = profile.get("patient_id", "unknown")
@@ -1670,6 +1671,43 @@ class PGxPipeline:
         # Create comprehensive output directory
         comp_dir = Path("output/comprehensive")
         comp_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Database loading status (for parallel execution)
+        db_status = {"success": False, "error": None, "completed": False}
+        
+        # Start database loading in parallel thread (if enabled)
+        db_thread = None
+        if self.config and self.config.database_enabled:
+            try:
+                from utils.database_loader import DatabaseLoader
+                
+                def load_to_database():
+                    """Load profile to database in background thread"""
+                    try:
+                        db_loader = DatabaseLoader(config_path=self.config.config_path if hasattr(self.config, 'config_path') else None)
+                        result = db_loader.load_patient_profile(profile)
+                        db_status.update(result)
+                        db_status["completed"] = True
+                        db_loader.close()
+                    except Exception as e:
+                        db_status["success"] = False
+                        db_status["error"] = str(e)
+                        db_status["completed"] = True
+                        if self.config.database_non_blocking:
+                            print(f"Database loading failed (non-blocking): {e}")
+                        else:
+                            raise
+                
+                db_thread = threading.Thread(target=load_to_database, daemon=True)
+                db_thread.start()
+                print("✓ Started database loading in parallel thread")
+            except Exception as e:
+                db_status["error"] = str(e)
+                db_status["completed"] = True
+                if self.config.database_non_blocking:
+                    print(f"Could not start database loading (non-blocking): {e}")
+                else:
+                    raise
         
         try:
             # 1. Comprehensive JSON-LD with all gene knowledge graphs merged
@@ -1816,6 +1854,16 @@ class PGxPipeline:
         except Exception as e:
             print(f"Error generating outputs: {e}")
             outputs["error"] = str(e)
+        
+        # Wait for database loading to complete (with timeout)
+        if db_thread and db_thread.is_alive():
+            db_thread.join(timeout=30)  # Wait up to 30 seconds
+            if db_thread.is_alive():
+                print("⚠ Database loading timed out after 30 seconds")
+                db_status["error"] = "Timeout"
+        
+        # Add database status to outputs
+        outputs["db_status"] = db_status
         
         return outputs
     

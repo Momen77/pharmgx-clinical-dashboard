@@ -1,0 +1,170 @@
+"""
+Main Database Loader - Orchestrates all submodules
+Complete Database Loader for Pharmacogenomics Knowledge Base + Patient Data
+✅ SCHEMA-ALIGNED with complete_enhanced_schema.sql
+"""
+
+import logging
+from datetime import datetime
+from typing import Dict, Optional
+from pathlib import Path
+
+from .connection import DatabaseConnection
+from .reference_data import ReferenceDataLoader
+from .patient_core import PatientCoreLoader
+from .patient_clinical import PatientClinicalLoader
+from .patient_variants import PatientVariantsLoader
+from .linking_tables import LinkingTablesLoader
+from .literature import LiteratureLoader
+from .summaries import SummariesLoader
+
+
+class DatabaseLoader:
+    """
+    ✅ SCHEMA-ALIGNED Database Loader
+    
+    Modular structure for easier maintenance and testing:
+    - connection.py: Database connection management
+    - reference_data.py: SNOMED, genes, drugs, variants, PharmGKB annotations
+    - patient_core.py: Patients and demographics tables
+    - patient_clinical.py: Conditions, medications, organ function, lifestyle
+    - patient_variants.py: Patient variants and pharmacogenomics profiles
+    - linking_tables.py: Medication-variant links, conflicts, ethnicity adjustments
+    - literature.py: Publications and linking tables
+    - summaries.py: Clinical and processing summaries
+    """
+    
+    def __init__(self, config_path: str = "config.yaml"):
+        """Initialize the loader with configuration"""
+        from utils.config import get_config
+        self.config = get_config(config_path)
+        
+        # Connection manager
+        self.db_connection = DatabaseConnection(self.config)
+        
+        # Submodule loaders (initialized later with shared caches)
+        self.reference_loader = None
+        self.patient_core_loader = None
+        self.patient_clinical_loader = None
+        self.patient_variants_loader = None
+        self.linking_loader = None
+        self.literature_loader = None
+        self.summaries_loader = None
+        
+        self.logger = self._get_logger()
+    
+    def _get_logger(self) -> logging.Logger:
+        """Configure logger"""
+        logger = logging.getLogger(__name__)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            ))
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+        return logger
+    
+    def load_patient_profile(self, profile: Dict) -> Dict[str, any]:
+        """
+        ✅ SCHEMA-ALIGNED: Load complete patient profile into database
+        
+        5-Phase Loading Strategy:
+        Phase 1: Reference Data (SNOMED, genes, drugs, variants, PharmGKB)
+        Phase 2: Patient Core (patients, demographics)
+        Phase 3: Patient Clinical (conditions, medications, organ function, lifestyle)
+        Phase 4: Patient Variants (pharmacogenomics profiles, patient variants)
+        Phase 5: Linking & Summaries (medication links, conflicts, literature, summaries)
+        
+        Returns:
+            Dict with status: {'success': bool, 'error': str, 'records_inserted': int}
+        """
+        if not self.db_connection.db_enabled:
+            return {'success': False, 'error': 'Database loading is disabled in config'}
+        
+        start_time = datetime.now()
+        connection = None
+        total_records = 0
+        
+        try:
+            # Connect to database
+            connection = self.db_connection.connect()
+            if not connection:
+                return {'success': False, 'error': 'Could not establish database connection'}
+            
+            cursor = connection.cursor()
+            
+            # Initialize submodule loaders
+            self.reference_loader = ReferenceDataLoader()
+            self.patient_core_loader = PatientCoreLoader()
+            self.patient_clinical_loader = PatientClinicalLoader(
+                inserted_drugs=self.reference_loader.inserted_drugs
+            )
+            self.patient_variants_loader = PatientVariantsLoader()
+            self.linking_loader = LinkingTablesLoader(
+                inserted_drugs=self.reference_loader.inserted_drugs,
+                inserted_pharmgkb_annotations=self.reference_loader.inserted_pharmgkb_annotations
+            )
+            self.literature_loader = LiteratureLoader()
+            self.summaries_loader = SummariesLoader()
+            
+            # ✅ PHASE 1: Load Reference Data
+            self.logger.info("📦 PHASE 1: Loading reference data...")
+            total_records += self.reference_loader.load_all(cursor, profile)
+            
+            # ✅ PHASE 2: Load Patient Core Data
+            self.logger.info("👤 PHASE 2: Loading patient core data...")
+            total_records += self.patient_core_loader.load_all(cursor, profile)
+            
+            # ✅ PHASE 3: Load Patient Clinical Data
+            self.logger.info("🏥 PHASE 3: Loading patient clinical data...")
+            total_records += self.patient_clinical_loader.load_all(cursor, profile)
+            
+            # ✅ PHASE 4: Load Patient Variants
+            self.logger.info("🧬 PHASE 4: Loading patient variants...")
+            total_records += self.patient_variants_loader.load_all(cursor, profile)
+            
+            # ✅ PHASE 5: Load Linking Tables & Summaries
+            self.logger.info("🔗 PHASE 5: Loading linking tables and summaries...")
+            total_records += self.linking_loader.load_all(cursor, profile)
+            total_records += self.literature_loader.load_all(cursor, profile)
+            total_records += self.summaries_loader.load_all(cursor, profile)
+            
+            # Commit transaction
+            self.db_connection.commit()
+            
+            duration = (datetime.now() - start_time).total_seconds()
+            self.logger.info(f"✅ Database loading complete: {total_records} records in {duration:.2f}s")
+            
+            return {
+                'success': True,
+                'records_inserted': total_records,
+                'duration_seconds': duration,
+                'patient_id': profile.get('patient_id')
+            }
+        
+        except Exception as e:
+            self.logger.error(f"❌ Database loading failed: {e}")
+            if connection:
+                self.db_connection.rollback()
+            
+            if self.db_connection.non_blocking:
+                return {
+                    'success': False,
+                    'error': str(e),
+                    'non_blocking': True
+                }
+            else:
+                raise
+        
+        finally:
+            self.db_connection.close()
+    
+    def close(self):
+        """Close database connection"""
+        self.db_connection.close()
+
+
+# Backward compatibility
+ComprehensiveDatabaseLoader = DatabaseLoader
+

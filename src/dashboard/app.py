@@ -915,6 +915,14 @@ elif page == "🔬 Run Test":
                     st.subheader("Generated Files")
                     for t, p in results['comprehensive_outputs'].items():
                         st.text(f"• {t}: {p}")
+                
+                # Show database loading status
+                db_status = results.get('comprehensive_outputs', {}).get('db_status') or results.get('db_status')
+                if db_status:
+                    if db_status.get('success'):
+                        st.caption("💾 Patient profile saved to database")
+                    elif db_status.get('error'):
+                        st.caption(f"⚠️ Database storage: {db_status.get('error', 'Failed')}")
             else:
                 st.error(f"❌ Test failed: {results.get('error', 'Unknown error')}")
 

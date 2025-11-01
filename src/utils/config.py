@@ -81,6 +81,16 @@ class Config:
     def max_variants(self) -> int:
         """Get maximum variants per gene"""
         return self.get('output.max_variants_per_gene', 50)
+    
+    @property
+    def database_enabled(self) -> bool:
+        """Check if database loading is enabled"""
+        return self.get('database.enabled', False)
+    
+    @property
+    def database_non_blocking(self) -> bool:
+        """Check if database loading should be non-blocking"""
+        return self.get('database.non_blocking', True)
 
 
 # Singleton instance

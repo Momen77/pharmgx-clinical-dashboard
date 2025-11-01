@@ -27,6 +27,10 @@ dependencies:
     # Use latest version for best Imagen model support
     - google-genai>=0.7.0
     
+    # Database dependencies (for Google Cloud SQL)
+    - google-cloud-sql-connector[pg8000]>=1.0.0
+    - psycopg>=3.0.0
+    
     # Testing and development
     - pytest>=7.4.0
     - notebook>=7.0.0

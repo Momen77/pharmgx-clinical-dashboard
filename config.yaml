@@ -26,3 +26,7 @@ namespaces:
   patient: "http://pgx-kg.org/patient/"
   genotype: "http://pgx-kg.org/genotype/"
 
+database:
+  enabled: true  # Set to true to enable database storage
+  non_blocking: true  # Continue pipeline even if database loading fails
+
