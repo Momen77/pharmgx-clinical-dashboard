@@ -663,6 +663,10 @@ elif page == "🔬 Run Test":
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
             # Prepare enhanced storyboard in Run Test (real pipeline)
+                # Initialize storyboard_finish_time to a default value
+                storyboard_finish_time = time.time() + 120  # Default: 2 minutes from now
+                sb = None
+                
                 try:
                     # Reset storyboard placeholder so we don't stack instances
                     if not st.session_state.get('_sb_initialized'):
@@ -697,6 +701,7 @@ elif page == "🔬 Run Test":
                     storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
                 except Exception:
                     sb = None
+                    # storyboard_finish_time already initialized above
 
                 # Worker function that runs pipeline in background thread
                 def run_pipeline_worker():
