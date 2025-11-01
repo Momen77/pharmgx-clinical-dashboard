@@ -452,9 +452,10 @@ elif page == "🔬 Run Test":
 
     # Initialize storyboard variables early to prevent NameError
     # These must be initialized before any code path that might use them
+    # Use mutable containers to avoid scope issues with reassignment
     import time
-    storyboard_finish_time = time.time() + 600  # Default: 10 minutes in the future
-    storyboard_speed = 10000  # Default storyboard speed (ms per step)
+    storyboard_finish_time = [time.time() + 600]  # Default: 10 minutes in the future (use list to allow mutation)
+    storyboard_speed = [10000]  # Default storyboard speed (ms per step) (use list to allow mutation)
 
     # Preconditions
     if not st.session_state.get('patient_created'):
@@ -669,7 +670,7 @@ elif page == "🔬 Run Test":
                 sb = None
                 
                 # Build storyboard plan and calculate finish time BEFORE try block to avoid scope issues
-                storyboard_speed = 10000  # Use comfortable fixed speed (ms)
+                storyboard_speed[0] = 10000  # Use comfortable fixed speed (ms)
                 sb_plan = [
                     ("lab_prep", "init", "Starting lab preparation...", 0.06),
                     ("lab_prep", "qaqc", "QC checks passed", 0.18),
@@ -683,7 +684,7 @@ elif page == "🔬 Run Test":
                     ("report", "complete", "Storyboard complete", 1.00),
                 ]
                 # Estimate when storyboard finishes (ms per step × steps + small buffer)
-                storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
+                storyboard_finish_time[0] = time.time() + (storyboard_speed[0]/1000.0) * max(1, len(sb_plan)) + 1.0
                 
                 try:
                     # Reset storyboard placeholder so we don't stack instances
@@ -697,7 +698,7 @@ elif page == "🔬 Run Test":
                         sb.set_demo_plan([
                             {"stage": s, "substage": sub, "message": msg, "progress": prog}
                             for s, sub, msg, prog in sb_plan
-                        ], storyboard_speed)
+                        ], storyboard_speed[0])
                         sb.render("Initializing storyboard...")
                         st.session_state['_sb_initialized'] = True
                 except Exception:
@@ -798,7 +799,7 @@ elif page == "🔬 Run Test":
                         worker_done = True
 
                     # If storyboard has completed but backend still running, show extra sections once
-                    if not extra_sections_shown and time.time() > storyboard_finish_time and results is None:
+                    if not extra_sections_shown and time.time() > storyboard_finish_time[0] and results is None:
                         # Update storyboard with a small post-processing plan for visual continuity
                         try:
                             if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render'):
@@ -808,7 +809,7 @@ elif page == "🔬 Run Test":
                                     {"stage": "report", "substage": "quality_checks", "message": "Quality checks...", "progress": 0.995}
                                 ]
                                 # Reuse the same speed to keep feel consistent
-                                sb.set_demo_plan(post_plan, storyboard_speed)
+                                sb.set_demo_plan(post_plan, storyboard_speed[0])
                                 sb.render("Finalizing outputs...")
                         except Exception:
                             pass
