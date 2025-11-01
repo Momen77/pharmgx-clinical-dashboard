@@ -520,19 +520,40 @@ class DynamicClinicalGenerator:
                         "protocol": protocol_info
                     }
                     
-                    # Add treats_condition with SNOMED code if available
-                    if snomed_code:
+                    # Add treats_condition with SNOMED code - always try to find it
+                    condition_snomed_code = snomed_code
+                    condition_label_for_search = condition_label
+                    
+                    # If snomed_code not provided, try to get from indication_name
+                    if not condition_snomed_code:
+                        indication_name = indication.get("indication_name", "")
+                        if indication_name:
+                            condition_label_for_search = indication_name
+                            condition_result = self._search_snomed_condition(indication_name)
+                            if condition_result and condition_result.get("snomed:code"):
+                                condition_snomed_code = condition_result["snomed:code"]
+                        else:
+                            # Last resort: search using condition_label
+                            condition_result = self._search_snomed_condition(condition_label)
+                            if condition_result and condition_result.get("snomed:code"):
+                                condition_snomed_code = condition_result["snomed:code"]
+                    
+                    # Always add treats_condition if we have a code
+                    if condition_snomed_code:
                         medication["treats_condition"] = {
-                            "snomed:code": snomed_code,
-                            "rdfs:label": condition_label,
-                            "@id": f"http://snomed.info/id/{snomed_code}"
+                            "snomed:code": condition_snomed_code,
+                            "rdfs:label": condition_label_for_search,
+                            "@id": f"http://snomed.info/id/{condition_snomed_code}"
                         }
                     
                     if rxnorm_info:
                         medication["rxnorm"] = rxnorm_info
                     
-                    # Add SNOMED CT code for medication (substance)
+                    # ALWAYS add SNOMED CT code for medication (substance) - try multiple strategies
                     drug_snomed_code = self._get_snomed_code_for_drug(molecule_name)
+                    if not drug_snomed_code:
+                        # Try alternative searches if first attempt failed
+                        drug_snomed_code = self._get_snomed_code_for_drug(molecule_name.lower())
                     if drug_snomed_code:
                         medication["snomed:code"] = drug_snomed_code
                         medication["snomed:uri"] = f"http://snomed.info/id/{drug_snomed_code}"
@@ -666,7 +687,7 @@ class DynamicClinicalGenerator:
                         "source": "rxnorm"
                     }
                     
-                    # Try to find SNOMED code for the condition
+                    # ALWAYS try to find SNOMED code for the condition
                     condition_result = self._search_snomed_condition(condition)
                     if condition_result and condition_result.get("snomed:code"):
                         medication["treats_condition"] = {
@@ -675,10 +696,16 @@ class DynamicClinicalGenerator:
                             "@id": condition_result.get("@id", f"http://snomed.info/id/{condition_result['snomed:code']}")
                         }
                     
-                    # Add SNOMED CT code if found
-                    if snomed_code:
-                        medication["snomed:code"] = snomed_code
-                        medication["snomed:uri"] = f"http://snomed.info/id/{snomed_code}"
+                    # ALWAYS add SNOMED CT code for drug substance - try multiple attempts if needed
+                    drug_snomed_code = snomed_code
+                    if not drug_snomed_code:
+                        drug_snomed_code = self._get_snomed_code_for_drug(drug_name)
+                    if not drug_snomed_code:
+                        # Try lowercase variant
+                        drug_snomed_code = self._get_snomed_code_for_drug(drug_name.lower())
+                    if drug_snomed_code:
+                        medication["snomed:code"] = drug_snomed_code
+                        medication["snomed:uri"] = f"http://snomed.info/id/{drug_snomed_code}"
                     
                     medications.append(medication)
         
@@ -842,31 +869,45 @@ class DynamicClinicalGenerator:
                 "source": "evidence_based"
             }
             
-            # Add treats_condition with SNOMED code if available, otherwise try to find it
-            if snomed_code:
-                medication["treats_condition"] = {
-                    "snomed:code": snomed_code,
-                    "rdfs:label": condition_label,
-                    "@id": f"http://snomed.info/id/{snomed_code}"
-                }
-            else:
+            # ALWAYS add treats_condition with SNOMED code - try to find it if missing
+            condition_snomed_code = snomed_code
+            if not condition_snomed_code:
                 # Try to find SNOMED code for condition if not provided
                 condition_result = self._search_snomed_condition(condition_label)
                 if condition_result and condition_result.get("snomed:code"):
-                    medication["treats_condition"] = {
-                        "snomed:code": condition_result["snomed:code"],
-                        "rdfs:label": condition_label,
-                        "@id": condition_result.get("@id", f"http://snomed.info/id/{condition_result['snomed:code']}")
-                    }
+                    condition_snomed_code = condition_result["snomed:code"]
+            
+            # Always add treats_condition if we have a code (never null)
+            if condition_snomed_code:
+                medication["treats_condition"] = {
+                    "snomed:code": condition_snomed_code,
+                    "rdfs:label": condition_label,
+                    "@id": f"http://snomed.info/id/{condition_snomed_code}"
+                }
             
             if rxnorm_info:
                 medication["rxnorm"] = rxnorm_info
             
-            # Add SNOMED CT code for evidence-based drug
-            snomed_code = self._get_snomed_code_for_drug(drug_info["name"])
-            if snomed_code:
-                medication["snomed:code"] = snomed_code
-                medication["snomed:uri"] = f"http://snomed.info/id/{snomed_code}"
+            # ALWAYS add SNOMED CT code for evidence-based drug - try multiple attempts
+            drug_snomed_code = self._get_snomed_code_for_drug(drug_info["name"])
+            if not drug_snomed_code:
+                # Try lowercase variant
+                drug_snomed_code = self._get_snomed_code_for_drug(drug_info["name"].lower())
+            if not drug_snomed_code:
+                # Try with common variations
+                drug_name_variants = [
+                    drug_info["name"],
+                    drug_info["name"].title(),
+                    drug_info["name"].upper()
+                ]
+                for variant in drug_name_variants:
+                    drug_snomed_code = self._get_snomed_code_for_drug(variant)
+                    if drug_snomed_code:
+                        break
+            
+            if drug_snomed_code:
+                medication["snomed:code"] = drug_snomed_code
+                medication["snomed:uri"] = f"http://snomed.info/id/{drug_snomed_code}"
             
             medications.append(medication)
         
@@ -904,55 +945,100 @@ class DynamicClinicalGenerator:
         
         try:
             # Search SNOMED CT for substance with multiple strategies
-            url = f"{self.bioportal_base}/search"
+            endpoint = "search"
             base_params = {
                 "ontologies": "SNOMEDCT",
-                "apikey": self.bioportal_api_key,
-                "pagesize": 5
+                "require_exact_match": "false",
+                "page_size": 10  # Get more results for better matching
             }
 
-            def extract_first_code(resp: Dict) -> Optional[str]:
-                if resp and resp.get("collection"):
-                    # Prefer substance or product concepts if available
-                    for item in resp["collection"]:
-                        types = (item.get("@type") or []) if isinstance(item.get("@type"), list) else [item.get("@type")]
-                        if any(t and "Substance" in t for t in types) or any(t and "Product" in t for t in types):
-                            uri = item.get("@id", "")
-                            return uri.split("/")[-1] if uri else None
-                    # Fallback: first result
-                    uri = resp["collection"][0].get("@id", "")
-                    return uri.split("/")[-1] if uri else None
+            def extract_best_code(resp: Dict) -> Optional[str]:
+                """Extract best matching SNOMED code, preferring substance/product concepts"""
+                if not resp or "collection" not in resp:
+                    return None
+                
+                results = resp["collection"]
+                if not results:
+                    return None
+                
+                # Strategy 1: Look for Substance or Product concepts
+                for item in results:
+                    types = item.get("@type", [])
+                    if not isinstance(types, list):
+                        types = [types] if types else []
+                    
+                    pref_label = (item.get("prefLabel") or "").lower()
+                    # Prefer substance/product concepts
+                    if any(t and ("Substance" in str(t) or "Product" in str(t)) for t in types):
+                        uri = item.get("@id", "")
+                        if uri:
+                            code = uri.split("/")[-1]
+                            if code and code.isdigit():  # Valid SNOMED code
+                                return code
+                    
+                    # Also check if label matches drug name well
+                    if drug_name.lower() in pref_label or pref_label in drug_name.lower():
+                        uri = item.get("@id", "")
+                        if uri:
+                            code = uri.split("/")[-1]
+                            if code and code.isdigit():
+                                return code
+                
+                # Strategy 2: Fallback to first result if valid
+                first_item = results[0]
+                uri = first_item.get("@id", "")
+                if uri:
+                    code = uri.split("/")[-1]
+                    if code and code.isdigit():
+                        return code
+                
                 return None
 
             # Strategy A: explicit substance qualifier
-            params = {**base_params, "q": f"{drug_name} (substance)"}
-            response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
-            code = extract_first_code(response)
+            params = {**base_params, "q": f"{drug_name} substance"}
+            response = self.bioportal_client.get(endpoint, params=params, headers=self.bioportal_headers)
+            code = extract_best_code(response)
             if code:
                 return code
 
-            # Strategy B: plain drug name
+            # Strategy B: drug name with product
+            params = {**base_params, "q": f"{drug_name} product"}
+            response = self.bioportal_client.get(endpoint, params=params, headers=self.bioportal_headers)
+            code = extract_best_code(response)
+            if code:
+                return code
+
+            # Strategy C: plain drug name
             params = {**base_params, "q": drug_name}
-            response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
-            code = extract_first_code(response)
+            response = self.bioportal_client.get(endpoint, params=params, headers=self.bioportal_headers)
+            code = extract_best_code(response)
             if code:
                 return code
 
-            # Strategy C: common synonyms (lowercase variants)
-            synonyms = {drug_name}
-            lower = drug_name.lower()
-            if lower.endswith("e"):  # e.g., omeprazole
-                synonyms.add(lower)
-            if "-" in lower:
-                synonyms.add(lower.replace("-", " "))
-            for term in synonyms:
-                params = {**base_params, "q": term}
-                response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
-                code = extract_first_code(response)
+            # Strategy D: lowercase variant
+            if drug_name != drug_name.lower():
+                params = {**base_params, "q": drug_name.lower()}
+                response = self.bioportal_client.get(endpoint, params=params, headers=self.bioportal_headers)
+                code = extract_best_code(response)
                 if code:
                     return code
 
-            # Strategy D: RxNorm-assisted search – standardize name via RxNorm
+            # Strategy E: common name variations
+            synonyms = {drug_name}
+            lower = drug_name.lower()
+            if "-" in lower:
+                synonyms.add(lower.replace("-", " "))
+            if " " in lower:
+                synonyms.add(lower.replace(" ", "-"))
+            for term in synonyms:
+                if term != drug_name:  # Don't repeat already tried
+                    params = {**base_params, "q": term}
+                    response = self.bioportal_client.get(endpoint, params=params, headers=self.bioportal_headers)
+                    code = extract_best_code(response)
+                    if code:
+                        return code
+
+            # Strategy F: RxNorm-assisted search – standardize name via RxNorm
             rxnorm = self._get_rxnorm_for_drug(drug_name)
             rx_name_candidates: List[str] = []
             if rxnorm and rxnorm.get("rxnorm_cui"):
@@ -972,13 +1058,13 @@ class DynamicClinicalGenerator:
                     pass
             for term in rx_name_candidates:
                 params = {**base_params, "q": term}
-                response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
-                code = extract_first_code(response)
+                response = self.bioportal_client.get(endpoint, params=params, headers=self.bioportal_headers)
+                code = extract_best_code(response)
                 if code:
                     return code
-                params = {**base_params, "q": f"{term} (substance)"}
-                response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
-                code = extract_first_code(response)
+                params = {**base_params, "q": f"{term} substance"}
+                response = self.bioportal_client.get(endpoint, params=params, headers=self.bioportal_headers)
+                code = extract_best_code(response)
                 if code:
                     return code
 
