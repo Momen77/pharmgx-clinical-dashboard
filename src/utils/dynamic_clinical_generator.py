@@ -239,6 +239,18 @@ class DynamicClinicalGenerator:
             "search_term": search_term
         }
     
+    def search_snomed_term(self, search_term: str) -> Optional[Dict]:
+        """
+        Public method to search SNOMED CT for any term (conditions, lifestyle factors, etc.)
+        
+        Args:
+            search_term: Search term (e.g., "regular exercise", "sedentary lifestyle")
+            
+        Returns:
+            Dictionary with SNOMED CT code and metadata, or None if not found
+        """
+        return self._search_snomed_condition(search_term)
+    
     def _search_clinical_tables(self, search_term: str) -> Optional[Dict]:
         """
         Fallback: Search Clinical Tables API (free, no API key needed)
@@ -508,14 +520,22 @@ class DynamicClinicalGenerator:
                         "protocol": protocol_info
                     }
                     
+                    # Add treats_condition with SNOMED code if available
+                    if snomed_code:
+                        medication["treats_condition"] = {
+                            "snomed:code": snomed_code,
+                            "rdfs:label": condition_label,
+                            "@id": f"http://snomed.info/id/{snomed_code}"
+                        }
+                    
                     if rxnorm_info:
                         medication["rxnorm"] = rxnorm_info
                     
                     # Add SNOMED CT code for medication (substance)
-                    snomed_code = self._get_snomed_code_for_drug(molecule_name)
-                    if snomed_code:
-                        medication["snomed:code"] = snomed_code
-                        medication["snomed:uri"] = f"http://snomed.info/id/{snomed_code}"
+                    drug_snomed_code = self._get_snomed_code_for_drug(molecule_name)
+                    if drug_snomed_code:
+                        medication["snomed:code"] = drug_snomed_code
+                        medication["snomed:uri"] = f"http://snomed.info/id/{drug_snomed_code}"
                     
                     medications.append(medication)
         
@@ -643,9 +663,17 @@ class DynamicClinicalGenerator:
                         "schema:doseValue": self._estimate_dose(drug_name),
                         "schema:doseUnit": "mg",
                         "schema:frequency": "Once daily",
-                        "source": "rxnorm",
-                        "treats_condition": condition
+                        "source": "rxnorm"
                     }
+                    
+                    # Try to find SNOMED code for the condition
+                    condition_result = self._search_snomed_condition(condition)
+                    if condition_result and condition_result.get("snomed:code"):
+                        medication["treats_condition"] = {
+                            "snomed:code": condition_result["snomed:code"],
+                            "rdfs:label": condition,
+                            "@id": condition_result.get("@id", f"http://snomed.info/id/{condition_result['snomed:code']}")
+                        }
                     
                     # Add SNOMED CT code if found
                     if snomed_code:
@@ -811,12 +839,25 @@ class DynamicClinicalGenerator:
                 "schema:frequency": drug_info["frequency"],
                 "start_date": start_date,
                 "purpose": condition_label,
-                "source": "evidence_based",
-                "treats_condition": {
-                    "snomed:code": snomed_code,
-                    "rdfs:label": condition_label
-                }
+                "source": "evidence_based"
             }
+            
+            # Add treats_condition with SNOMED code if available, otherwise try to find it
+            if snomed_code:
+                medication["treats_condition"] = {
+                    "snomed:code": snomed_code,
+                    "rdfs:label": condition_label,
+                    "@id": f"http://snomed.info/id/{snomed_code}"
+                }
+            else:
+                # Try to find SNOMED code for condition if not provided
+                condition_result = self._search_snomed_condition(condition_label)
+                if condition_result and condition_result.get("snomed:code"):
+                    medication["treats_condition"] = {
+                        "snomed:code": condition_result["snomed:code"],
+                        "rdfs:label": condition_label,
+                        "@id": condition_result.get("@id", f"http://snomed.info/id/{condition_result['snomed:code']}")
+                    }
             
             if rxnorm_info:
                 medication["rxnorm"] = rxnorm_info

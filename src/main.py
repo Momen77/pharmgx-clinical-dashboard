@@ -1349,6 +1349,9 @@ class PGxPipeline:
                     "status": status_kidney
                 },
                 "serum_creatinine": {
+                    "@id": "http://snomed.info/id/365757006",
+                    "snomed:code": "365757006",
+                    "rdfs:label": "Serum creatinine measurement",
                     "value": serum_creatinine,
                     "unit": "mg/dL",
                     "date": test_date,
@@ -1378,6 +1381,9 @@ class PGxPipeline:
                     "status": status_liver
                 },
                 "bilirubin_total": {
+                    "@id": "http://snomed.info/id/365787000",
+                    "snomed:code": "365787000",
+                    "rdfs:label": "Serum bilirubin level",
                     "value": bilirubin_total,
                     "unit": "mg/dL",
                     "date": test_date,
@@ -1449,23 +1455,41 @@ class PGxPipeline:
         ]
         factors.append(random.choice(alcohol_options))
 
-        # Exercise frequency (no stable SNOMED code used here yet)
-        exercise_choice = random.choice([
+        # Exercise frequency - dynamically look up SNOMED codes
+        exercise_options = [
             {
                 "@type": "sdisco:LifestyleFactor",
                 "factor_type": "exercise",
                 "rdfs:label": "Regular exercise",
+                "skos:prefLabel": "Regular exercise",
                 "frequency": f"{random.randint(2, 7)} times/week",
-                "note": "May improve drug metabolism"
+                "note": "May improve drug metabolism",
+                "search_term": "regular exercise"
             },
             {
                 "@type": "sdisco:LifestyleFactor",
                 "factor_type": "exercise",
                 "rdfs:label": "Sedentary lifestyle",
+                "skos:prefLabel": "Sedentary lifestyle",
                 "frequency": "Minimal physical activity",
-                "note": "May affect drug distribution"
+                "note": "May affect drug distribution",
+                "search_term": "sedentary lifestyle"
             }
-        ])
+        ]
+        exercise_choice = random.choice(exercise_options)
+        
+        # Dynamically look up SNOMED code for the selected exercise factor
+        search_term = exercise_choice.pop("search_term", exercise_choice.get("rdfs:label", ""))
+        snomed_result = self.dynamic_clinical.search_snomed_term(search_term)
+        
+        if snomed_result and snomed_result.get("snomed:code"):
+            exercise_choice["snomed:code"] = snomed_result["snomed:code"]
+            exercise_choice["@id"] = snomed_result.get("@id", f"http://snomed.info/id/{snomed_result['snomed:code']}")
+            # Update label if SNOMED has a better one
+            if snomed_result.get("rdfs:label"):
+                exercise_choice["rdfs:label"] = snomed_result["rdfs:label"]
+                exercise_choice["skos:prefLabel"] = snomed_result["rdfs:label"]
+        
         factors.append(exercise_choice)
 
         # Grapefruit consumption (important for CYP3A4)
