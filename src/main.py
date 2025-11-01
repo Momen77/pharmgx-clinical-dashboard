@@ -867,7 +867,22 @@ class PGxPipeline:
                 if isinstance(eth_list, list) and eth_list:
                     enriched = []
                     for label in eth_list:
-                        snomed = self.variant_linker._search_snomed(str(label))
+                        snomed = None
+                        label_str = str(label).strip()
+                        
+                        # Try multiple search terms for better matching
+                        search_terms = [
+                            label_str,
+                            f"{label_str} race",
+                            f"{label_str} ethnic group",
+                            f"{label_str} ethnicity",
+                        ]
+                        
+                        for term in search_terms:
+                            snomed = self.variant_linker._search_snomed(term)
+                            if snomed and snomed.get("code"):
+                                break
+                        
                         if snomed and snomed.get("code"):
                             enriched.append({
                                 "label": label,
@@ -875,10 +890,14 @@ class PGxPipeline:
                                 "snomed:uri": f"http://snomed.info/id/{snomed['code']}"
                             })
                         else:
+                            # Fallback: still include label even if SNOMED code not found
                             enriched.append({"label": label})
                     clinical_info["ethnicity_snomed"] = enriched
-        except Exception:
-            pass
+        except Exception as e:
+            # Log but don't fail - ethnicity SNOMED is nice-to-have
+            import traceback
+            print(f"Warning: Could not enrich ethnicity with SNOMED codes: {e}")
+            traceback.print_exc()
         
         profile = {
             "@context": {

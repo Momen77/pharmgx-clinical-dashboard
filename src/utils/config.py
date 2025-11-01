@@ -82,3 +82,44 @@ class Config:
         """Get maximum variants per gene"""
         return self.get('output.max_variants_per_gene', 50)
 
+
+# Singleton instance
+_config_instance = None
+
+
+def get_config(config_path: str = None) -> Config:
+    """
+    Get singleton Config instance
+    
+    Args:
+        config_path: Optional path to config file
+        
+    Returns:
+        Config instance
+    """
+    global _config_instance
+    if _config_instance is None:
+        if config_path is None:
+            # Try to find config.yaml in common locations
+            # Start from utils/config.py: src/pharmgx-clinical-dashboard/src/utils/config.py
+            # Go up 5 levels to reach project root: utils -> src -> pharmgx-clinical-dashboard -> src -> root
+            base_dir = Path(__file__).parent.parent.parent.parent.parent
+            config_path = base_dir / "config.yaml"
+            if not config_path.exists():
+                # Try src/pharmgx-clinical-dashboard (old location)
+                config_path = base_dir / "src" / "pharmgx-clinical-dashboard" / "config.yaml"
+            if not config_path.exists():
+                # Try current working directory
+                import os
+                config_path = Path(os.getcwd()) / "config.yaml"
+        try:
+            _config_instance = Config(str(config_path)) if config_path else Config()
+        except FileNotFoundError:
+            # Fallback: try relative path from current directory
+            import os
+            fallback_path = Path(os.getcwd()) / "config.yaml"
+            if fallback_path.exists():
+                _config_instance = Config(str(fallback_path))
+            else:
+                raise FileNotFoundError(f"Could not find config.yaml. Tried: {config_path}, {fallback_path}")
+    return _config_instance

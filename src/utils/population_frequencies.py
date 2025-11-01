@@ -71,32 +71,48 @@ class PopulationFrequencyService:
         source = None
         freqs = _category_template()
         
-        # Try to extract genomic coordinates from variant raw data first (if available)
+        # PRIORITY 0: Extract embedded population frequencies from UniProt/EMBL-EBI raw data (if available)
+        # This is the most reliable source as it's already in the variant data
+        if variant_raw_data:
+            embedded_freqs = self._extract_embedded_population_frequencies(variant_raw_data)
+            if embedded_freqs:
+                source = embedded_freqs.get("source", "UniProt")
+                embedded_freq_dict = embedded_freqs.get("frequencies", {})
+                # Merge embedded frequencies (prefer embedded over external)
+                for cat, freq in embedded_freq_dict.items():
+                    if freq is not None:
+                        if freqs[cat] is None:
+                            freqs[cat] = freq
+                        else:
+                            freqs[cat] = max(freqs[cat], freq)  # Take max if conflict
+        
+        # Try to extract genomic coordinates from variant raw data (if available)
         genomic_coords = None
         if variant_raw_data:
             genomic_coords = self._extract_genomic_coords_from_variant(variant_raw_data)
 
-        # Primary: Ensembl
-        ensembl_data = self._fetch_ensembl(rsid)
-        if ensembl_data is not None:
-            source = "Ensembl"
-            # Extract population frequencies from Ensembl
-            for pop in ensembl_data.get("populations", []):
-                label = pop.get("name") or ""
-                freq = pop.get("frequency")
-                if freq is None:
-                    continue
-                cat = _POPULATION_MAP.get(label)
-                if not cat:
-                    continue
-                if freqs[cat] is None:
-                    freqs[cat] = float(freq)
-                else:
-                    freqs[cat] = max(freqs[cat], float(freq))
-            
-            # Extract genomic coordinates for better gnomAD queries (if not already extracted)
-            if not genomic_coords:
-                genomic_coords = self._extract_genomic_coords_from_ensembl(ensembl_data)
+        # Primary: Ensembl (only if embedded frequencies not found or incomplete)
+        if source is None or all(v is None for v in freqs.values()):
+            ensembl_data = self._fetch_ensembl(rsid)
+            if ensembl_data is not None:
+                source = source or "Ensembl"
+                # Extract population frequencies from Ensembl
+                for pop in ensembl_data.get("populations", []):
+                    label = pop.get("name") or ""
+                    freq = pop.get("frequency")
+                    if freq is None:
+                        continue
+                    cat = _POPULATION_MAP.get(label)
+                    if not cat:
+                        continue
+                    if freqs[cat] is None:
+                        freqs[cat] = float(freq)
+                    else:
+                        freqs[cat] = max(freqs[cat], float(freq))
+                
+                # Extract genomic coordinates for better gnomAD queries (if not already extracted)
+                if not genomic_coords:
+                    genomic_coords = self._extract_genomic_coords_from_ensembl(ensembl_data)
 
         # Secondary: gnomAD GraphQL (try with coordinates if available, then rsID)
         if source is None or all(v is None for v in freqs.values()):
@@ -193,7 +209,8 @@ class PopulationFrequencyService:
                         match = re.search(r'g\.(\d+)([ACGT]+)>([ACGT]+)', pos_allele)
                         if match and chrom:
                             pos, ref, alt = match.groups()
-                            return f"{chrom}-{pos}-{ref}-{alt}"
+                            # Use colon format for gnomAD (e.g., "22:42130772:A:G")
+                            return f"{chrom}:{pos}:{ref}:{alt}"
         
         return None
     
@@ -232,13 +249,15 @@ class PopulationFrequencyService:
                         alleles = allele_string.split("/")
                         if len(alleles) >= 2:
                             ref, alt = alleles[0], alleles[1]
-                            return f"{chrom}-{pos}-{ref}-{alt}"
+                            # Use colon format for gnomAD (e.g., "22:42130772:A:G")
+                            return f"{chrom}:{pos}:{ref}:{alt}"
                     elif ">" in pos_part:
                         # Format like "18130762C>T"
                         match = re.search(r'(\d+)([ACGT]+)>([ACGT]+)', pos_part)
                         if match:
                             pos, ref, alt = match.group(1), match.group(2), match.group(3)
-                            return f"{chrom}-{pos}-{ref}-{alt}"
+                            # Use colon format for gnomAD (e.g., "22:42130772:A:G")
+                            return f"{chrom}:{pos}:{ref}:{alt}"
         
         return None
 
@@ -246,35 +265,77 @@ class PopulationFrequencyService:
         """Fetch population AFs from gnomAD GraphQL and map to canonical buckets.
         Prefers genomic coordinates over rsID for better accuracy.
         Returns a dict of canonical bucket -> list[float].
+        
+        Tries multiple gnomAD datasets in order: gnomad_r4, gnomad_r3, gnomad_r2_1
         """
         try:
             # Try by genomic coordinates first (more reliable)
             variant_id = genomic_coords if genomic_coords else rsid
-            query = {
-                "query": (
-                    "query($variantId: String!) { \n"
-                    "  variant(variantId: $variantId) { \n"
-                    "    genome { ac af an populations { id ac an ac_hom } } \n"
-                    "    exome { ac af an populations { id ac an ac_hom } } \n"
-                    "  } \n"
-                    "}"
-                ),
-                "variables": {"variantId": variant_id}
-            }
-            resp = requests.post(GNOMAD_API_URL, json=query, headers={"User-Agent": "pgx-kg/ethnicity-af", "Content-Type": "application/json"}, timeout=20)
-            if not resp.ok:
-                # If coordinates failed and we used rsID, coordinates might not be available
-                if genomic_coords:
-                    return None
-                # Otherwise already tried rsID
+            
+            # gnomAD uses 1-based indexing for colon format (NOT 0-based!)
+            # Test results show: 22:42130772:A:G (1-based) WORKS, 22:42130771:A:G (0-based) FAILS
+            # Handle both colon format (22:42130772:A:G) and hyphen format (22-42130772-A-G)
+            if genomic_coords:
+                if ":" in genomic_coords:
+                    # Colon format: 22:42130772:A:G - USE AS-IS (1-based, don't adjust!)
+                    variant_id = genomic_coords
+                elif "-" in genomic_coords:
+                    # Hyphen format: 22-42130772-A-G (convert to colon format, keep 1-based)
+                    parts = genomic_coords.split("-")
+                    if len(parts) == 4:
+                        chrom, pos_str, ref, alt = parts
+                        # Convert to colon format, keep position as-is (1-based)
+                        variant_id = f"{chrom}:{pos_str}:{ref}:{alt}"
+                    else:
+                        variant_id = genomic_coords
+                else:
+                    variant_id = genomic_coords
+            
+            # Try multiple datasets: v4, v3, v2.1 (in order of preference)
+            datasets = ["gnomad_r4", "gnomad_r3", "gnomad_r2_1"]
+            
+            for dataset in datasets:
+                query = {
+                    "query": (
+                        "query($variantId: String!, $datasetId: DatasetId!) { \n"
+                        "  variant(variantId: $variantId, dataset: $datasetId) { \n"
+                        "    genome { ac af an populations { id ac an ac_hom } } \n"
+                        "    exome { ac af an populations { id ac an ac_hom } } \n"
+                        "  } \n"
+                        "}"
+                    ),
+                    "variables": {"variantId": variant_id, "datasetId": dataset}
+                }
+                
+                try:
+                    resp = requests.post(
+                        GNOMAD_API_URL, 
+                        json=query, 
+                        headers={"User-Agent": "pgx-kg/ethnicity-af", "Content-Type": "application/json"}, 
+                        timeout=20
+                    )
+                    
+                    if not resp.ok:
+                        continue  # Try next dataset
+                    
+                    json_resp = resp.json()
+                    errors = json_resp.get("errors")
+                    if errors:
+                        continue  # Try next dataset
+                    
+                    data = json_resp.get("data", {})
+                    variant = data.get("variant")
+                    if not variant:
+                        continue  # Try next dataset
+                    
+                    # If we get here, we have data from this dataset
+                    break
+                except Exception:
+                    continue  # Try next dataset
+            else:
+                # All datasets failed
                 return None
             
-            data = resp.json().get("data", {})
-            errors = resp.json().get("errors")
-            if errors:
-                return None
-            
-            variant = data.get("variant")
             if not variant:
                 return None
                 

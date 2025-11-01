@@ -385,7 +385,7 @@ class VariantPhenotypeLinker:
         return mappings
     
     def _search_snomed(self, term: str) -> Optional[Dict]:
-        """Search SNOMED CT for a term"""
+        """Search SNOMED CT for a term using BioPortal API"""
         if not self.bioportal_api_key:
             return None
         
@@ -394,26 +394,44 @@ class VariantPhenotypeLinker:
             return self._snomed_cache[cache_key]
         
         try:
-            url = f"{self.bioportal_base}/search"
+            # Use proper BioPortal API format
+            endpoint = "search"
             params = {
                 "q": term,
                 "ontologies": "SNOMEDCT",
-                "apikey": self.bioportal_api_key,
-                "pagesize": 1
+                "require_exact_match": "false",
+                "page_size": 10  # Get more results for better matching
             }
             
-            response = self.bioportal_client.get(url, params=params, headers=self.bioportal_headers)
+            response = self.bioportal_client.get(endpoint, params=params, headers=self.bioportal_headers)
             
             if response and response.get("collection"):
-                result = response["collection"][0]
+                results = response["collection"]
+                if not results:
+                    return None
+                
+                # Get best match
+                best_match = results[0]
+                
+                # Extract SNOMED code from URI
+                snomed_uri = best_match.get("@id", "")
+                snomed_code = snomed_uri.split("/")[-1] if snomed_uri else None
+                
+                if not snomed_code:
+                    return None
+                
                 snomed_data = {
-                    "code": result.get("@id", "").split("/")[-1],
-                    "label": result.get("prefLabel", term)
+                    "code": snomed_code,
+                    "label": best_match.get("prefLabel", term),
+                    "uri": f"http://snomed.info/id/{snomed_code}",
+                    "match_type": "exact" if best_match.get("exact_match") else "partial"
                 }
                 self._snomed_cache[cache_key] = snomed_data
                 return snomed_data
         except Exception as e:
             print(f"      Warning: Could not search SNOMED for '{term}': {e}")
+            import traceback
+            traceback.print_exc()
         
         return None
     
