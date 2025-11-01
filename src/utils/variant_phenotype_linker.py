@@ -319,6 +319,7 @@ class VariantPhenotypeLinker:
             
             # Check cache first
             cache_key = drug_name.lower()
+            snomed_data = None
             if cache_key in self._drug_snomed_cache:
                 snomed_data = self._drug_snomed_cache[cache_key]
             else:
@@ -326,12 +327,13 @@ class VariantPhenotypeLinker:
                 if snomed_data:
                     self._drug_snomed_cache[cache_key] = snomed_data
             
-            if snomed_data:
-                mappings[drug_name] = {
-                    "code": snomed_data["code"],
-                    "label": snomed_data["label"],
-                    "medication": med
-                }
+            # Always include medication in mappings, even if SNOMED search failed
+            # This ensures patient_medications section is populated
+            mappings[drug_name] = {
+                "code": snomed_data["code"] if snomed_data else None,
+                "label": snomed_data["label"] if snomed_data else drug_name,
+                "medication": med
+            }
         
         return mappings
     
@@ -346,6 +348,7 @@ class VariantPhenotypeLinker:
             
             # Check cache
             cache_key = drug_name.lower()
+            snomed_data = None
             if cache_key in self._drug_snomed_cache:
                 snomed_data = self._drug_snomed_cache[cache_key]
             else:
@@ -353,12 +356,13 @@ class VariantPhenotypeLinker:
                 if snomed_data:
                     self._drug_snomed_cache[cache_key] = snomed_data
             
-            if snomed_data:
-                mappings[drug_name] = {
-                    "code": snomed_data["code"],
-                    "label": snomed_data["label"],
-                    "drug_info": drug_info
-                }
+            # Always include drug in mappings, even if SNOMED search failed
+            # This ensures variant_drugs section is populated
+            mappings[drug_name] = {
+                "code": snomed_data["code"] if snomed_data else None,
+                "label": snomed_data["label"] if snomed_data else drug_name,
+                "drug_info": drug_info
+            }
         
         return mappings
     
@@ -484,13 +488,13 @@ class VariantPhenotypeLinker:
         patient_snomed_codes = {
             mapping["code"]: (name, mapping["medication"])
             for name, mapping in patient_medication_codes.items()
-            if "code" in mapping
+            if "code" in mapping and mapping["code"] is not None
         }
         
         variant_snomed_codes = {
             mapping["code"]: (name, mapping["drug_info"])
             for name, mapping in variant_drug_codes.items()
-            if "code" in mapping
+            if "code" in mapping and mapping["code"] is not None
         }
         
         # Find matching SNOMED codes
@@ -663,12 +667,12 @@ class VariantPhenotypeLinker:
         patient_snomed_codes = {
             mapping.get("code"): mapping.get("medication")
             for mapping in patient_medication_codes.values()
-            if isinstance(mapping, dict) and mapping.get("code") and mapping.get("medication")
+            if isinstance(mapping, dict) and mapping.get("code") is not None and mapping.get("medication")
         }
         variant_snomed_codes = {
             mapping.get("code"): mapping.get("drug_info")
             for mapping in variant_drug_codes.values()
-            if isinstance(mapping, dict) and mapping.get("code") and mapping.get("drug_info")
+            if isinstance(mapping, dict) and mapping.get("code") is not None and mapping.get("drug_info")
         }
 
         matching_codes = set(patient_snomed_codes.keys()) & set(variant_snomed_codes.keys())
@@ -728,11 +732,41 @@ class VariantPhenotypeLinker:
         
         # Link drugs to variants (drug-centric), include SNOMED and evidence context if available
         for variant_drug in variant_drugs:
-            snomed_entry = variant_drug_codes.get(variant_drug.get("name")) or {}
-            snomed_code = snomed_entry.get("code") if isinstance(snomed_entry, dict) else None
+            drug_name = variant_drug.get("name")
+            if not drug_name:
+                continue
+                
+            # Try to get SNOMED code with case-insensitive lookup and fallback search
+            snomed_code = None
+            snomed_entry = variant_drug_codes.get(drug_name)
+            if not snomed_entry:
+                # Try case-insensitive lookup
+                drug_name_lower = drug_name.lower()
+                for mapped_name, mapping in variant_drug_codes.items():
+                    if mapped_name.lower() == drug_name_lower:
+                        snomed_entry = mapping
+                        break
+            
+            if snomed_entry and isinstance(snomed_entry, dict):
+                snomed_code = snomed_entry.get("code")
+            
+            # If still no SNOMED code found, try to search for it now
+            if not snomed_code:
+                snomed_data = self._search_drug_snomed(drug_name)
+                if snomed_data:
+                    snomed_code = snomed_data["code"]
+                    # Cache it for future use
+                    self._drug_snomed_cache[drug_name.lower()] = snomed_data
+                    # Also add to variant_drug_codes for consistency
+                    variant_drug_codes[drug_name] = {
+                        "code": snomed_data["code"],
+                        "label": snomed_data["label"],
+                        "drug_info": variant_drug
+                    }
+            
             for variant_ref in variant_drug.get("variants", []):
                 links["drug_to_variant"].append({
-                    "drug_name": variant_drug.get("name"),
+                    "drug_name": drug_name,
                     "snomed_code": snomed_code,
                     "variant": variant_ref,
                     "interaction_type": variant_drug.get("interaction_type"),
