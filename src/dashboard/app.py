@@ -476,20 +476,11 @@ elif page == "🔬 Run Test":
         last_name = demo.get('last_name', 'N/A')
         mrn = demo.get('mrn', 'N/A')
 
-        # Add a button to start the test
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            run_test_button = st.button(
-                "🧬 Run Pharmacogenetic Test",
-                type="primary",
-                width='stretch',
-                key="run_test_main_button"
-            )
-
+        # Check if test is running or completed (but check button first)
+        test_is_running = st.session_state.get('test_results') and not st.session_state.get('test_complete', False)
+        
         # Only show test summary and patient info BEFORE the test runs
         # Hide it during execution to focus on the animation
-        # Check if test is running or completed
-        test_is_running = run_test_button or (st.session_state.get('test_results') and not st.session_state.get('test_complete', False))
         if not test_is_running:
             # Show test summary
             st.subheader("Test Summary")
@@ -520,6 +511,20 @@ elif page == "🔬 Run Test":
                 st.json(profile)
 
             st.divider()
+
+        # Add a button to start the test (always visible when not running)
+        if not test_is_running:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                run_test_button = st.button(
+                    "🧬 Run Pharmacogenetic Test",
+                    type="primary",
+                    width='stretch',
+                    key="run_test_main_button"
+                )
+        else:
+            # Test is running, button not visible, but we still need the variable
+            run_test_button = False
 
         # Only run pipeline if button is clicked
         if run_test_button:
