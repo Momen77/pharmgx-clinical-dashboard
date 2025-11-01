@@ -469,7 +469,37 @@ elif page == "🔬 Run Test":
         last_name = demo.get('last_name', 'N/A')
         mrn = demo.get('mrn', 'N/A')
 
-        # Add a button to start the test (moved before Test Summary so we can check its state)
+        # Show test summary
+        st.subheader("Test Summary")
+
+        # Create layout with patient photo and summary info
+        photo_col, summary_info_col = st.columns([1, 3])
+
+        # Display patient photo
+        with photo_col:
+            if profile.get('photo'):
+                st.image(profile['photo'], width=150, caption="Patient Photo")
+            else:
+                st.info("No photo available")
+
+        # Display summary information
+        with summary_info_col:
+            summary_col1, summary_col2 = st.columns(2)
+            with summary_col1:
+                st.write(f"**Patient:** {first_name} {last_name}")
+                st.write(f"**MRN:** {mrn}")
+                st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
+            with summary_col2:
+                st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
+                st.write(f"**Estimated time:** ~2-5 minutes")
+
+        # Optional: Show patient profile details
+        with st.expander("👤 View Patient Profile Details", expanded=False):
+            st.json(profile)
+
+        st.divider()
+
+        # Add a button to start the test
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             run_test_button = st.button(
@@ -478,38 +508,6 @@ elif page == "🔬 Run Test":
                 width='stretch',
                 key="run_test_main_button"
             )
-
-        # Only show test summary if button hasn't been clicked yet
-        if not run_test_button:
-            # Show test summary
-            st.subheader("Test Summary")
-
-            # Create layout with patient photo and summary info
-            photo_col, summary_info_col = st.columns([1, 3])
-
-            # Display patient photo
-            with photo_col:
-                if profile.get('photo'):
-                    st.image(profile['photo'], width=150, caption="Patient Photo")
-                else:
-                    st.info("No photo available")
-
-            # Display summary information
-            with summary_info_col:
-                summary_col1, summary_col2 = st.columns(2)
-                with summary_col1:
-                    st.write(f"**Patient:** {first_name} {last_name}")
-                    st.write(f"**MRN:** {mrn}")
-                    st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
-                with summary_col2:
-                    st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
-                    st.write(f"**Estimated time:** ~2-5 minutes")
-
-            # Optional: Show patient profile details
-            with st.expander("👤 View Patient Profile Details", expanded=False):
-                st.json(profile)
-
-            st.divider()
 
         # Only run pipeline if button is clicked
         if run_test_button:
@@ -556,11 +554,6 @@ elif page == "🔬 Run Test":
                 import queue
                 import threading
                 import time
-
-                # Initialize storyboard variables early to prevent NameError
-                # These must be initialized before any code path that might use them
-                storyboard_finish_time = time.time() + 600  # Default: 10 minutes in the future
-                storyboard_speed = 10000  # Default storyboard speed (ms per step)
 
                 event_queue = queue.Queue()
                 result_queue = queue.Queue()
@@ -663,9 +656,7 @@ elif page == "🔬 Run Test":
                 # Snapshot selected genes from session in main thread
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
-                # Prepare enhanced storyboard in Run Test (real pipeline)
-                # storyboard_finish_time already initialized above
-                sb = None
+            # Prepare enhanced storyboard in Run Test (real pipeline)
                 try:
                     # Reset storyboard placeholder so we don't stack instances
                     if not st.session_state.get('_sb_initialized'):
@@ -700,7 +691,6 @@ elif page == "🔬 Run Test":
                     storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
                 except Exception:
                     sb = None
-                    # Keep the default storyboard_finish_time set above
 
                 # Worker function that runs pipeline in background thread
                 def run_pipeline_worker():
