@@ -450,6 +450,12 @@ elif page == "🔬 Run Test":
     st.title("🔬 Run Pharmacogenetic Test")
     st.info("**Step 3:** Run the comprehensive pharmacogenomic analysis pipeline on your selected genes.")
 
+    # Initialize storyboard variables early to prevent NameError
+    # These must be initialized before any code path that might use them
+    import time
+    storyboard_finish_time = time.time() + 600  # Default: 10 minutes in the future
+    storyboard_speed = 10000  # Default storyboard speed (ms per step)
+
     # Preconditions
     if not st.session_state.get('patient_created'):
         st.warning("⚠️ Please create a patient profile first (Step 1)")
@@ -538,6 +544,8 @@ elif page == "🔬 Run Test":
                 st.write(f"Config path: {config_path}")
                 st.write(f"Profile keys: {list(profile.keys())}")
 
+            # storyboard_finish_time and storyboard_speed already initialized at page level
+            
             try:
                 # Run pipeline (storyboard handles visual stages and status)
                 
@@ -554,11 +562,6 @@ elif page == "🔬 Run Test":
                 import queue
                 import threading
                 import time
-
-                # Initialize storyboard variables early to prevent NameError
-                # These must be initialized before any code path that might use them
-                storyboard_finish_time = time.time() + 600  # Default: 10 minutes in the future
-                storyboard_speed = 10000  # Default storyboard speed (ms per step)
 
                 event_queue = queue.Queue()
                 result_queue = queue.Queue()
@@ -661,7 +664,7 @@ elif page == "🔬 Run Test":
                 # Snapshot selected genes from session in main thread
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
-            # Prepare enhanced storyboard in Run Test (real pipeline)
+                # Prepare enhanced storyboard in Run Test (real pipeline)
                 # storyboard_finish_time already initialized above
                 sb = None
                 try:
