@@ -667,6 +667,24 @@ elif page == "🔬 Run Test":
                 # Prepare enhanced storyboard in Run Test (real pipeline)
                 # storyboard_finish_time already initialized above
                 sb = None
+                
+                # Build storyboard plan and calculate finish time BEFORE try block to avoid scope issues
+                storyboard_speed = 10000  # Use comfortable fixed speed (ms)
+                sb_plan = [
+                    ("lab_prep", "init", "Starting lab preparation...", 0.06),
+                    ("lab_prep", "qaqc", "QC checks passed", 0.18),
+                    ("ngs", "seq", "Sequencing reads being generated...", 0.30),
+                    ("ngs", "call", "Variant calling in progress...", 0.40),
+                    ("annotation", "clinvar", "Annotating variants with ClinVar...", 0.52),
+                    ("annotation", "literature", "Searching literature databases...", 0.64),
+                    ("enrichment", "link", "Linking variants to drugs/diseases...", 0.76),
+                    ("linking", "conflicts", "Checking for clinical conflicts...", 0.86),
+                    ("report", "export", "Generating reports and visualizations...", 0.96),
+                    ("report", "complete", "Storyboard complete", 1.00),
+                ]
+                # Estimate when storyboard finishes (ms per step × steps + small buffer)
+                storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
+                
                 try:
                     # Reset storyboard placeholder so we don't stack instances
                     if not st.session_state.get('_sb_initialized'):
@@ -674,22 +692,7 @@ elif page == "🔬 Run Test":
                         sb = Storyboard() if 'Storyboard' in globals() and Storyboard else None
                         if sb and hasattr(sb, 'set_genes'):
                             sb.set_genes(st.session_state.get('selected_genes', []))
-                    # Independent storyboard playback (not tightly synced)
-                    # Use a comfortable fixed speed (ms) without exposing UI controls
-                    storyboard_speed = 10000
-                    # Build a reasonable plan matching pipeline stages
-                    sb_plan = [
-                        ("lab_prep", "init", "Starting lab preparation...", 0.06),
-                        ("lab_prep", "qaqc", "QC checks passed", 0.18),
-                        ("ngs", "seq", "Sequencing reads being generated...", 0.30),
-                        ("ngs", "call", "Variant calling in progress...", 0.40),
-                        ("annotation", "clinvar", "Annotating variants with ClinVar...", 0.52),
-                        ("annotation", "literature", "Searching literature databases...", 0.64),
-                        ("enrichment", "link", "Linking variants to drugs/diseases...", 0.76),
-                        ("linking", "conflicts", "Checking for clinical conflicts...", 0.86),
-                        ("report", "export", "Generating reports and visualizations...", 0.96),
-                        ("report", "complete", "Storyboard complete", 1.00),
-                    ]
+                    
                     if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render') and not st.session_state.get('_sb_initialized'):
                         sb.set_demo_plan([
                             {"stage": s, "substage": sub, "message": msg, "progress": prog}
@@ -697,8 +700,6 @@ elif page == "🔬 Run Test":
                         ], storyboard_speed)
                         sb.render("Initializing storyboard...")
                         st.session_state['_sb_initialized'] = True
-                    # Estimate when storyboard finishes (ms per step × steps + small buffer)
-                    storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
                 except Exception:
                     sb = None
                     # Keep the default storyboard_finish_time set above 
