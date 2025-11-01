@@ -476,8 +476,10 @@ elif page == "🔬 Run Test":
         last_name = demo.get('last_name', 'N/A')
         mrn = demo.get('mrn', 'N/A')
 
-        # Check if test is running or completed (but check button first)
-        test_is_running = st.session_state.get('test_results') and not st.session_state.get('test_complete', False)
+        # Check if test is running - either button was clicked OR test results exist but not complete
+        # We need to check button state first before defining it
+        button_clicked = st.session_state.get('_test_started', False)
+        test_is_running = button_clicked or (st.session_state.get('test_results') and not st.session_state.get('test_complete', False))
         
         # Only show test summary and patient info BEFORE the test runs
         # Hide it during execution to focus on the animation
@@ -528,6 +530,8 @@ elif page == "🔬 Run Test":
 
         # Only run pipeline if button is clicked
         if run_test_button:
+            # Mark test as started so summary section gets hidden
+            st.session_state['_test_started'] = True
             if PGxPipeline is None:
                 st.error("PGxPipeline not available - check imports")
                 if _import_errors:
@@ -878,11 +882,15 @@ elif page == "🔬 Run Test":
                 with st.expander("🐛 Error Details", expanded=True):
                     st.code(traceback.format_exc())
                 results = {"success": False, "error": str(e)}
+                # Clear test started flag on error so summary can show again
+                st.session_state['_test_started'] = False
             
             # Process results
             if results.get('success'):
                 st.session_state['test_results'] = results
                 st.session_state['test_complete'] = True
+                # Clear test started flag so summary can show again if user runs another test
+                st.session_state['_test_started'] = False
                 st.success("✅ Analysis Complete!")
                 st.info("➡️ **Next:** Go to **📊 View Results** to see the full report and interactive knowledge graph.")
 

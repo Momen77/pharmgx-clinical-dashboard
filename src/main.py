@@ -841,16 +841,60 @@ class PGxPipeline:
         if dashboard_profile and "clinical_information" in dashboard_profile:
             print("✅ Using patient profile from dashboard")
             clinical_info = dashboard_profile["clinical_information"]
-            # Enrich medications from dashboard with SNOMED codes
+            # Enrich medications, lab tests, and lifestyle factors from dashboard with SNOMED codes
             if "current_medications" in clinical_info:
                 print("🔍 Enriching medications with SNOMED codes...")
                 from utils.medication_enricher import MedicationEnricher
                 enricher = MedicationEnricher(self.dynamic_clinical)
                 clinical_info["current_medications"] = enricher.enrich_medications(clinical_info["current_medications"])
+            
+            # Ensure lab tests have SNOMED codes
+            if "organ_function" in clinical_info:
+                organ_func = clinical_info["organ_function"]
+                # serum_creatinine
+                if "kidney_function" in organ_func and "serum_creatinine" in organ_func["kidney_function"]:
+                    sc = organ_func["kidney_function"]["serum_creatinine"]
+                    if not sc.get("snomed:code"):
+                        sc["snomed:code"] = "365757006"
+                        sc["@id"] = "http://snomed.info/id/365757006"
+                        sc["rdfs:label"] = "Serum creatinine measurement"
+                # bilirubin_total
+                if "liver_function" in organ_func and "bilirubin_total" in organ_func["liver_function"]:
+                    bt = organ_func["liver_function"]["bilirubin_total"]
+                    if not bt.get("snomed:code"):
+                        bt["snomed:code"] = "365787000"
+                        bt["@id"] = "http://snomed.info/id/365787000"
+                        bt["rdfs:label"] = "Serum bilirubin level"
+            
+            # Ensure lifestyle factors have SNOMED codes (dynamic lookup for exercise)
+            if "lifestyle_factors" in clinical_info:
+                for factor in clinical_info["lifestyle_factors"]:
+                    if not factor.get("snomed:code"):
+                        factor_label = factor.get("rdfs:label", "")
+                        if factor_label and ("exercise" in factor.get("factor_type", "") or "Regular exercise" in factor_label or "Sedentary" in factor_label):
+                            snomed_result = self.dynamic_clinical.search_snomed_term(factor_label)
+                            if snomed_result and snomed_result.get("snomed:code"):
+                                factor["snomed:code"] = snomed_result["snomed:code"]
+                                factor["@id"] = snomed_result.get("@id", f"http://snomed.info/id/{snomed_result['snomed:code']}")
+                            elif "Regular exercise" in factor_label:
+                                factor["snomed:code"] = "229971000000100"
+                                factor["@id"] = "http://snomed.info/id/229971000000100"
+                            elif "Sedentary" in factor_label:
+                                factor["snomed:code"] = "229971000000100"
+                                factor["@id"] = "http://snomed.info/id/229971000000100"
+                        elif factor_label and "grapefruit" in factor_label.lower():
+                            factor["snomed:code"] = "226529007"
+                            factor["@id"] = "http://snomed.info/id/226529007"
             # Don't override patient_id - it was already extracted correctly in run_multi_gene
         else:
             print("🔄 Generating new clinical information")
             clinical_info = self._generate_clinical_information(patient_id)
+            # Enrich generated medications with SNOMED codes
+            if "current_medications" in clinical_info:
+                print("🔍 Enriching generated medications with SNOMED codes...")
+                from utils.medication_enricher import MedicationEnricher
+                enricher = MedicationEnricher(self.dynamic_clinical)
+                clinical_info["current_medications"] = enricher.enrich_medications(clinical_info["current_medications"])
         
         # Get patient name from demographics if available
         demographics = clinical_info.get("demographics", {})

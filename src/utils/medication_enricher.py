@@ -44,12 +44,21 @@ class MedicationEnricher:
         """
         drug_name = medication.get("schema:name") or medication.get("rdfs:label") or ""
         
-        # 1. Ensure drug substance has SNOMED code
+        # 1. Ensure drug substance has SNOMED code - try multiple strategies
         if not medication.get("snomed:code"):
             drug_snomed_code = self.dynamic_clinical._get_snomed_code_for_drug(drug_name)
+            if not drug_snomed_code and drug_name:
+                # Try lowercase variant
+                drug_snomed_code = self.dynamic_clinical._get_snomed_code_for_drug(drug_name.lower())
+            if not drug_snomed_code and drug_name:
+                # Try capitalized variant
+                drug_snomed_code = self.dynamic_clinical._get_snomed_code_for_drug(drug_name.title())
             if drug_snomed_code:
                 medication["snomed:code"] = drug_snomed_code
                 medication["snomed:uri"] = f"http://snomed.info/id/{drug_snomed_code}"
+                print(f"    ✅ Found SNOMED code for drug: {drug_name} -> {drug_snomed_code}")
+            else:
+                print(f"    ⚠️  Could not find SNOMED code for drug: {drug_name}")
         
         # 2. Ensure treats_condition has valid SNOMED code (never null)
         treats_condition = medication.get("treats_condition")
@@ -78,6 +87,9 @@ class MedicationEnricher:
                         "rdfs:label": condition_label,
                         "@id": f"http://snomed.info/id/{condition_result['snomed:code']}"
                     }
+                    print(f"    ✅ Added treats_condition for {drug_name}: {condition_label} -> {condition_result['snomed:code']}")
+                else:
+                    print(f"    ⚠️  Could not find SNOMED code for condition: {condition_label} (for drug {drug_name})")
         
         return medication
 
