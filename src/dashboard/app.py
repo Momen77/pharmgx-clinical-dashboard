@@ -547,6 +547,9 @@ elif page == "🔬 Run Test":
 
             # storyboard_finish_time and storyboard_speed already initialized at page level
             
+            # Display storyboard section header
+            st.subheader("📊 Analysis Progress")
+            
             try:
                 # Run pipeline (storyboard handles visual stages and status)
                 
@@ -687,23 +690,44 @@ elif page == "🔬 Run Test":
                 storyboard_finish_time[0] = time.time() + (storyboard_speed[0]/1000.0) * max(1, len(sb_plan)) + 1.0
                 
                 try:
-                    # Reset storyboard placeholder so we don't stack instances
-                    if not st.session_state.get('_sb_initialized'):
+                    # Ensure storyboard placeholder exists
+                    if '_pgx_storyboard_ph' not in st.session_state or st.session_state.get('_pgx_storyboard_ph') is None:
                         st.session_state['_pgx_storyboard_ph'] = st.empty()
-                        sb = Storyboard() if 'Storyboard' in globals() and Storyboard else None
-                        if sb and hasattr(sb, 'set_genes'):
-                            sb.set_genes(st.session_state.get('selected_genes', []))
                     
-                    if sb and hasattr(sb, 'set_demo_plan') and hasattr(sb, 'render') and not st.session_state.get('_sb_initialized'):
-                        sb.set_demo_plan([
-                            {"stage": s, "substage": sub, "message": msg, "progress": prog}
-                            for s, sub, msg, prog in sb_plan
-                        ], storyboard_speed[0])
-                        sb.render("Initializing storyboard...")
-                        st.session_state['_sb_initialized'] = True
-                except Exception:
+                    # Check if Storyboard component is available
+                    if 'Storyboard' not in globals() or Storyboard is None:
+                        st.warning("⚠️ Storyboard component not available. Animation will not be displayed.")
+                        sb = None
+                    else:
+                        # Always create storyboard instance (it will reuse existing placeholder)
+                        sb = Storyboard()
+                        if sb and hasattr(sb, '_sb') and sb._sb:
+                            if hasattr(sb, 'set_genes'):
+                                sb.set_genes(st.session_state.get('selected_genes', []))
+                            
+                            # Set demo plan and render
+                            if hasattr(sb, 'set_demo_plan'):
+                                sb.set_demo_plan([
+                                    {"stage": s, "substage": sub, "message": msg, "progress": prog}
+                                    for s, sub, msg, prog in sb_plan
+                                ], storyboard_speed[0])
+                            
+                            # Always render to ensure visibility
+                            if hasattr(sb, 'render'):
+                                sb.render("Initializing storyboard...")
+                            
+                            st.session_state['_sb_initialized'] = True
+                        else:
+                            st.warning("⚠️ Storyboard component failed to initialize.")
+                            sb = None
+                except Exception as e:
                     sb = None
-                    # Keep the default storyboard_finish_time set above 
+                    # Keep the default storyboard_finish_time set above
+                    # Log error for debugging
+                    import traceback
+                    st.error(f"❌ Storyboard initialization error: {e}")
+                    with st.expander("🔍 Storyboard Error Details", expanded=False):
+                        st.code(traceback.format_exc()) 
 
                 # Worker function that runs pipeline in background thread
                 def run_pipeline_worker():
