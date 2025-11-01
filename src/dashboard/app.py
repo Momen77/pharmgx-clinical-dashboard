@@ -469,7 +469,7 @@ elif page == "🔬 Run Test":
         last_name = demo.get('last_name', 'N/A')
         mrn = demo.get('mrn', 'N/A')
 
-        # Add a button to start the test
+        # Add a button to start the test (moved before Test Summary so we can check its state)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             run_test_button = st.button(
@@ -479,13 +479,8 @@ elif page == "🔬 Run Test":
                 key="run_test_main_button"
             )
 
-        # Only show test summary if test is NOT running
-        # When button is clicked, set test_running flag and hide summary
-        if run_test_button:
-            st.session_state['test_running'] = True
-        
-        # Hide test summary when test is running
-        if not st.session_state.get('test_running', False):
+        # Only show test summary if button hasn't been clicked yet
+        if not run_test_button:
             # Show test summary
             st.subheader("Test Summary")
 
@@ -663,7 +658,10 @@ elif page == "🔬 Run Test":
                 # Snapshot selected genes from session in main thread
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
-            # Prepare enhanced storyboard in Run Test (real pipeline)
+                # Prepare enhanced storyboard in Run Test (real pipeline)
+                # Initialize storyboard_finish_time to prevent NameError if exception occurs
+                storyboard_finish_time = time.time() + 600  # Default: 10 minutes in the future
+                sb = None
                 try:
                     # Reset storyboard placeholder so we don't stack instances
                     if not st.session_state.get('_sb_initialized'):
@@ -698,6 +696,7 @@ elif page == "🔬 Run Test":
                     storyboard_finish_time = time.time() + (storyboard_speed/1000.0) * max(1, len(sb_plan)) + 1.0
                 except Exception:
                     sb = None
+                    # Keep the default storyboard_finish_time set above
 
                 # Worker function that runs pipeline in background thread
                 def run_pipeline_worker():
@@ -833,7 +832,6 @@ elif page == "🔬 Run Test":
                     st.json(results)
             
             except Exception as e:
-                st.session_state['test_running'] = False  # Reset flag on error
                 st.error(f"❌ Pipeline failed: {e}")
                 import traceback
                 with st.expander("🐛 Error Details", expanded=True):
@@ -844,7 +842,6 @@ elif page == "🔬 Run Test":
             if results.get('success'):
                 st.session_state['test_results'] = results
                 st.session_state['test_complete'] = True
-                st.session_state['test_running'] = False  # Reset flag when test completes
                 st.success("✅ Analysis Complete!")
                 st.info("➡️ **Next:** Go to **📊 View Results** to see the full report and interactive knowledge graph.")
 
@@ -870,7 +867,6 @@ elif page == "🔬 Run Test":
                     for t, p in results['comprehensive_outputs'].items():
                         st.text(f"• {t}: {p}")
             else:
-                st.session_state['test_running'] = False  # Reset flag on failure
                 st.error(f"❌ Test failed: {results.get('error', 'Unknown error')}")
 
 elif page == "📊 View Results":
