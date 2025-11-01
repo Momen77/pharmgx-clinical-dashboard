@@ -662,7 +662,7 @@ elif page == "🔬 Run Test":
                 # Snapshot selected genes from session in main thread
                 selected_genes_snapshot = list(st.session_state.get('selected_genes', []) or [])
 
-            # Prepare enhanced storyboard in Run Test (real pipeline)
+                # Prepare enhanced storyboard in Run Test (real pipeline)
                 # Initialize storyboard_finish_time to a default value
                 storyboard_finish_time = time.time() + 120  # Default: 2 minutes from now
                 sb = None
