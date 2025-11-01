@@ -544,6 +544,13 @@ elif page == "🔬 Run Test":
                 st.write(f"Config path: {config_path}")
                 st.write(f"Profile keys: {list(profile.keys())}")
 
+            # Initialize imports and storyboard_finish_time BEFORE try block
+            # This ensures the variable is always defined, even if try block fails
+            import queue
+            import threading
+            import time
+            storyboard_finish_time = time.time() + 120  # Default: 2 minutes from now
+
             try:
                 # Run pipeline (storyboard handles visual stages and status)
                 
@@ -557,13 +564,6 @@ elif page == "🔬 Run Test":
                 # ==============================================
                 # Use queue to avoid ScriptRunContext errors when
                 # worker threads emit events
-                import queue
-                import threading
-                import time
-
-                # Initialize storyboard_finish_time IMMEDIATELY after imports
-                # This ensures it's always defined even if later code fails
-                storyboard_finish_time = time.time() + 120  # Default: 2 minutes from now
 
                 event_queue = queue.Queue()
                 result_queue = queue.Queue()
