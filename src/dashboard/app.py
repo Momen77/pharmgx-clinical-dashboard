@@ -476,36 +476,6 @@ elif page == "🔬 Run Test":
         last_name = demo.get('last_name', 'N/A')
         mrn = demo.get('mrn', 'N/A')
 
-        # Show test summary
-        st.subheader("Test Summary")
-
-        # Create layout with patient photo and summary info
-        photo_col, summary_info_col = st.columns([1, 3])
-
-        # Display patient photo
-        with photo_col:
-            if profile.get('photo'):
-                st.image(profile['photo'], width=150, caption="Patient Photo")
-            else:
-                st.info("No photo available")
-
-        # Display summary information
-        with summary_info_col:
-            summary_col1, summary_col2 = st.columns(2)
-            with summary_col1:
-                st.write(f"**Patient:** {first_name} {last_name}")
-                st.write(f"**MRN:** {mrn}")
-                st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
-            with summary_col2:
-                st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
-                st.write(f"**Estimated time:** ~2-5 minutes")
-
-        # Optional: Show patient profile details
-        with st.expander("👤 View Patient Profile Details", expanded=False):
-            st.json(profile)
-
-        st.divider()
-
         # Add a button to start the test
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
@@ -515,6 +485,41 @@ elif page == "🔬 Run Test":
                 width='stretch',
                 key="run_test_main_button"
             )
+
+        # Only show test summary and patient info BEFORE the test runs
+        # Hide it during execution to focus on the animation
+        # Check if test is running or completed
+        test_is_running = run_test_button or (st.session_state.get('test_results') and not st.session_state.get('test_complete', False))
+        if not test_is_running:
+            # Show test summary
+            st.subheader("Test Summary")
+
+            # Create layout with patient photo and summary info
+            photo_col, summary_info_col = st.columns([1, 3])
+
+            # Display patient photo
+            with photo_col:
+                if profile.get('photo'):
+                    st.image(profile['photo'], width=150, caption="Patient Photo")
+                else:
+                    st.info("No photo available")
+
+            # Display summary information
+            with summary_info_col:
+                summary_col1, summary_col2 = st.columns(2)
+                with summary_col1:
+                    st.write(f"**Patient:** {first_name} {last_name}")
+                    st.write(f"**MRN:** {mrn}")
+                    st.write(f"**Genes to analyze:** {len(st.session_state['selected_genes'])}")
+                with summary_col2:
+                    st.write(f"**Selected genes:** {', '.join(st.session_state['selected_genes'][:5])}{' ...' if len(st.session_state['selected_genes']) > 5 else ''}")
+                    st.write(f"**Estimated time:** ~2-5 minutes")
+
+            # Optional: Show patient profile details
+            with st.expander("👤 View Patient Profile Details", expanded=False):
+                st.json(profile)
+
+            st.divider()
 
         # Only run pipeline if button is clicked
         if run_test_button:
