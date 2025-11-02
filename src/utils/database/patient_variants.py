@@ -9,6 +9,12 @@ from datetime import datetime
 from typing import Dict
 import psycopg
 from .utils import parse_date, generate_variant_key
+from .data_extraction_utils import (
+    extract_variant_gene,
+    extract_variant_field,
+    extract_from_jsonb,
+    log_extraction_stats
+)
 
 
 class PatientVariantsLoader:
@@ -75,58 +81,162 @@ class PatientVariantsLoader:
         patient_id = profile.get("patient_id")
         variants = profile.get("variants", [])
         
+        expected_count = len(variants)
         for variant in variants:
             try:
-                gene_symbol = variant.get("gene")
-                variant_id = variant.get("variant_id")
-                rsid = variant.get("rsid")
+                # ✅ ROBUST EXTRACTION: Use comprehensive extraction with fallbacks
+                gene_symbol = extract_variant_gene(variant)
+                variant_id = extract_variant_field(
+                    variant, "variant_id",
+                    fallback_keys=["id", "@id", "variantId"],
+                    default=""
+                )
+                rsid = extract_variant_field(
+                    variant, "rsid",
+                    fallback_keys=["rs_id", "rsId", "dbSNP"],
+                    default=None
+                )
+                if rsid and isinstance(rsid, str):
+                    rsid = rsid.replace("rs", "").strip()
                 
                 # Extract diplotype info
                 diplotype_info = variant.get("diplotype", {})
                 if isinstance(diplotype_info, str):
                     diplotype = diplotype_info
                 else:
-                    diplotype = diplotype_info.get("diplotype")
+                    diplotype = diplotype_info.get("diplotype") if isinstance(diplotype_info, dict) else None
                 
                 # Phenotype
-                phenotype = variant.get("phenotype") or variant.get("predicted_phenotype")
+                phenotype = extract_variant_field(
+                    variant, "phenotype",
+                    fallback_keys=["predicted_phenotype", "predictedPhenotype", "hasPhenotype"],
+                    default=None
+                )
                 
-                # SCHEMA-ALIGNED: Extract ALL required columns
-                protein_id = variant.get("protein_id")
-                genotype = variant.get("genotype")
-                zygosity = variant.get("zygosity")
-                clinical_significance = variant.get("clinical_significance")
+                # ✅ ROBUST EXTRACTION: Extract ALL required columns with fallbacks
+                protein_id = extract_variant_field(
+                    variant, "protein_id",
+                    fallback_keys=["proteinId", "protein"],
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                genotype = extract_variant_field(
+                    variant, "genotype",
+                    fallback_keys=["hasGenotype"],
+                    default=None
+                )
+                zygosity = extract_variant_field(
+                    variant, "zygosity",
+                    fallback_keys=["zygosity_status"],
+                    default=None
+                )
+                clinical_significance = extract_variant_field(
+                    variant, "clinical_significance",
+                    camel_case="clinicalSignificance",
+                    nested_paths=[["clinicalSignificances", 0, "type"]],
+                    default=None
+                )
                 
-                # FIXED: Added missing columns
-                consequence_type = variant.get("consequence_type") or variant.get("molecularConsequence")
-                wild_type = variant.get("wild_type") or variant.get("wildType")
-                alternative_sequence = variant.get("alternativeSequence")
-                begin_position = variant.get("begin") or variant.get("beginPosition")
-                end_position = variant.get("end") or variant.get("endPosition")
-                codon = variant.get("codon")
-                somatic_status = variant.get("somaticStatus")
-                source_type = variant.get("sourceType")
-                genomic_notation = variant.get("genomicNotation")
-                hgvs_notation = variant.get("hgvs") or variant.get("hgvsNotation")
+                # ✅ EXTRACT WITH FALLBACKS: Try direct, then nested, then JSONB
+                consequence_type = extract_variant_field(
+                    variant, "consequence_type",
+                    camel_case="molecularConsequence",
+                    nested_paths=[["molecularConsequence"]],
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                wild_type = extract_variant_field(
+                    variant, "wild_type",
+                    camel_case="wildType",
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                alternative_sequence = extract_variant_field(
+                    variant, "alternativeSequence",
+                    fallback_keys=["alternative_sequence", "mutated_sequence"],
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                begin_position = extract_variant_field(
+                    variant, "begin",
+                    fallback_keys=["beginPosition", "start", "start_position"],
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                end_position = extract_variant_field(
+                    variant, "end",
+                    fallback_keys=["endPosition", "stop"],
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                codon = extract_variant_field(
+                    variant, "codon",
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                somatic_status = extract_variant_field(
+                    variant, "somaticStatus",
+                    fallback_keys=["somatic_status", "is_somatic"],
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                source_type = extract_variant_field(
+                    variant, "sourceType",
+                    fallback_keys=["source_type", "data_source"],
+                    jsonb_fields=["raw_uniprot_data"],
+                    default=None
+                )
+                genomic_notation = extract_variant_field(
+                    variant, "genomicNotation",
+                    fallback_keys=["genomic_notation", "genomic_notation_hgvs"],
+                    default=None
+                )
+                hgvs_notation = extract_variant_field(
+                    variant, "hgvs",
+                    fallback_keys=["hgvsNotation", "hgvs_notation", "hgvs_notation_cdna"],
+                    default=None
+                )
                 
-                # FIXED: Added raw data columns
-                # Extract raw UniProt data (all UniProt-related fields)
-                raw_uniprot_data = {
-                    "alternativeSequence": variant.get("alternativeSequence"),
-                    "begin": variant.get("begin"),
-                    "end": variant.get("end"),
-                    "codon": variant.get("codon"),
-                    "molecularConsequence": variant.get("molecularConsequence"),
-                    "wildType": variant.get("wildType"),
-                    "somaticStatus": variant.get("somaticStatus"),
-                    "sourceType": variant.get("sourceType"),
-                    "xrefs": variant.get("xrefs", []),
-                    "genomicLocation": variant.get("genomicLocation") or variant.get("genomicLocations", []),
-                    "evidences": variant.get("evidences", [])
-                }
+                # ✅ EXTRACT RAW DATA: Get existing raw data or build from available fields
+                raw_uniprot_data = variant.get("raw_uniprot_data")
+                if isinstance(raw_uniprot_data, str):
+                    try:
+                        raw_uniprot_data = json.loads(raw_uniprot_data)
+                    except:
+                        raw_uniprot_data = {}
                 
-                # Extract raw PharmGKB data
+                # If no raw_uniprot_data exists, build from available fields
+                if not raw_uniprot_data or not isinstance(raw_uniprot_data, dict):
+                    raw_uniprot_data = {
+                        "alternativeSequence": alternative_sequence,
+                        "begin": begin_position,
+                        "end": end_position,
+                        "codon": codon,
+                        "molecularConsequence": consequence_type,
+                        "wildType": wild_type,
+                        "somaticStatus": somatic_status,
+                        "sourceType": source_type,
+                        "xrefs": variant.get("xrefs", []),
+                        "genomicLocation": variant.get("genomicLocation") or variant.get("genomicLocations", []),
+                        "evidences": variant.get("evidences", [])
+                    }
+                    # Remove None values
+                    raw_uniprot_data = {k: v for k, v in raw_uniprot_data.items() if v is not None}
+                
+                # ✅ EXTRACT RAW PHARMGKB DATA
                 raw_pharmgkb_data = variant.get("pharmgkb", {})
+                if isinstance(raw_pharmgkb_data, str):
+                    try:
+                        raw_pharmgkb_data = json.loads(raw_pharmgkb_data)
+                    except:
+                        raw_pharmgkb_data = {}
+                if not raw_pharmgkb_data or not isinstance(raw_pharmgkb_data, dict):
+                    raw_pharmgkb_data = variant.get("raw_pharmgkb_data", {})
+                    if isinstance(raw_pharmgkb_data, str):
+                        try:
+                            raw_pharmgkb_data = json.loads(raw_pharmgkb_data)
+                        except:
+                            raw_pharmgkb_data = {}
                 
                 # SCHEMA-ALIGNED INSERT with ALL columns
                 cursor.execute("""
@@ -173,6 +283,7 @@ class PatientVariantsLoader:
             except Exception as e:
                 self.logger.warning(f"Could not insert patient variant {variant_id}: {e}")
         
+        log_extraction_stats(count, expected_count, "patient_variants")
         self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} patient variants (with 22 columns)")
         return count
 

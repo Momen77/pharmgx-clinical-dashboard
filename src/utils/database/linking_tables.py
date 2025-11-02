@@ -15,6 +15,14 @@ from datetime import datetime
 from typing import Dict
 import psycopg
 from .utils import parse_date
+from .data_extraction_utils import (
+    extract_ethnicity_adjustments,
+    extract_population_frequencies,
+    extract_variant_field,
+    extract_variant_gene,
+    extract_pharmgkb_data,
+    log_extraction_stats
+)
 
 # Log module version on import
 _logger_init = logging.getLogger(__name__)
@@ -190,7 +198,14 @@ class LinkingTablesLoader:
         """
         count = 0
         patient_id = profile.get("patient_id")
-        conflicts = profile.get("conflicts", [])
+        
+        # ✅ FIXED: Extract conflicts from variant_linking.conflicts (correct location)
+        variant_linking = profile.get("variant_linking", {})
+        conflicts = variant_linking.get("conflicts", [])
+        
+        # Also check direct conflicts key (fallback for compatibility)
+        if not conflicts:
+            conflicts = profile.get("conflicts", [])
         
         # Get medication IDs from profile (stored during medication insert)
         medications = profile.get("clinical_information", {}).get("current_medications", [])
@@ -266,11 +281,14 @@ class LinkingTablesLoader:
         variants = profile.get("variants", [])
         
         for variant in variants:
-            variant_id = variant.get("variant_id")
-            gene_symbol = variant.get("gene")
-            rsid = variant.get("rsid")
+            variant_id = extract_variant_field(variant, "variant_id", fallback_keys=["id", "@id"], default="")
+            gene_symbol = extract_variant_gene(variant)
+            rsid = extract_variant_field(variant, "rsid", fallback_keys=["rs_id", "rsId"], default=None)
+            if rsid and isinstance(rsid, str):
+                rsid = rsid.replace("rs", "").strip()
             
-            population_frequencies = variant.get("population_frequencies", {})
+            # ✅ ROBUST EXTRACTION: Use extraction utility
+            population_frequencies = extract_population_frequencies(variant)
             
             # Handle different data structures
             # Option 1: Simple dict {population: frequency}
@@ -335,25 +353,39 @@ class LinkingTablesLoader:
     
     def insert_ethnicity_medication_adjustments(self, cursor: psycopg.Cursor, profile: Dict) -> int:
         """
-        ✅ SCHEMA-ALIGNED v2.1: Insert ethnicity_medication_adjustments
-        CRITICAL FIX: Schema has NO "source" column
+        ✅ IMPROVED: Insert ethnicity_medication_adjustments using robust extraction
         Schema columns: variant_id, gene_symbol, ethnicity, drug_name, adjustment_type, 
                        adjustment_factor, recommendation, evidence_level, frequency_in_population
         """
         count = 0
         patient_id = profile.get("patient_id")
         
-        # Get patient ethnicity
+        # ✅ ROBUST EXTRACTION: Get patient ethnicity with fallbacks
         demographics = profile.get("clinical_information", {}).get("demographics", {})
         ethnicity = demographics.get("ethnicity", [])
+        if not ethnicity:
+            # Try direct access
+            ethnicity = profile.get("ethnicity", [])
         if not ethnicity:
             return 0
         
         # Extract primary ethnicity
-        primary_ethnicity = ethnicity[0] if isinstance(ethnicity, list) else str(ethnicity)
+        primary_ethnicity = ethnicity[0] if isinstance(ethnicity, list) and len(ethnicity) > 0 else str(ethnicity) if ethnicity else None
+        if not primary_ethnicity:
+            return 0
         
-        # Get adjustments from profile
-        ethnicity_adjustments = profile.get("ethnicity_medication_adjustments", [])
+        # ✅ ROBUST EXTRACTION: Get adjustments from multiple locations
+        ethnicity_adjustments = extract_ethnicity_adjustments(profile)
+        
+        # Also check variants for variant-specific adjustments
+        variants = profile.get("variants", [])
+        for variant in variants:
+            variant_adjustments = variant.get("ethnicity_adjustments", [])
+            if variant_adjustments:
+                if isinstance(variant_adjustments, list):
+                    ethnicity_adjustments.extend(variant_adjustments)
+                else:
+                    ethnicity_adjustments.append(variant_adjustments)
         
         for adjustment in ethnicity_adjustments:
             savepoint_name = f"ethnicity_adj_{count}"
@@ -393,6 +425,7 @@ class LinkingTablesLoader:
                         self.logger.error(f"Transaction aborted - cannot use savepoint. Original error: {error_msg}")
                         raise RuntimeError(f"Transaction aborted in ethnicity_medication_adjustments: {error_msg}") from e
         
+        log_extraction_stats(count, len(ethnicity_adjustments), "ethnicity_medication_adjustments")
         self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} ethnicity medication adjustments")
         return count
     
@@ -526,19 +559,29 @@ class LinkingTablesLoader:
         variants = profile.get("variants", [])
         
         for variant in variants:
-            variant_id = variant.get("variant_id")
-            gene_symbol = variant.get("gene")
+            # ✅ IMPROVED: Use robust extraction with raw_data fallback
+            variant_id = extract_variant_field(variant, "variant_id", fallback_keys=["id", "@id"], default="")
+            gene_symbol = extract_variant_gene(variant)
+            
+            # ✅ Extract drugs from multiple locations
             drugs = variant.get("drugs", [])
+            
+            # Also check raw_data for drugs
+            if not drugs and variant.get("raw_data"):
+                raw_variant = variant["raw_data"]
+                pharmgkb = extract_pharmgkb_data(raw_variant)
+                if isinstance(pharmgkb, dict):
+                    drugs = pharmgkb.get("drugs", [])
             
             for drug in drugs:
                 drug_name = drug.get("name")
                 if not drug_name:
                     continue
                 
-                # Get PharmGKB annotation ID for this variant-drug pair
+                # ✅ IMPROVED: Get PharmGKB annotation ID with raw_data fallback
                 pharmgkb_annotation_id = None
-                pharmgkb_data = variant.get("pharmgkb", {})
-                annotations = pharmgkb_data.get("annotations", [])
+                pharmgkb_data = extract_pharmgkb_data(variant)
+                annotations = pharmgkb_data.get("annotations", []) if isinstance(pharmgkb_data, dict) else []
                 
                 for annotation in annotations:
                     # Check if this annotation is related to this drug
@@ -646,10 +689,19 @@ class LinkingTablesLoader:
             if not disease_snomed or not drug_name:
                 continue
             
-            # Find variants that affect this drug
+            # ✅ IMPROVED: Find variants that affect this drug with raw_data fallback
             for variant in variants:
-                variant_id = variant.get("variant_id")
+                variant_id = extract_variant_field(variant, "variant_id", fallback_keys=["id", "@id"], default="")
+                gene_symbol = extract_variant_gene(variant)
+                
                 drugs = variant.get("drugs", [])
+                
+                # Also check raw_data for drugs
+                if not drugs and variant.get("raw_data"):
+                    raw_variant = variant["raw_data"]
+                    pharmgkb = extract_pharmgkb_data(raw_variant)
+                    if isinstance(pharmgkb, dict):
+                        drugs = pharmgkb.get("drugs", [])
                 
                 for variant_drug in drugs:
                     if variant_drug.get("name", "").lower() == drug_name.lower():
@@ -666,7 +718,7 @@ class LinkingTablesLoader:
                                 disease_snomed,
                                 drug_name,
                                 variant_id,
-                                variant.get("gene"),
+                                gene_symbol,
                                 "medication_indication",
                                 variant_drug.get("evidence_level"),
                                 variant_drug.get("recommendation"),
@@ -694,10 +746,10 @@ class LinkingTablesLoader:
         primary_ethnicity = ethnicity[0] if isinstance(ethnicity, list) else str(ethnicity)
         
         for variant in variants:
-            variant_id = variant.get("variant_id")
+            variant_id = extract_variant_field(variant, "variant_id", fallback_keys=["id", "@id"], default="")
             
-            # Get population frequencies for this variant
-            population_frequencies = variant.get("population_frequencies", {})
+            # ✅ IMPROVED: Get population frequencies with raw_data fallback
+            population_frequencies = extract_population_frequencies(variant)
             
             # Find frequency for patient's ethnicity
             frequency_in_patient_population = None

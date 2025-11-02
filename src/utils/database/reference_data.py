@@ -8,6 +8,17 @@ import logging
 from typing import Dict, List
 import psycopg
 from .utils import parse_date
+from .data_extraction_utils import (
+    extract_variant_gene,
+    extract_variant_field,
+    extract_genomic_locations,
+    extract_uniprot_data,
+    extract_xrefs,
+    extract_predictions,
+    extract_clinvar_data,
+    extract_pharmgkb_data,
+    log_extraction_stats
+)
 
 
 class ReferenceDataLoader:
@@ -262,9 +273,10 @@ class ReferenceDataLoader:
         return count
     
     def insert_variants_reference(self, cursor: psycopg.Cursor, profile: Dict) -> int:
-        """Insert variants to reference variants table"""
+        """✅ IMPROVED: Insert variants using robust data extraction"""
         count = 0
         variants = profile.get("variants", [])
+        expected_count = len(variants)
         
         for variant in variants:
             from .utils import generate_variant_key
@@ -272,22 +284,105 @@ class ReferenceDataLoader:
             if variant_key in self.inserted_variants:
                 continue
             
-            gene_symbol = variant.get("gene")
-            variant_id = variant.get("variant_id")
-            rsid = variant.get("rsid")
-            clinical_significance = variant.get("clinical_significance")
-            consequence_type = variant.get("consequence_type") or variant.get("molecularConsequence")
-            variant_type = variant.get("variant_type") or variant.get("type")
-            wild_type = variant.get("wild_type") or variant.get("wildType")
-            mutated_type = variant.get("mutated_type") or variant.get("alternativeSequence")
-            cytogenetic_band = variant.get("cytogenetic_band")
-            alternative_sequence = variant.get("alternativeSequence")
-            begin_position = variant.get("begin") or variant.get("beginPosition")
-            end_position = variant.get("end") or variant.get("endPosition")
-            codon = variant.get("codon")
-            somatic_status = variant.get("somaticStatus")
-            source_type = variant.get("sourceType")
-            hgvs_notation = variant.get("hgvs") or variant.get("hgvsNotation")
+            # ✅ ROBUST EXTRACTION: Use comprehensive extraction utilities
+            gene_symbol = extract_variant_gene(variant)
+            variant_id = extract_variant_field(
+                variant, "variant_id",
+                fallback_keys=["id", "@id", "variantId"],
+                nested_paths=[["@id"]],
+                default=""
+            )
+            # Extract rsid from @id if needed (e.g., "dbsnp:72549306" -> "72549306")
+            if not variant_id or variant_id.startswith("dbsnp:"):
+                rsid_from_id = variant_id.replace("dbsnp:", "") if variant_id else None
+            else:
+                rsid_from_id = None
+            
+            rsid = extract_variant_field(
+                variant, "rsid",
+                fallback_keys=["rs_id", "rsId", "dbSNP"],
+                default=rsid_from_id
+            )
+            # Clean rsid (remove "rs" prefix if present)
+            if rsid and isinstance(rsid, str):
+                rsid = rsid.replace("rs", "").strip()
+            
+            clinical_significance = extract_variant_field(
+                variant, "clinical_significance",
+                camel_case="clinicalSignificance",
+                nested_paths=[["clinicalSignificances", 0, "type"]],
+                default=None
+            )
+            consequence_type = extract_variant_field(
+                variant, "consequence_type",
+                camel_case="molecularConsequence",
+                nested_paths=[["molecularConsequence"]],
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            variant_type = extract_variant_field(
+                variant, "variant_type",
+                camel_case="type",
+                nested_paths=[["@type"]],
+                default=None
+            )
+            wild_type = extract_variant_field(
+                variant, "wild_type",
+                camel_case="wildType",
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            mutated_type = extract_variant_field(
+                variant, "mutated_type",
+                camel_case="alternativeSequence",
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            cytogenetic_band = extract_variant_field(
+                variant, "cytogenetic_band",
+                camel_case="cytogeneticBand",
+                default=None
+            )
+            alternative_sequence = extract_variant_field(
+                variant, "alternativeSequence",
+                fallback_keys=["alternative_sequence", "mutated_sequence"],
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            begin_position = extract_variant_field(
+                variant, "begin",
+                fallback_keys=["beginPosition", "start", "start_position"],
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            end_position = extract_variant_field(
+                variant, "end",
+                fallback_keys=["endPosition", "stop"],
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            codon = extract_variant_field(
+                variant, "codon",
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            somatic_status = extract_variant_field(
+                variant, "somaticStatus",
+                fallback_keys=["somatic_status", "is_somatic"],
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            source_type = extract_variant_field(
+                variant, "sourceType",
+                fallback_keys=["source_type", "data_source"],
+                jsonb_fields=["raw_uniprot_data"],
+                default=None
+            )
+            hgvs_notation = extract_variant_field(
+                variant, "hgvs",
+                fallback_keys=["hgvsNotation", "hgvs_notation", "hgvs_notation_cdna"],
+                default=None
+            )
             
             try:
                 cursor.execute("""
@@ -308,23 +403,27 @@ class ReferenceDataLoader:
                 self.inserted_variants.add(variant_key)
                 count += 1
                 
-                # Also insert related tables
-                genomic_locations = variant.get("genomicLocation") or variant.get("genomicLocations", [])
-                if isinstance(genomic_locations, dict):
-                    genomic_locations = [genomic_locations]
-                
+                # ✅ ALWAYS EXTRACT: Try to insert related tables even with partial data
+                genomic_locations = extract_genomic_locations(variant)
                 for loc in genomic_locations:
-                    self._insert_genomic_location(cursor, variant_id, loc)
+                    if loc:  # Insert even if incomplete
+                        self._insert_genomic_location(cursor, variant_id, loc)
                 
-                if variant.get("alternativeSequence") or variant.get("codon"):
-                    self._insert_uniprot_details(cursor, variant_id, variant)
+                # ✅ ALWAYS EXTRACT: Extract and insert UniProt data if available
+                uniprot_data = extract_uniprot_data(variant)
+                if uniprot_data:
+                    self._insert_uniprot_details(cursor, variant_id, uniprot_data)
                 
-                for xref in variant.get("xrefs", []):
-                    self._insert_uniprot_xref(cursor, variant_id, xref)
+                # ✅ ALWAYS EXTRACT: Extract and insert xrefs
+                xrefs = extract_xrefs(variant)
+                for xref in xrefs:
+                    if xref:  # Insert if xref exists
+                        self._insert_uniprot_xref(cursor, variant_id, xref)
                 
             except Exception as e:
                 self.logger.warning(f"Could not insert variant {variant_key}: {e}")
         
+        log_extraction_stats(count, expected_count, "variants")
         self.logger.info(f"✓ Inserted {count} variants")
         return count
     
@@ -387,13 +486,15 @@ class ReferenceDataLoader:
             self.logger.debug(f"Could not insert UniProt xref for {variant_id}: {e}")
     
     def insert_pharmgkb_annotations(self, cursor: psycopg.Cursor, profile: Dict) -> int:
-        """Insert PharmGKB annotations - CRITICAL for medication_to_variant_links"""
+        """✅ IMPROVED: Insert PharmGKB annotations using robust extraction"""
         count = 0
         variants = profile.get("variants", [])
+        expected_total = 0
         
         for variant in variants:
-            pharmgkb_data = variant.get("pharmgkb", {})
-            annotations = pharmgkb_data.get("annotations", [])
+            pharmgkb_data = extract_pharmgkb_data(variant)
+            annotations = pharmgkb_data.get("annotations", []) if isinstance(pharmgkb_data, dict) else []
+            expected_total += len(annotations) if isinstance(annotations, list) else 0
             
             for annotation in annotations:
                 annotation_id = annotation.get("id")
@@ -745,35 +846,17 @@ class ReferenceDataLoader:
             self.logger.debug(f"Could not insert variation {variation.get('name')}: {e}")
     
     def insert_variant_predictions(self, cursor: psycopg.Cursor, profile: Dict) -> int:
-        """✅ SCHEMA-ALIGNED: Insert variant_predictions"""
+        """✅ IMPROVED: Insert variant_predictions using robust extraction"""
         count = 0
         variants = profile.get("variants", [])
+        expected_total = 0
         
         for variant in variants:
-            variant_id = variant.get("variant_id")
-            predictions = variant.get("predictions", []) or variant.get("prediction_scores", {})
+            variant_id = extract_variant_field(variant, "variant_id", fallback_keys=["id", "@id"], default="")
+            predictions = extract_predictions(variant)
+            expected_total += len(predictions) if predictions else 0
             
-            # Handle both list and dict formats
-            if isinstance(predictions, dict):
-                # Convert dict to list of predictions
-                predictions_list = []
-                for tool, pred_data in predictions.items():
-                    if isinstance(pred_data, dict):
-                        predictions_list.append({
-                            "tool": tool,
-                            "prediction": pred_data.get("prediction"),
-                            "score": pred_data.get("score"),
-                            "confidence": pred_data.get("confidence")
-                        })
-                    else:
-                        predictions_list.append({
-                            "tool": tool,
-                            "prediction": str(pred_data),
-                            "score": None,
-                            "confidence": None
-                        })
-                predictions = predictions_list
-            
+            # predictions already extracted and normalized by extract_predictions()
             for pred in predictions:
                 if not isinstance(pred, dict):
                     continue
@@ -796,29 +879,20 @@ class ReferenceDataLoader:
                 except Exception as e:
                     self.logger.debug(f"Could not insert variant prediction: {e}")
         
+        log_extraction_stats(count, expected_total, "variant_predictions")
         self.logger.info(f"✓ Inserted {count} variant predictions")
         return count
     
     def insert_clinvar_submissions(self, cursor: psycopg.Cursor, profile: Dict) -> int:
-        """✅ SCHEMA-ALIGNED: Insert clinvar_submissions"""
+        """✅ IMPROVED: Insert clinvar_submissions using robust extraction"""
         count = 0
         variants = profile.get("variants", [])
+        expected_total = 0
         
         for variant in variants:
-            variant_id = variant.get("variant_id")
-            clinvar_data = variant.get("clinvar", {})
-            
-            # Handle both dict and list formats
-            submissions = []
-            if isinstance(clinvar_data, list):
-                submissions = clinvar_data
-            elif isinstance(clinvar_data, dict):
-                # Single submission as dict
-                if clinvar_data.get("clinvar_id") or clinvar_data.get("id"):
-                    submissions = [clinvar_data]
-                # Or check for submissions key
-                elif clinvar_data.get("submissions"):
-                    submissions = clinvar_data["submissions"] if isinstance(clinvar_data["submissions"], list) else [clinvar_data["submissions"]]
+            variant_id = extract_variant_field(variant, "variant_id", fallback_keys=["id", "@id"], default="")
+            submissions = extract_clinvar_data(variant)
+            expected_total += len(submissions) if submissions else 0
             
             for submission in submissions:
                 if not isinstance(submission, dict):
@@ -845,6 +919,7 @@ class ReferenceDataLoader:
                 except Exception as e:
                     self.logger.debug(f"Could not insert ClinVar submission: {e}")
         
+        log_extraction_stats(count, expected_total, "clinvar_submissions")
         self.logger.info(f"✓ Inserted {count} ClinVar submissions")
         return count
     
