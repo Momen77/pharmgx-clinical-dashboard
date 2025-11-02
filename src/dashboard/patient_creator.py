@@ -513,106 +513,482 @@ class PatientCreator:
         ethnicity = [random.choices(ethnicity_options, weights=ethnicity_weights, k=1)[0]]
         ethnicity_key = ethnicity[0]
 
-        # Diverse names by ethnicity and gender
+        # Diverse names by ethnicity and gender - COMPREHENSIVE pools for unique profiles
         names_by_ethnicity = {
             "African": {
                 "Male": {
-                    "first": ["Kwame", "Jabari", "Kofi", "Ade", "Chike", "Tunde", "Sekou", "Amadi", "Themba", "Zuri"],
-                    "last": ["Okafor", "Mensah", "Adeyemi", "Kamara", "Nkrumah", "Diallo", "Banda", "Mwangi", "Ngozi", "Okeke"]
+                    "first": [
+                        # West African names
+                        "Kwame", "Kofi", "Kwesi", "Kwaku", "Yaw", "Kojo", "Kobina",
+                        "Ade", "Adebayo", "Adewale", "Ademola", "Oluwaseun", "Olumide", "Babatunde",
+                        "Chike", "Chidi", "Chinonso", "Chibueze", "Emeka", "Ikenna", "Obinna",
+                        "Tunde", "Sekou", "Amadi", "Nnamdi", "Okechukwu", "Uchenna",
+                        # East African names
+                        "Themba", "Thabo", "Sipho", "Mandla", "Jabu", "Sizwe",
+                        "Jabari", "Zuri", "Bakari", "Baraka", "Tendai", "Tapiwa",
+                        # North African names
+                        "Amari", "Kamau", "Kofi", "Juma", "Rashid", "Tariq"
+                    ],
+                    "last": [
+                        # Nigerian
+                        "Okafor", "Okeke", "Okonkwo", "Udoka", "Nwosu", "Eze", "Nnamdi", "Adeyemi", "Adeleke", "Akinyemi",
+                        "Oluwole", "Babatunde", "Ogundele", "Adekunle", "Adebayo", "Olawale", "Ogunleye",
+                        # Ghanaian
+                        "Mensah", "Asante", "Boateng", "Owusu", "Osei", "Nkrumah",
+                        # Kenyan
+                        "Mwangi", "Kamau", "Njoroge", "Otieno", "Ochieng", "Wanjiru",
+                        # Senegalese/West African
+                        "Diallo", "Sow", "Ba", "Sy", "Gueye", "Ndiaye", "Diop",
+                        # Southern African
+                        "Banda", "Phiri", "Dube", "Khumalo", "Moyo", "Ncube"
+                    ]
                 },
                 "Female": {
-                    "first": ["Amara", "Zola", "Nia", "Ayana", "Safiya", "Kaya", "Thandiwe", "Imani", "Asha", "Nala"],
-                    "last": ["Okafor", "Mensah", "Adeyemi", "Kamara", "Nkrumah", "Diallo", "Banda", "Mwangi", "Ngozi", "Okeke"]
+                    "first": [
+                        # West African
+                        "Amara", "Chioma", "Ngozi", "Adaeze", "Ifeoma", "Chiamaka", "Nneka",
+                        "Zola", "Nia", "Ama", "Afua", "Akua", "Abena", "Afia",
+                        "Ayana", "Safiya", "Kaya", "Thandiwe", "Thando", "Nosipho",
+                        "Imani", "Asha", "Nala", "Zuri", "Amani", "Faraja",
+                        # East African
+                        "Nia", "Makena", "Wanjiru", "Akinyi", "Nyambura", "Njeri",
+                        "Thandiwe", "Nomsa", "Precious", "Lindiwe", "Nandi", "Busisiwe",
+                        # Contemporary
+                        "Ayanna", "Sanaa", "Kioni", "Jamila", "Amina", "Fatou"
+                    ],
+                    "last": [
+                        # Nigerian
+                        "Okafor", "Okeke", "Okonkwo", "Udoka", "Nwosu", "Eze", "Nnamdi", "Adeyemi", "Adeleke", "Akinyemi",
+                        "Oluwole", "Babatunde", "Ogundele", "Adekunle", "Adebayo", "Olawale", "Ogunleye",
+                        # Ghanaian
+                        "Mensah", "Asante", "Boateng", "Owusu", "Osei", "Nkrumah",
+                        # Kenyan
+                        "Mwangi", "Kamau", "Njoroge", "Otieno", "Ochieng", "Wanjiru",
+                        # Senegalese/West African
+                        "Diallo", "Sow", "Ba", "Sy", "Gueye", "Ndiaye", "Diop",
+                        # Southern African
+                        "Banda", "Phiri", "Dube", "Khumalo", "Moyo", "Ncube"
+                    ]
                 }
             },
             "South Asian": {
                 "Male": {
-                    "first": ["Raj", "Arjun", "Ravi", "Ankit", "Vikram", "Amit", "Rohan", "Aditya", "Sanjay", "Kiran", "Farhan", "Imran", "Hassan"],
-                    "last": ["Patel", "Singh", "Kumar", "Sharma", "Reddy", "Gupta", "Khan", "Ahmed", "Ali", "Rahman", "Rao", "Mehta"]
+                    "first": [
+                        # Indian Hindu names
+                        "Raj", "Rajesh", "Ravi", "Rohan", "Rahul", "Rohit", "Rakesh",
+                        "Arjun", "Aditya", "Amit", "Ankit", "Aman", "Abhishek", "Ashok",
+                        "Vikram", "Vikas", "Vinod", "Vishal", "Vijay", "Varun",
+                        "Sanjay", "Suresh", "Sunil", "Sandeep", "Sachin", "Sameer",
+                        "Kiran", "Kishore", "Krishna", "Karthik", "Karan",
+                        "Deepak", "Dev", "Dinesh", "Dhruv",
+                        # Pakistani/Muslim names
+                        "Farhan", "Faisal", "Fahad", "Faraz",
+                        "Imran", "Irfan", "Ibrahim", "Ismail",
+                        "Hassan", "Hamza", "Hasan", "Haider",
+                        "Ahmed", "Ali", "Arslan", "Asif", "Adnan",
+                        "Bilal", "Babar", "Rehan", "Rizwan", "Salman", "Shahid", "Tariq", "Usman", "Zain"
+                    ],
+                    "last": [
+                        # Indian surnames
+                        "Patel", "Shah", "Desai", "Mehta", "Modi", "Joshi", "Trivedi",
+                        "Singh", "Kaur", "Gill", "Sandhu", "Bhatia", "Kapoor", "Malhotra", "Chopra",
+                        "Kumar", "Sharma", "Verma", "Gupta", "Agarwal", "Jain", "Bansal",
+                        "Reddy", "Rao", "Naidu", "Nair", "Menon", "Iyer", "Krishnan",
+                        "Mukherjee", "Chatterjee", "Banerjee", "Ghosh", "Sen", "Das",
+                        # Pakistani/Muslim surnames
+                        "Khan", "Ahmed", "Ali", "Malik", "Sheikh", "Syed",
+                        "Rahman", "Hussain", "Hassan", "Abbas", "Raza",
+                        # Bangladeshi surnames
+                        "Chowdhury", "Rahman", "Hossain", "Islam", "Mahmud"
+                    ]
                 },
                 "Female": {
-                    "first": ["Priya", "Aisha", "Devi", "Anjali", "Neha", "Kavita", "Lakshmi", "Fatima", "Zara", "Meera", "Sana", "Nisha"],
-                    "last": ["Patel", "Singh", "Kumar", "Sharma", "Reddy", "Gupta", "Khan", "Ahmed", "Ali", "Rahman", "Rao", "Mehta"]
+                    "first": [
+                        # Indian Hindu names
+                        "Priya", "Preeti", "Pooja", "Pallavi", "Pratiksha",
+                        "Anjali", "Ananya", "Aishwarya", "Aditi", "Aarti", "Aparna",
+                        "Neha", "Nisha", "Nikita", "Namrata", "Nidhi",
+                        "Kavita", "Kamini", "Kiran", "Komal",
+                        "Lakshmi", "Lata", "Leela",
+                        "Meera", "Megha", "Manisha", "Madhuri", "Maya",
+                        "Devi", "Deepa", "Divya", "Diya",
+                        "Sonia", "Shreya", "Shweta", "Simran", "Sapna",
+                        "Rani", "Rekha", "Ritu", "Radha",
+                        # Pakistani/Muslim names
+                        "Aisha", "Ayesha", "Amina", "Aliya",
+                        "Fatima", "Farah", "Farhana",
+                        "Zara", "Zainab", "Zahra",
+                        "Sana", "Sara", "Sadia", "Samina",
+                        "Nadia", "Noor", "Mariam", "Maria", "Hina", "Hira"
+                    ],
+                    "last": [
+                        # Indian surnames
+                        "Patel", "Shah", "Desai", "Mehta", "Modi", "Joshi", "Trivedi",
+                        "Singh", "Kaur", "Gill", "Sandhu", "Bhatia", "Kapoor", "Malhotra", "Chopra",
+                        "Kumar", "Sharma", "Verma", "Gupta", "Agarwal", "Jain", "Bansal",
+                        "Reddy", "Rao", "Naidu", "Nair", "Menon", "Iyer", "Krishnan",
+                        "Mukherjee", "Chatterjee", "Banerjee", "Ghosh", "Sen", "Das",
+                        # Pakistani/Muslim surnames
+                        "Khan", "Ahmed", "Ali", "Malik", "Sheikh", "Syed",
+                        "Rahman", "Hussain", "Hassan", "Abbas", "Raza",
+                        # Bangladeshi surnames
+                        "Chowdhury", "Rahman", "Hossain", "Islam", "Mahmud"
+                    ]
                 }
             },
             "East Asian": {
                 "Male": {
-                    "first": ["Wei", "Chen", "Li", "Hiroshi", "Kenji", "Takashi", "Min-jun", "Jin", "Hwan", "Joon", "Ryu"],
-                    "last": ["Wang", "Li", "Chen", "Zhang", "Liu", "Tanaka", "Yamamoto", "Suzuki", "Kim", "Park", "Lee", "Choi"]
+                    "first": [
+                        # Chinese names
+                        "Wei", "Wang", "Chen", "Li", "Zhang", "Liu", "Yang", "Huang",
+                        "Zhao", "Wu", "Zhou", "Xu", "Sun", "Ma", "Zhu", "Hu",
+                        "Guo", "He", "Gao", "Lin", "Zheng", "Liang", "Song", "Tang",
+                        "Han", "Feng", "Yu", "Dong", "Xiao", "Cheng", "Cao",
+                        # Japanese names
+                        "Hiroshi", "Takeshi", "Kenji", "Takashi", "Yuki", "Kazuo",
+                        "Akira", "Haruki", "Ryo", "Satoshi", "Masaki", "Yuto", "Daiki",
+                        "Koji", "Makoto", "Naoki", "Shota", "Takumi", "Yuuki",
+                        # Korean names
+                        "Min-jun", "Min-ho", "Seung", "Jin", "Joon", "Hwan", "Hyun",
+                        "Tae", "Sang", "Jun", "Woo", "Soo", "Dong", "Young", "Sung",
+                        "Ji-ho", "Seo-jun", "Ha-jun", "Do-yoon", "Si-woo", "Ye-jun"
+                    ],
+                    "last": [
+                        # Chinese surnames
+                        "Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao",
+                        "Wu", "Zhou", "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo", "He", "Gao",
+                        "Lin", "Zheng", "Liang", "Song", "Tang", "Han", "Feng", "Yu", "Dong",
+                        # Japanese surnames
+                        "Tanaka", "Suzuki", "Takahashi", "Watanabe", "Ito", "Yamamoto",
+                        "Nakamura", "Kobayashi", "Kato", "Yoshida", "Yamada", "Sasaki",
+                        "Yamaguchi", "Matsumoto", "Inoue", "Kimura", "Hayashi", "Shimizu",
+                        # Korean surnames
+                        "Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon",
+                        "Jang", "Lim", "Han", "Oh", "Seo", "Shin", "Kwon", "Hwang"
+                    ]
                 },
                 "Female": {
-                    "first": ["Mei", "Lin", "Ying", "Yuki", "Sakura", "Hana", "Ji-woo", "Suki", "Min-ji", "Hye", "Yuna"],
-                    "last": ["Wang", "Li", "Chen", "Zhang", "Liu", "Tanaka", "Yamamoto", "Suzuki", "Kim", "Park", "Lee", "Choi"]
+                    "first": [
+                        # Chinese names
+                        "Mei", "Lin", "Ying", "Xiu", "Jing", "Hui", "Fang", "Min",
+                        "Yan", "Qing", "Xia", "Juan", "Ling", "Li", "Yue", "Rui",
+                        "Shu", "Xin", "Yu", "Na", "Hua", "Ping", "Lan", "Hong",
+                        # Japanese names
+                        "Yuki", "Sakura", "Hana", "Aiko", "Yui", "Haruka", "Kana",
+                        "Aya", "Mio", "Rina", "Saki", "Nana", "Miyu", "Ayaka",
+                        "Yuka", "Miyuki", "Akiko", "Keiko", "Emi", "Kaori", "Rei",
+                        # Korean names
+                        "Ji-woo", "Min-ji", "Seo-yeon", "Hye", "Yuna", "Su", "Eun",
+                        "Soo-jin", "Ji-hye", "Mi", "Young", "Sun", "Hee", "Jin",
+                        "Ha-eun", "Seo-hyun", "Ye-ji", "Chae-won", "Ji-yoo", "Soo-ah"
+                    ],
+                    "last": [
+                        # Chinese surnames
+                        "Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao",
+                        "Wu", "Zhou", "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo", "He", "Gao",
+                        "Lin", "Zheng", "Liang", "Song", "Tang", "Han", "Feng", "Yu", "Dong",
+                        # Japanese surnames
+                        "Tanaka", "Suzuki", "Takahashi", "Watanabe", "Ito", "Yamamoto",
+                        "Nakamura", "Kobayashi", "Kato", "Yoshida", "Yamada", "Sasaki",
+                        "Yamaguchi", "Matsumoto", "Inoue", "Kimura", "Hayashi", "Shimizu",
+                        # Korean surnames
+                        "Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon",
+                        "Jang", "Lim", "Han", "Oh", "Seo", "Shin", "Kwon", "Hwang"
+                    ]
                 }
             },
             "Southeast Asian": {
                 "Male": {
-                    "first": ["Nguyen", "Thanh", "Minh", "Somchai", "Prakit", "Jose", "Ramon", "Budi", "Ahmad", "Farid", "Amir"],
-                    "last": ["Nguyen", "Tran", "Le", "Pham", "Pong", "Srisai", "Santos", "Reyes", "Cruz", "Santoso", "Rahman", "Abdullah"]
+                    "first": [
+                        # Vietnamese names
+                        "Nguyen", "Thanh", "Minh", "Tuan", "Hai", "Hung", "Duc", "Huy",
+                        "Khoa", "Phong", "Tung", "Dung", "Quan", "Kien", "Long", "Nam",
+                        # Thai names
+                        "Somchai", "Pra kit", "Surin", "Kittisak", "Anon", "Boon", "Chai",
+                        "Niran", "Thaksin", "Manop", "Prawit", "Somsak", "Wichai",
+                        # Filipino names
+                        "Jose", "Ramon", "Carlos", "Miguel", "Juan", "Antonio", "Francisco",
+                        "Manuel", "Luis", "Pedro", "Fernando", "Rafael", "Mario",
+                        # Indonesian/Malaysian names (Muslim)
+                        "Budi", "Ahmad", "Farid", "Amir", "Rizal", "Yusuf", "Hassan",
+                        "Ibrahim", "Ismail", "Abdullah", "Rahman", "Aziz", "Fikri"
+                    ],
+                    "last": [
+                        # Vietnamese surnames
+                        "Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang", "Bui", "Do", "Ngo", "Duong",
+                        # Thai surnames
+                        "Pong", "Srisai", "Boon", "Chai", "Somchai", "Thaksin", "Wongsakorn", "Rattana", "Sukhothai",
+                        # Filipino surnames
+                        "Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Garcia", "Mendoza", "Dela Cruz",
+                        "Ramos", "Flores", "Gonzales", "Torres", "Aquino", "Villanueva",
+                        # Indonesian/Malaysian surnames
+                        "Santoso", "Wijaya", "Rahman", "Abdullah", "Tan", "Lim", "Ng", "Wong", "Chan"
+                    ]
                 },
                 "Female": {
-                    "first": ["Linh", "Thu", "Mai", "Siriporn", "Kanya", "Maria", "Rosa", "Siti", "Nurul", "Aisyah", "Dewi"],
-                    "last": ["Nguyen", "Tran", "Le", "Pham", "Pong", "Srisai", "Santos", "Reyes", "Cruz", "Santoso", "Rahman", "Abdullah"]
+                    "first": [
+                        # Vietnamese names
+                        "Linh", "Thu", "Mai", "Lan", "Hoa", "Huong", "Nga", "Thuy",
+                        "Hanh", "Phuong", "Van", "Thi", "Hong", "My", "Anh", "Vy",
+                        # Thai names
+                        "Siriporn", "Kanya", "Ratana", "Suda", "Malee", "Pranee", "Nittaya",
+                        "Arunee", "Busara", "Chanya", "Pimchanok", "Warunee",
+                        # Filipino names
+                        "Maria", "Rosa", "Carmen", "Ana", "Isabel", "Teresa", "Elena",
+                        "Sofia", "Luisa", "Angelica", "Cristina", "Patricia",
+                        # Indonesian/Malaysian names (Muslim)
+                        "Siti", "Nurul", "Aisyah", "Dewi", "Sri", "Fatimah", "Aminah",
+                        "Khadijah", "Maryam", "Zainab", "Nur", "Laila", "Salma"
+                    ],
+                    "last": [
+                        # Vietnamese surnames
+                        "Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang", "Bui", "Do", "Ngo", "Duong",
+                        # Thai surnames
+                        "Pong", "Srisai", "Boon", "Chai", "Somchai", "Thaksin", "Wongsakorn", "Rattana", "Sukhothai",
+                        # Filipino surnames
+                        "Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Garcia", "Mendoza", "Dela Cruz",
+                        "Ramos", "Flores", "Gonzales", "Torres", "Aquino", "Villanueva",
+                        # Indonesian/Malaysian surnames
+                        "Santoso", "Wijaya", "Rahman", "Abdullah", "Tan", "Lim", "Ng", "Wong", "Chan"
+                    ]
                 }
             },
             "Caucasian/European": {
                 "Male": {
-                    "first": ["James", "William", "Thomas", "Oliver", "Alexander", "Henry", "Charles", "Daniel", "Lucas", "Michael"],
-                    "last": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Anderson", "Taylor"]
+                    "first": [
+                        # English/Anglo names
+                        "James", "William", "Thomas", "Oliver", "Alexander", "Henry", "Charles", "Daniel",
+                        "Lucas", "Michael", "John", "Robert", "David", "Richard", "Joseph", "Christopher",
+                        "Matthew", "Andrew", "George", "Edward", "Benjamin", "Samuel", "Jack", "Harry",
+                        # French names
+                        "Pierre", "Jean", "Louis", "François", "Antoine", "Nicolas", "Luc", "Marc",
+                        # German names
+                        "Hans", "Klaus", "Wolfgang", "Dieter", "Jürgen", "Helmut", "Stefan", "Matthias",
+                        # Italian names
+                        "Marco", "Luca", "Matteo", "Alessandro", "Giovanni", "Andrea", "Francesco",
+                        # Spanish names
+                        "Pablo", "Javier", "Alberto", "Fernando", "Rafael", "Jorge",
+                        # Slavic names
+                        "Ivan", "Dmitri", "Vladimir", "Sergei", "Alexei", "Nikolai", "Andrei", "Mikhail",
+                        "Aleksandr", "Pavel", "Boris", "Yuri"
+                    ],
+                    "last": [
+                        # English/Anglo surnames
+                        "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson",
+                        "Anderson", "Taylor", "Thomas", "Moore", "Jackson", "Martin", "Lee", "Thompson",
+                        "White", "Harris", "Clark", "Lewis", "Walker", "Hall", "Allen", "Young", "King",
+                        # French surnames
+                        "Dubois", "Martin", "Bernard", "Petit", "Robert", "Richard", "Durand", "Leroy",
+                        "Moreau", "Simon", "Laurent", "Lefebvre", "Michel", "Garcia", "Roux",
+                        # German surnames
+                        "Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker",
+                        "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer", "Richter", "Klein",
+                        # Italian surnames
+                        "Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci",
+                        "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Costa",
+                        # Spanish surnames
+                        "González", "Rodríguez", "García", "Fernández", "López", "Martínez", "Sánchez",
+                        # Slavic surnames
+                        "Ivanov", "Petrov", "Sidorov", "Volkov", "Sokolov", "Lebedev", "Kozlov", "Novak",
+                        "Kowalski", "Nowak", "Wojcik", "Kowalczyk", "Lewandowski"
+                    ]
                 },
                 "Female": {
-                    "first": ["Emma", "Olivia", "Sophia", "Charlotte", "Amelia", "Isabella", "Mia", "Evelyn", "Harper", "Emily"],
-                    "last": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Anderson", "Taylor"]
+                    "first": [
+                        # English/Anglo names
+                        "Emma", "Olivia", "Sophia", "Charlotte", "Amelia", "Isabella", "Mia", "Evelyn",
+                        "Harper", "Emily", "Elizabeth", "Sarah", "Grace", "Victoria", "Hannah", "Jessica",
+                        "Sophie", "Lucy", "Alice", "Rose", "Lily", "Ella", "Chloe", "Abigail",
+                        # French names
+                        "Marie", "Sophie", "Camille", "Julie", "Chloé", "Emma", "Léa", "Manon", "Charlotte",
+                        # German names
+                        "Anna", "Emma", "Maria", "Sophie", "Laura", "Lena", "Julia", "Katharina",
+                        # Italian names
+                        "Giulia", "Sofia", "Francesca", "Chiara", "Martina", "Valentina", "Alessia",
+                        # Spanish names
+                        "María", "Carmen", "Dolores", "Pilar", "Isabel", "Teresa",
+                        # Slavic names
+                        "Anna", "Maria", "Elena", "Natalia", "Olga", "Tatiana", "Irina", "Svetlana",
+                        "Ekaterina", "Anastasia", "Yulia", "Daria"
+                    ],
+                    "last": [
+                        # English/Anglo surnames
+                        "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson",
+                        "Anderson", "Taylor", "Thomas", "Moore", "Jackson", "Martin", "Lee", "Thompson",
+                        "White", "Harris", "Clark", "Lewis", "Walker", "Hall", "Allen", "Young", "King",
+                        # French surnames
+                        "Dubois", "Martin", "Bernard", "Petit", "Robert", "Richard", "Durand", "Leroy",
+                        "Moreau", "Simon", "Laurent", "Lefebvre", "Michel", "Garcia", "Roux",
+                        # German surnames
+                        "Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker",
+                        "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer", "Richter", "Klein",
+                        # Italian surnames
+                        "Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci",
+                        "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Costa",
+                        # Spanish surnames
+                        "González", "Rodríguez", "García", "Fernández", "López", "Martínez", "Sánchez",
+                        # Slavic surnames
+                        "Ivanov", "Petrov", "Sidorov", "Volkov", "Sokolov", "Lebedev", "Kozlov", "Novak",
+                        "Kowalski", "Nowak", "Wojcik", "Kowalczyk", "Lewandowski"
+                    ]
                 }
             },
             "Hispanic/Latino": {
                 "Male": {
-                    "first": ["Carlos", "Miguel", "Diego", "Luis", "Jose", "Juan", "Antonio", "Fernando", "Ricardo", "Alejandro"],
-                    "last": ["Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez", "Ramirez", "Torres"]
+                    "first": [
+                        "Carlos", "Miguel", "Diego", "Luis", "Jose", "Juan", "Antonio", "Fernando", "Ricardo", "Alejandro",
+                        "Javier", "Manuel", "Francisco", "Rafael", "Pedro", "Sergio", "Andres", "Jorge", "Eduardo", "Roberto",
+                        "Pablo", "Raul", "Enrique", "Mauricio", "Oscar", "Cesar", "Ramon", "Alberto", "Hector", "Gustavo",
+                        "Arturo", "Felipe", "Ernesto", "Rodrigo", "Gerardo", "Leonardo", "Ruben", "Adrian", "Marcos", "Daniel"
+                    ],
+                    "last": [
+                        "Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez", "Ramirez", "Torres",
+                        "Rivera", "Gomez", "Diaz", "Cruz", "Morales", "Reyes", "Flores", "Jimenez", "Alvarez", "Romero",
+                        "Castillo", "Gutierrez", "Mendoza", "Ruiz", "Vargas", "Castro", "Ortiz", "Ramos", "Vazquez", "Moreno",
+                        "Herrera", "Silva", "Medina", "Aguilar", "Guerrero", "Rojas", "Pena", "Soto", "Delgado", "Campos"
+                    ]
                 },
                 "Female": {
-                    "first": ["Maria", "Sofia", "Isabella", "Camila", "Valentina", "Lucia", "Elena", "Ana", "Carmen", "Rosa"],
-                    "last": ["Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez", "Ramirez", "Torres"]
+                    "first": [
+                        "Maria", "Sofia", "Isabella", "Camila", "Valentina", "Lucia", "Elena", "Ana", "Carmen", "Rosa",
+                        "Gabriela", "Daniela", "Andrea", "Fernanda", "Laura", "Paula", "Carolina", "Adriana", "Natalia", "Monica",
+                        "Diana", "Patricia", "Veronica", "Alejandra", "Mariana", "Claudia", "Beatriz", "Teresa", "Silvia", "Alicia",
+                        "Isabel", "Catalina", "Lorena", "Cecilia", "Marcela", "Paola", "Sandra", "Juliana", "Rocio", "Victoria"
+                    ],
+                    "last": [
+                        "Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez", "Ramirez", "Torres",
+                        "Rivera", "Gomez", "Diaz", "Cruz", "Morales", "Reyes", "Flores", "Jimenez", "Alvarez", "Romero",
+                        "Castillo", "Gutierrez", "Mendoza", "Ruiz", "Vargas", "Castro", "Ortiz", "Ramos", "Vazquez", "Moreno",
+                        "Herrera", "Silva", "Medina", "Aguilar", "Guerrero", "Rojas", "Pena", "Soto", "Delgado", "Campos"
+                    ]
                 }
             },
             "Middle Eastern": {
                 "Male": {
-                    "first": ["Omar", "Ali", "Hassan", "Ahmed", "Yusuf", "Khalil", "Rashid", "Tariq", "Karim", "Samir"],
-                    "last": ["Al-Masri", "Al-Rashid", "Al-Farsi", "Al-Mansour", "Al-Hassan", "Al-Jabbar", "Al-Sayed", "Al-Najjar", "Al-Amin", "Al-Hakim"]
+                    "first": [
+                        "Omar", "Ali", "Hassan", "Ahmed", "Yusuf", "Khalil", "Rashid", "Tariq", "Karim", "Samir",
+                        "Mohammed", "Mahmoud", "Abdullah", "Ibrahim", "Mustafa", "Faisal", "Hamza", "Bilal", "Zayd",
+                        "Malik", "Amin", "Nasir", "Jalal", "Rami", "Nabil", "Walid", "Adel", "Khaled", "Majid",
+                        "Sami", "Hadi", "Jamil", "Basel", "Zain", "Fadi", "Anwar", "Imad", "Tarek", "Hatem"
+                    ],
+                    "last": [
+                        "Al-Masri", "Al-Rashid", "Al-Farsi", "Al-Mansour", "Al-Hassan", "Al-Jabbar", "Al-Sayed", "Al-Najjar",
+                        "Al-Amin", "Al-Hakim", "Al-Sharif", "Al-Din", "Al-Khouri", "Al-Mahmoud", "Al-Ahmad", "Al-Ibrahim",
+                        "Al-Ali", "Al-Saleh", "Al-Khalil", "Al-Saad", "Al-Amir", "Al-Zahir", "Al-Qadir", "Al-Rashidi",
+                        "Hussein", "Abbas", "Khalil", "Mansour", "Nasr", "Farah", "Haddad", "Khoury", "Bitar", "Harb"
+                    ]
                 },
                 "Female": {
-                    "first": ["Layla", "Fatima", "Zainab", "Aisha", "Noor", "Yasmin", "Mariam", "Amina", "Hana", "Salma"],
-                    "last": ["Al-Masri", "Al-Rashid", "Al-Farsi", "Al-Mansour", "Al-Hassan", "Al-Jabbar", "Al-Sayed", "Al-Najjar", "Al-Amin", "Al-Hakim"]
+                    "first": [
+                        "Layla", "Fatima", "Zainab", "Aisha", "Noor", "Yasmin", "Mariam", "Amina", "Hana", "Salma",
+                        "Sara", "Rania", "Dalia", "Lina", "Maya", "Reem", "Rana", "Noura", "Sana", "Hiba",
+                        "Bushra", "Samar", "Duha", "Iman", "Samira", "Nadine", "Malak", "Jana", "Rawan", "Lama",
+                        "Suha", "Dina", "Mona", "Nada", "Rim", "Ghada", "Maha", "Sawsan", "Hala", "Rasha"
+                    ],
+                    "last": [
+                        "Al-Masri", "Al-Rashid", "Al-Farsi", "Al-Mansour", "Al-Hassan", "Al-Jabbar", "Al-Sayed", "Al-Najjar",
+                        "Al-Amin", "Al-Hakim", "Al-Sharif", "Al-Din", "Al-Khouri", "Al-Mahmoud", "Al-Ahmad", "Al-Ibrahim",
+                        "Al-Ali", "Al-Saleh", "Al-Khalil", "Al-Saad", "Al-Amir", "Al-Zahir", "Al-Qadir", "Al-Rashidi",
+                        "Hussein", "Abbas", "Khalil", "Mansour", "Nasr", "Farah", "Haddad", "Khoury", "Bitar", "Harb"
+                    ]
                 }
             },
             "Native American": {
                 "Male": {
-                    "first": ["Takoda", "Chayton", "Elan", "Ahanu", "Koda", "Tahoma", "Mato", "Nashoba", "Mikasi", "Waya"],
-                    "last": ["Running Bear", "Black Elk", "Red Cloud", "Swift Eagle", "Little Wolf", "Sitting Bull", "Lone Wolf", "White Horse", "Gray Eagle", "Thunder Hawk"]
+                    "first": [
+                        "Takoda", "Chayton", "Elan", "Ahanu", "Koda", "Tahoma", "Mato", "Nashoba", "Mikasi", "Waya",
+                        "Ohiyesa", "Hanska", "Chaska", "Etu", "Honovi", "Kele", "Kohana", "Langundo", "Isi", "Nayati",
+                        "Nodin", "Otaktay", "Paco", "Sakima", "Sani", "Tadi", "Takoda", "Totsi", "Tupi", "Yancy"
+                    ],
+                    "last": [
+                        "Running Bear", "Black Elk", "Red Cloud", "Swift Eagle", "Little Wolf", "Sitting Bull", "Lone Wolf",
+                        "White Horse", "Gray Eagle", "Thunder Hawk", "Brave Heart", "Red Hawk", "Standing Bear", "Walking Bear",
+                        "Morning Star", "White Cloud", "Black Crow", "Big Bear", "Crazy Horse", "Strong Bow"
+                    ]
                 },
                 "Female": {
-                    "first": ["Aiyana", "Kiona", "Tallulah", "Winona", "Cocheta", "Sahkyo", "Kaya", "Nita", "Taini", "Ayasha"],
-                    "last": ["Running Bear", "Black Elk", "Red Cloud", "Swift Eagle", "Little Wolf", "Sitting Bull", "Lone Wolf", "White Horse", "Gray Eagle", "Thunder Hawk"]
+                    "first": [
+                        "Aiyana", "Kiona", "Tallulah", "Winona", "Cocheta", "Sahkyo", "Kaya", "Nita", "Taini", "Ayasha",
+                        "Chenoa", "Donoma", "Halona", "Istas", "Keezheekoni", "Kimama", "Lomasi", "Mika", "Niabi", "Odina",
+                        "Orenda", "Pocahontas", "Shada", "Tala", "Tayen", "Tuwa", "Weeko", "Yanaba", "Yoki", "Zonta"
+                    ],
+                    "last": [
+                        "Running Bear", "Black Elk", "Red Cloud", "Swift Eagle", "Little Wolf", "Sitting Bull", "Lone Wolf",
+                        "White Horse", "Gray Eagle", "Thunder Hawk", "Brave Heart", "Red Hawk", "Standing Bear", "Walking Bear",
+                        "Morning Star", "White Cloud", "Black Crow", "Big Bear", "Crazy Horse", "Strong Bow"
+                    ]
                 }
             },
             "Pacific Islander": {
                 "Male": {
-                    "first": ["Keanu", "Koa", "Makoa", "Tane", "Rangi", "Mana", "Kai", "Aolani", "Hoku", "Ikaika"],
-                    "last": ["Kealoha", "Kalani", "Kahale", "Mahoe", "Nakamura", "Tavita", "Tuiasosopo", "Fetu", "Moana", "Tui"]
+                    "first": [
+                        # Hawaiian names
+                        "Keanu", "Koa", "Makoa", "Kai", "Kale", "Ikaika", "Kaleo", "Keoni", "Mana", "Noa",
+                        "Kalani", "Kapono", "Kawika", "Manu", "Nalu", "Pono", "Teva",
+                        # Samoan/Tongan names
+                        "Tane", "Rangi", "Hoku", "Aolani", "Tavita", "Sione", "Pita", "Ioane", "Semisi", "Manaia",
+                        # Maori names
+                        "Tama", "Aroha", "Wiremu", "Hemi", "Matiu", "Hohepa"
+                    ],
+                    "last": [
+                        # Hawaiian surnames
+                        "Kealoha", "Kalani", "Kahale", "Mahoe", "Kamaka", "Lum", "Wong", "Nakamura",
+                        # Samoan/Tongan surnames
+                        "Tavita", "Tuiasosopo", "Fetu", "Moana", "Tui", "Palelei", "Sione", "Tonga", "Samoa",
+                        # Maori surnames
+                        "Pene", "Tamati", "Tipene", "Wiremu", "Ngata", "Henare"
+                    ]
                 },
                 "Female": {
-                    "first": ["Leilani", "Moana", "Nani", "Kailani", "Hina", "Alana", "Mahina", "Iolana", "Keahi", "Nalani"],
-                    "last": ["Kealoha", "Kalani", "Kahale", "Mahoe", "Nakamura", "Tavita", "Tuiasosopo", "Fetu", "Moana", "Tui"]
+                    "first": [
+                        # Hawaiian names
+                        "Leilani", "Moana", "Nani", "Kailani", "Hina", "Alana", "Mahina", "Iolana", "Keahi", "Nalani",
+                        "Kalena", "Luana", "Malia", "Noelani", "Olina", "Pua", "Ulani",
+                        # Samoan/Tongan names
+                        "Sina", "Mele", "Lupe", "Vaiola", "Teuila", "Lani", "Seini", "Ana", "Malia", "Fetu",
+                        # Maori names
+                        "Aroha", "Hine", "Kiri", "Mere", "Ani", "Wikitoria"
+                    ],
+                    "last": [
+                        # Hawaiian surnames
+                        "Kealoha", "Kalani", "Kahale", "Mahoe", "Kamaka", "Lum", "Wong", "Nakamura",
+                        # Samoan/Tongan surnames
+                        "Tavita", "Tuiasosopo", "Fetu", "Moana", "Tui", "Palelei", "Sione", "Tonga", "Samoa",
+                        # Maori surnames
+                        "Pene", "Tamati", "Tipene", "Wiremu", "Ngata", "Henare"
+                    ]
                 }
             },
             "Mixed": {
                 "Male": {
-                    "first": ["Jordan", "Jayden", "Marcus", "Andre", "Malik", "Isaiah", "Xavier", "Elijah", "Cameron", "Derek"],
-                    "last": ["Washington", "Jackson", "Thompson", "Rivera", "Santos", "Mitchell", "Brooks", "Powell", "Foster", "Coleman"]
+                    "first": [
+                        # Common mixed-ethnicity names
+                        "Jordan", "Jayden", "Marcus", "Andre", "Malik", "Isaiah", "Xavier", "Elijah", "Cameron", "Derek",
+                        "Darius", "Jamal", "Khalil", "Rashad", "Terrence", "Troy", "Wesley", "Desmond", "Malcolm", "Quincy",
+                        "Jaden", "Kai", "Noah", "Elijah", "Liam", "Ethan", "Lucas", "Mason", "Logan", "Aiden",
+                        "Ryan", "Kevin", "Brandon", "Justin", "Eric", "Daniel", "Adam", "Sean", "Brian", "Nathan"
+                    ],
+                    "last": [
+                        "Washington", "Jackson", "Thompson", "Rivera", "Santos", "Mitchell", "Brooks", "Powell", "Foster", "Coleman",
+                        "Bennett", "Hayes", "Bryant", "Alexander", "Russell", "Griffin", "Diaz", "Hayes", "Myers", "Ford",
+                        "Hamilton", "Graham", "Sullivan", "Wallace", "Woods", "Cole", "West", "Jordan", "Owens", "Reynolds",
+                        "Fisher", "Ellis", "Harrison", "Gibson", "McDonald", "Cruz", "Marshall", "Ortiz", "Gomez", "Murray"
+                    ]
                 },
                 "Female": {
-                    "first": ["Maya", "Aaliyah", "Jasmine", "Kiara", "Bianca", "Sierra", "Gabriela", "Naomi", "Zara", "Anaya"],
-                    "last": ["Washington", "Jackson", "Thompson", "Rivera", "Santos", "Mitchell", "Brooks", "Powell", "Foster", "Coleman"]
+                    "first": [
+                        # Common mixed-ethnicity names
+                        "Maya", "Aaliyah", "Jasmine", "Kiara", "Bianca", "Sierra", "Gabriela", "Naomi", "Zara", "Anaya",
+                        "Destiny", "Diamond", "Heaven", "India", "Jade", "Jada", "Kayla", "Keisha", "Latoya", "Shaniqua",
+                        "Isabella", "Mia", "Ava", "Sophia", "Emma", "Olivia", "Emily", "Madison", "Chloe", "Abigail",
+                        "Samantha", "Ashley", "Brianna", "Alyssa", "Hannah", "Sarah", "Jessica", "Taylor", "Rachel", "Lauren"
+                    ],
+                    "last": [
+                        "Washington", "Jackson", "Thompson", "Rivera", "Santos", "Mitchell", "Brooks", "Powell", "Foster", "Coleman",
+                        "Bennett", "Hayes", "Bryant", "Alexander", "Russell", "Griffin", "Diaz", "Hayes", "Myers", "Ford",
+                        "Hamilton", "Graham", "Sullivan", "Wallace", "Woods", "Cole", "West", "Jordan", "Owens", "Reynolds",
+                        "Fisher", "Ellis", "Harrison", "Gibson", "McDonald", "Cruz", "Marshall", "Ortiz", "Gomez", "Murray"
+                    ]
                 }
             }
         }
@@ -685,30 +1061,98 @@ class PatientCreator:
         birth_country = random.choice(birth_countries_by_ethnicity.get(ethnicity_key, ["USA"]))
 
         # Generate diverse birth and current cities
+        # COMPREHENSIVE city coverage for unique profile generation
         cities_by_country = {
-            "USA": ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose"],
-            "Belgium": ["Brussels", "Antwerp", "Ghent", "Bruges", "Liège", "Namur", "Leuven"],
-            "Nigeria": ["Lagos", "Abuja", "Kano", "Ibadan", "Port Harcourt"],
-            "Kenya": ["Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret"],
-            # South Asian cities
-            "India": ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune"],
-            "Pakistan": ["Karachi", "Lahore", "Islamabad", "Rawalpindi", "Faisalabad"],
-            "Bangladesh": ["Dhaka", "Chittagong", "Khulna", "Rajshahi", "Sylhet"],
-            "Sri Lanka": ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo"],
-            # East Asian cities
-            "China": ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu", "Hangzhou"],
-            "Japan": ["Tokyo", "Osaka", "Kyoto", "Yokohama", "Nagoya", "Sapporo"],
-            "South Korea": ["Seoul", "Busan", "Incheon", "Daegu", "Daejeon"],
-            "Taiwan": ["Taipei", "Kaohsiung", "Taichung", "Tainan"],
-            # Southeast Asian cities
-            "Vietnam": ["Ho Chi Minh City", "Hanoi", "Da Nang", "Hue", "Can Tho"],
-            "Thailand": ["Bangkok", "Chiang Mai", "Phuket", "Pattaya", "Krabi"],
-            "Philippines": ["Manila", "Quezon City", "Davao", "Cebu", "Makati"],
-            "Indonesia": ["Jakarta", "Surabaya", "Bandung", "Medan", "Bali"],
-            "Malaysia": ["Kuala Lumpur", "Penang", "Johor Bahru", "Ipoh", "Malacca"],
+            # North America
+            "USA": ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose",
+                    "Austin", "Jacksonville", "San Francisco", "Indianapolis", "Columbus", "Fort Worth", "Charlotte", "Seattle", "Denver", "Boston",
+                    "Detroit", "Nashville", "Portland", "Las Vegas", "Memphis", "Louisville", "Baltimore", "Milwaukee", "Albuquerque", "Tucson"],
+            "Canada": ["Toronto", "Vancouver", "Montreal", "Calgary", "Edmonton", "Ottawa", "Winnipeg", "Quebec City", "Hamilton", "Kitchener"],
+            "Mexico": ["Mexico City", "Guadalajara", "Monterrey", "Puebla", "Tijuana", "Cancun", "Mérida", "León", "Querétaro", "San Luis Potosí"],
+
+            # Europe
+            "Belgium": ["Brussels", "Antwerp", "Ghent", "Bruges", "Liège", "Namur", "Leuven", "Charleroi", "Mons", "Hasselt"],
+            "UK": ["London", "Manchester", "Birmingham", "Leeds", "Glasgow", "Liverpool", "Newcastle", "Sheffield", "Bristol", "Edinburgh"],
+            "Germany": ["Berlin", "Munich", "Hamburg", "Frankfurt", "Cologne", "Stuttgart", "Düsseldorf", "Dortmund", "Essen", "Leipzig"],
+            "France": ["Paris", "Marseille", "Lyon", "Toulouse", "Nice", "Nantes", "Strasbourg", "Montpellier", "Bordeaux", "Lille"],
+            "Italy": ["Rome", "Milan", "Naples", "Turin", "Palermo", "Genoa", "Bologna", "Florence", "Bari", "Venice"],
+            "Spain": ["Madrid", "Barcelona", "Valencia", "Seville", "Zaragoza", "Málaga", "Murcia", "Palma", "Bilbao", "Alicante"],
+            "Netherlands": ["Amsterdam", "Rotterdam", "The Hague", "Utrecht", "Eindhoven", "Tilburg", "Groningen", "Almere", "Breda", "Nijmegen"],
+            "Poland": ["Warsaw", "Kraków", "Łódź", "Wrocław", "Poznań", "Gdańsk", "Szczecin", "Bydgoszcz", "Lublin", "Katowice"],
+            "Russia": ["Moscow", "St. Petersburg", "Novosibirsk", "Yekaterinburg", "Kazan", "Nizhny Novgorod", "Chelyabinsk", "Samara", "Omsk", "Rostov-on-Don"],
+            "Sweden": ["Stockholm", "Gothenburg", "Malmö", "Uppsala", "Västerås", "Örebro", "Linköping", "Helsingborg"],
+
+            # Africa
+            "Nigeria": ["Lagos", "Abuja", "Kano", "Ibadan", "Port Harcourt", "Benin City", "Kaduna", "Enugu", "Onitsha", "Jos"],
+            "Kenya": ["Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret", "Thika", "Malindi", "Kakamega", "Meru", "Nyeri"],
+            "Ghana": ["Accra", "Kumasi", "Tamale", "Sekondi-Takoradi", "Ashaman", "Sunyani", "Cape Coast", "Obuasi"],
+            "Ethiopia": ["Addis Ababa", "Dire Dawa", "Mekelle", "Gondar", "Hawassa", "Bahir Dar", "Adama", "Jimma"],
+            "South Africa": ["Johannesburg", "Cape Town", "Durban", "Pretoria", "Port Elizabeth", "Bloemfontein", "Soweto", "Pietermaritzburg"],
+            "Egypt": ["Cairo", "Alexandria", "Giza", "Shubra El Kheima", "Port Said", "Suez", "Luxor", "Aswan", "Mansoura", "Tanta"],
+            "Morocco": ["Casablanca", "Rabat", "Fes", "Marrakech", "Agadir", "Tangier", "Meknes", "Oujda", "Kenitra"],
+
+            # South Asia
+            "India": ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Surat",
+                      "Lucknow", "Kanpur", "Nagpur", "Indore", "Bhopal", "Visakhapatnam", "Patna", "Vadodara", "Ludhiana", "Agra"],
+            "Pakistan": ["Karachi", "Lahore", "Islamabad", "Rawalpindi", "Faisalabad", "Multan", "Peshawar", "Quetta", "Sialkot", "Gujranwala"],
+            "Bangladesh": ["Dhaka", "Chittagong", "Khulna", "Rajshahi", "Sylhet", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Narayanganj"],
+            "Sri Lanka": ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo", "Trincomalee", "Batticaloa", "Kurunegala", "Matara"],
+
+            # East Asia
+            "China": ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu", "Hangzhou", "Wuhan", "Xi'an", "Tianjin", "Nanjing",
+                      "Chongqing", "Suzhou", "Dongguan", "Shenyang", "Dalian", "Qingdao", "Harbin", "Zhengzhou", "Changsha", "Kunming"],
+            "Japan": ["Tokyo", "Osaka", "Kyoto", "Yokohama", "Nagoya", "Sapporo", "Fukuoka", "Kobe", "Kawasaki", "Saitama",
+                      "Hiroshima", "Sendai", "Kitakyushu", "Chiba", "Niigata", "Hamamatsu", "Kumamoto", "Okayama", "Kagoshima"],
+            "South Korea": ["Seoul", "Busan", "Incheon", "Daegu", "Daejeon", "Gwangju", "Suwon", "Ulsan", "Changwon", "Goyang"],
+            "Taiwan": ["Taipei", "Kaohsiung", "Taichung", "Tainan", "Hsinchu", "Keelung", "Chiayi", "Changhua"],
+            "Hong Kong": ["Hong Kong", "Kowloon", "Tsuen Wan", "Sha Tin", "Tuen Mun", "Yuen Long"],
+            "Mongolia": ["Ulaanbaatar", "Erdenet", "Darkhan", "Choibalsan"],
+
+            # Southeast Asia
+            "Vietnam": ["Ho Chi Minh City", "Hanoi", "Da Nang", "Hue", "Can Tho", "Bien Hoa", "Nha Trang", "Hải Phòng", "Buôn Ma Thuột", "Vung Tau"],
+            "Thailand": ["Bangkok", "Chiang Mai", "Phuket", "Pattaya", "Krabi", "Hat Yai", "Nakhon Ratchasima", "Khon Kaen", "Udon Thani", "Chiang Rai"],
+            "Philippines": ["Manila", "Quezon City", "Davao", "Cebu", "Makati", "Zamboanga", "Pasig", "Cagayan de Oro", "Bacolod", "Iloilo"],
+            "Indonesia": ["Jakarta", "Surabaya", "Bandung", "Medan", "Bali", "Semarang", "Palembang", "Makassar", "Yogyakarta", "Malang"],
+            "Malaysia": ["Kuala Lumpur", "Penang", "Johor Bahru", "Ipoh", "Malacca", "Kuching", "Kota Kinabalu", "Petaling Jaya", "Shah Alam", "Klang"],
             "Singapore": ["Singapore"],
-            "Mexico": ["Mexico City", "Guadalajara", "Monterrey", "Puebla", "Tijuana"],
-            # Add more as needed...
+            "Myanmar": ["Yangon", "Mandalay", "Naypyidaw", "Bago", "Mawlamyine", "Pathein"],
+            "Cambodia": ["Phnom Penh", "Siem Reap", "Battambang", "Sihanoukville", "Kampong Cham"],
+            "Laos": ["Vientiane", "Pakse", "Savannakhet", "Luang Prabang"],
+
+            # Middle East
+            "Saudi Arabia": ["Riyadh", "Jeddah", "Mecca", "Medina", "Dammam", "Khobar", "Tabuk", "Buraidah", "Khamis Mushait", "Hofuf"],
+            "UAE": ["Dubai", "Abu Dhabi", "Sharjah", "Al Ain", "Ajman", "Ras Al Khaimah", "Fujairah"],
+            "Turkey": ["Istanbul", "Ankara", "Izmir", "Bursa", "Adana", "Gaziantep", "Konya", "Antalya", "Kayseri", "Mersin"],
+            "Iran": ["Tehran", "Mashhad", "Isfahan", "Karaj", "Tabriz", "Shiraz", "Qom", "Ahvaz", "Kermanshah", "Urmia"],
+            "Iraq": ["Baghdad", "Basra", "Mosul", "Erbil", "Sulaymaniyah", "Najaf", "Karbala", "Kirkuk"],
+            "Jordan": ["Amman", "Zarqa", "Irbid", "Aqaba", "Madaba", "Jerash", "Petra"],
+            "Lebanon": ["Beirut", "Tripoli", "Sidon", "Tyre", "Jounieh", "Zahle", "Baalbek"],
+            "Syria": ["Damascus", "Aleppo", "Homs", "Latakia", "Hama", "Deir ez-Zor"],
+            "Yemen": ["Sana'a", "Aden", "Taiz", "Hodeidah", "Ibb", "Mukalla"],
+
+            # Latin America
+            "Colombia": ["Bogotá", "Medellín", "Cali", "Barranquilla", "Cartagena", "Cúcuta", "Bucaramanga", "Pereira", "Manizales"],
+            "Argentina": ["Buenos Aires", "Córdoba", "Rosario", "Mendoza", "La Plata", "Tucumán", "Mar del Plata", "Salta", "Santa Fe"],
+            "Peru": ["Lima", "Arequipa", "Trujillo", "Chiclayo", "Piura", "Iquitos", "Cusco", "Huancayo"],
+            "Venezuela": ["Caracas", "Maracaibo", "Valencia", "Barquisimeto", "Maracay", "Ciudad Guayana", "Maturín"],
+            "Chile": ["Santiago", "Valparaíso", "Concepción", "La Serena", "Antofagasta", "Temuco", "Rancagua", "Viña del Mar"],
+            "Ecuador": ["Quito", "Guayaquil", "Cuenca", "Santo Domingo", "Machala", "Manta", "Portoviejo"],
+            "Guatemala": ["Guatemala City", "Mixco", "Villa Nueva", "Quetzaltenango", "Escuintla"],
+            "Cuba": ["Havana", "Santiago de Cuba", "Camagüey", "Holguín", "Santa Clara", "Guantánamo"],
+            "Dominican Republic": ["Santo Domingo", "Santiago", "La Romana", "San Pedro de Macorís", "Puerto Plata"],
+            "Brazil": ["São Paulo", "Rio de Janeiro", "Brasília", "Salvador", "Fortaleza", "Belo Horizonte", "Manaus", "Curitiba", "Recife", "Porto Alegre"],
+
+            # Oceania
+            "Australia": ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Gold Coast", "Newcastle", "Canberra", "Wollongong", "Hobart"],
+            "New Zealand": ["Auckland", "Wellington", "Christchurch", "Hamilton", "Tauranga", "Dunedin", "Palmerston North", "Napier"],
+
+            # Pacific Islands
+            "Hawaii": ["Honolulu", "Hilo", "Kailua", "Kaneohe", "Waipahu", "Pearl City", "Waimalu", "Kahului"],
+            "Samoa": ["Apia", "Vaitele", "Faleula", "Siusega"],
+            "Tonga": ["Nuku'alofa", "Neiafu", "Haveluloto", "Vaini"],
+            "Fiji": ["Suva", "Nadi", "Lautoka", "Labasa", "Ba"],
+            "Tahiti": ["Papeete", "Faaa", "Punaauia", "Pirae"],
+            "Guam": ["Hagåtña", "Dededo", "Tamuning", "Mangilao", "Yigo"],
         }
 
         # Birth city based on birth country
