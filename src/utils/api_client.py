@@ -6,7 +6,31 @@ import hashlib
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
-from retry import retry
+
+# Simple retry decorator (avoids external dependency issues)
+def retry(tries=3, delay=2, backoff=2):
+    """
+    Retry decorator with exponential backoff
+    
+    Args:
+        tries: Number of attempts
+        delay: Initial delay between retries (seconds)
+        backoff: Multiplier for delay on each retry
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            _tries, _delay = tries, delay
+            for attempt in range(_tries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == _tries - 1:
+                        raise
+                    time.sleep(_delay)
+                    _delay *= backoff
+            return None
+        return wrapper
+    return decorator
 
 
 class APIClient:
