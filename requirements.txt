@@ -11,6 +11,6 @@ Pillow>=10.0.0
 plotly>=5.17.0
 qrcode>=7.4.0
 google-genai>=0.7.0
-google-cloud-sql-connector[pg8000]>=0.11.0,<1.0.0
+google-cloud-sql-connector[pg8000]<0.11.0
 psycopg>=3.0.0
 python-dateutil>=2.8.0
