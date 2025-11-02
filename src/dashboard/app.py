@@ -1129,6 +1129,9 @@ elif page == "💾 Export Data":
                         st.markdown(f"**{group_name}**")
                         for key in file_keys:
                             path = outputs.get(key)
+                            # Skip if not a string (e.g., db_status is a dict)
+                            if not isinstance(path, str):
+                                continue
                             if path and _P(path).exists():
                                 try:
                                     with open(path, 'rb') as f:
@@ -1149,6 +1152,9 @@ elif page == "💾 Export Data":
             with col2:
                 st.subheader("📂 File Paths")
                 for t, p in outputs.items():
+                    # Skip non-string values (e.g., db_status dict)
+                    if not isinstance(p, str):
+                        continue
                     exists = _P(p).exists() if p else False
                     status = "✅" if exists else "❌"
                     st.text(f"{status} {t}")
