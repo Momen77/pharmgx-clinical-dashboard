@@ -390,10 +390,11 @@ class DatabaseLoader:
                     if final_patient_count > 0:
                         verification_passed = True
                         # Get sample record to confirm it's real
-                        final_verify.execute("SELECT patient_id, created_at FROM patients WHERE patient_id = %s LIMIT 1", (patient_id,))
+                        # Schema uses date_created (not created_at)
+                        final_verify.execute("SELECT patient_id, date_created FROM patients WHERE patient_id = %s LIMIT 1", (patient_id,))
                         sample = final_verify.fetchone()
                         if sample:
-                            self.logger.info(f"🔍 Sample record: patient_id={sample[0]}, created_at={sample[1]}")
+                            self.logger.info(f"🔍 Sample record: patient_id={sample[0]}, date_created={sample[1]}")
                         break
                 
                 if not verification_passed and total_records > 0:
