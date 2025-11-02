@@ -174,12 +174,23 @@ class PatientVariantsLoader:
                     jsonb_fields=["raw_uniprot_data"],
                     default=None
                 )
-                somatic_status = extract_variant_field(
+                somatic_status_raw = extract_variant_field(
                     variant, "somaticStatus",
                     fallback_keys=["somatic_status", "is_somatic"],
                     jsonb_fields=["raw_uniprot_data"],
                     default=None
                 )
+                # ✅ FIX: Convert to boolean (schema expects boolean, not integer)
+                if somatic_status_raw is not None:
+                    if isinstance(somatic_status_raw, bool):
+                        somatic_status = somatic_status_raw
+                    elif isinstance(somatic_status_raw, (int, str)):
+                        # Convert 0/1 or "0"/"1" or "true"/"false" to boolean
+                        somatic_status = bool(int(somatic_status_raw)) if str(somatic_status_raw).isdigit() else str(somatic_status_raw).lower() in ('true', '1', 'yes')
+                    else:
+                        somatic_status = bool(somatic_status_raw)
+                else:
+                    somatic_status = None
                 source_type = extract_variant_field(
                     variant, "sourceType",
                     fallback_keys=["source_type", "data_source"],

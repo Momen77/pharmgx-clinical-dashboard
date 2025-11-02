@@ -372,12 +372,23 @@ class ReferenceDataLoader:
                 jsonb_fields=["raw_uniprot_data"],
                 default=None
             )
-            somatic_status = extract_variant_field(
+            somatic_status_raw = extract_variant_field(
                 variant, "somaticStatus",
                 fallback_keys=["somatic_status", "is_somatic"],
                 jsonb_fields=["raw_uniprot_data"],
                 default=None
             )
+            # ✅ FIX: Convert to boolean (schema expects boolean, not integer)
+            if somatic_status_raw is not None:
+                if isinstance(somatic_status_raw, bool):
+                    somatic_status = somatic_status_raw
+                elif isinstance(somatic_status_raw, (int, str)):
+                    # Convert 0/1 or "0"/"1" or "true"/"false" to boolean
+                    somatic_status = bool(int(somatic_status_raw)) if str(somatic_status_raw).isdigit() else str(somatic_status_raw).lower() in ('true', '1', 'yes')
+                else:
+                    somatic_status = bool(somatic_status_raw)
+            else:
+                somatic_status = None
             source_type = extract_variant_field(
                 variant, "sourceType",
                 fallback_keys=["source_type", "data_source"],
@@ -580,9 +591,31 @@ class ReferenceDataLoader:
             expected_total += len(annotations) if isinstance(annotations, list) else 0
             
             for annotation in annotations:
-                annotation_id = annotation.get("id")
-                if not annotation_id or annotation_id in self.inserted_pharmgkb_annotations:
+                annotation_id_raw = annotation.get("id")
+                # Check if we've already inserted this annotation (using original string ID)
+                if not annotation_id_raw or annotation_id_raw in self.inserted_pharmgkb_annotations:
                     continue
+                
+                # ✅ FIX: Extract numeric part from annotation_id (e.g., "PA166157497" -> 166157497)
+                # Schema expects bigint, but PharmGKB uses string IDs like "PA166157497"
+                if isinstance(annotation_id_raw, str) and annotation_id_raw.startswith("PA"):
+                    # Extract numeric part after "PA" prefix
+                    numeric_part = annotation_id_raw[2:]  # Remove "PA" prefix
+                    try:
+                        annotation_id = int(numeric_part)
+                    except ValueError:
+                        # If extraction fails, try to use hash as fallback (not ideal but better than error)
+                        self.logger.warning(f"Could not extract numeric ID from {annotation_id_raw}, using hash")
+                        annotation_id = hash(annotation_id_raw) % (10**18)  # Convert to positive bigint range
+                elif isinstance(annotation_id_raw, (int, float)):
+                    annotation_id = int(annotation_id_raw)
+                else:
+                    # Try to convert to int if possible
+                    try:
+                        annotation_id = int(str(annotation_id_raw).replace("PA", ""))
+                    except (ValueError, AttributeError):
+                        self.logger.warning(f"Invalid annotation_id format: {annotation_id_raw}, skipping")
+                        continue
                 
                 accession_id = annotation.get("accessionId")
                 gene_symbol = variant.get("gene")
@@ -635,7 +668,8 @@ class ReferenceDataLoader:
                         related_chemicals_logic, created_date, last_updated,
                         json.dumps(annotation)
                     ))
-                    self.inserted_pharmgkb_annotations[annotation_id] = annotation
+                    # Store with original string ID for duplicate checking
+                    self.inserted_pharmgkb_annotations[annotation_id_raw] = annotation_id
                     
                     # Insert allele phenotypes (will also insert genotypes)
                     for ap in annotation.get("allelePhenotypes", []):
