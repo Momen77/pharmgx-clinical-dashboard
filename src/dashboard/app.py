@@ -448,8 +448,7 @@ elif page == "🧬 Select Genes":
 
 elif page == "🔬 Run Test":
     st.title("🔬 Run Pharmacogenetic Test")
-    st.info("**Step 3:** Run the comprehensive pharmacogenomic analysis pipeline on your selected genes.")
-
+    
     # Initialize storyboard variables early to prevent NameError
     # These must be initialized before any code path that might use them
     # Use mutable containers to avoid scope issues with reassignment
@@ -492,9 +491,11 @@ elif page == "🔬 Run Test":
         button_clicked = st.session_state.get('_test_started', False)
         test_is_running = button_clicked or (st.session_state.get('test_results') and not st.session_state.get('test_complete', False))
         
-        # Only show test summary and patient info BEFORE the test runs
+        # Only show info banner, test summary and patient info BEFORE the test runs
         # Hide it during execution to focus on the animation
         if not test_is_running:
+            st.info("**Step 3:** Run the comprehensive pharmacogenomic analysis pipeline on your selected genes.")
+            
             # Show test summary
             st.subheader("Test Summary")
 
@@ -563,12 +564,6 @@ elif page == "🔬 Run Test":
                 if cp.exists():
                     config_path = str(cp)
                     break
-
-            # Debug info
-            with st.expander("🔍 Debug Info", expanded=False):
-                st.write(f"Genes: {st.session_state['selected_genes']}")
-                st.write(f"Config path: {config_path}")
-                st.write(f"Profile keys: {list(profile.keys())}")
 
             # storyboard_finish_time and storyboard_speed already initialized at page level
             

@@ -296,26 +296,24 @@ class PatientClinicalLoader:
                 # CRITICAL: Create savepoint BEFORE any operation to protect transaction
                 cursor.execute(f"SAVEPOINT {savepoint_name}")
                 
-                # CRITICAL FIX v2.2: lifestyle_factors table does NOT have snomed_url column
-                # Schema columns are ONLY: patient_id, factor_type, snomed_code, rdfs_label, status, frequency, note
-                # DO NOT INCLUDE snomed_url - it does not exist in the database schema
-                # This SQL statement has been verified - no snomed_url column
+                # SCHEMA-ALIGNED v2.3: Insert ALL schema columns including factor_url, skos_pref_label, category
                 insert_sql = """
                     INSERT INTO lifestyle_factors (
-                        patient_id, factor_type, snomed_code, rdfs_label,
+                        patient_id, factor_url, factor_type, snomed_code,
+                        rdfs_label, skos_pref_label, category,
                         status, frequency, note
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                # DEFENSIVE: Double-check SQL doesn't contain snomed_url
-                if "snomed_url" in insert_sql.lower():
-                    raise RuntimeError(f"CRITICAL: SQL statement contains snomed_url! This should not happen. SQL: {insert_sql}")
                 
                 cursor.execute(insert_sql, (
                     patient_id,
+                    factor.get("@id"),  # factor_url
                     factor.get("factor_type"),
                     factor.get("snomed:code") or factor.get("snomed_code"),
-                    factor.get("rdfs:label") or factor.get("skos:prefLabel"),  # rdfs_label
+                    factor.get("rdfs:label"),  # rdfs_label
+                    factor.get("skos:prefLabel"),  # skos_pref_label
+                    factor.get("category"),  # category
                     factor.get("status"),
                     factor.get("frequency"),
                     factor.get("note")

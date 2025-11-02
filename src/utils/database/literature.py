@@ -64,11 +64,17 @@ class LiteratureLoader:
                 
                 # Insert to variant_publications linking table
                 if pmid:
-                    # Extract variant_id from variant_key
+                    # Extract variant_id and gene_symbol from variant_key or pub data
                     variant_id = pub.get("variant_id") or variant_key
+                    # Try to get gene_symbol from pub or look up from variant data
+                    gene_symbol_from_pub = pub.get("gene_symbol") or pub.get("gene")
+                    # Store gene_symbol in pub dict for the link function
+                    if gene_symbol_from_pub:
+                        pub["gene_symbol"] = gene_symbol_from_pub
                     self._insert_variant_publication_link(cursor, variant_id, pub)
         
         # Process drug-related publications
+        # Note: Drug publications are tracked via variant_drug_evidence table (see linking_tables.py)
         drug_literature = literature_summary.get("drug_literature", {})
         for drug_name, drug_pubs in drug_literature.items():
             for pub in drug_pubs:
@@ -77,10 +83,7 @@ class LiteratureLoader:
                     if self._insert_publication_record(cursor, pub):
                         self.inserted_pmids.add(pmid)
                         count += 1
-                
-                # Insert to drug_publications linking table
-                if pmid:
-                    self._insert_drug_publication_link(cursor, drug_name, pub)
+                # Drug-publication links are handled via variant_drug_evidence table
         
         # Process additional publications from variants
         variants = profile.get("variants", [])
@@ -99,7 +102,7 @@ class LiteratureLoader:
                 # Link to both gene and variant
                 if pmid:
                     self._insert_gene_publication_link(cursor, gene_symbol, pub)
-                    self._insert_variant_publication_link(cursor, variant_id, pub)
+                    self._insert_variant_publication_link(cursor, variant_id, pub, gene_symbol)
         
         self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} publications (with linking tables)")
         return count
@@ -139,50 +142,49 @@ class LiteratureLoader:
             return False
     
     def _insert_gene_publication_link(self, cursor: psycopg.Cursor, gene_symbol: str, pub: Dict):
-        """✅ Insert to gene_publications linking table"""
+        """✅ Insert to gene_publications linking table (SCHEMA-ALIGNED)"""
         try:
             cursor.execute("""
-                INSERT INTO gene_publications (gene_symbol, pmid, relevance_score, search_query)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO gene_publications (gene_symbol, pmid, search_variant)
+                VALUES (%s, %s, %s)
                 ON CONFLICT DO NOTHING
             """, (
                 gene_symbol,
                 pub.get("pmid"),
-                pub.get("relevance_score"),
-                pub.get("search_query") or pub.get("search_type")
+                pub.get("search_variant") or pub.get("search_query") or pub.get("search_type") or gene_symbol
             ))
         except Exception as e:
             self.logger.warning(f"Could not link gene {gene_symbol} to publication: {e}")
     
-    def _insert_variant_publication_link(self, cursor: psycopg.Cursor, variant_id: str, pub: Dict):
-        """✅ Insert to variant_publications linking table"""
+    def _insert_variant_publication_link(self, cursor: psycopg.Cursor, variant_id: str, pub: Dict, gene_symbol: str = None):
+        """✅ Insert to variant_publications linking table (SCHEMA-ALIGNED)"""
         try:
+            # Get gene_symbol from parameter, pub dict, or try to look up from database
+            if not gene_symbol:
+                gene_symbol = pub.get("gene_symbol") or pub.get("gene")
+            
+            # If still not found and variant_id exists, try to look up from patient_variants
+            if not gene_symbol and variant_id:
+                try:
+                    cursor.execute("""
+                        SELECT gene_symbol FROM patient_variants 
+                        WHERE variant_id = %s LIMIT 1
+                    """, (variant_id,))
+                    result = cursor.fetchone()
+                    if result:
+                        gene_symbol = result[0]
+                except:
+                    pass
+            
             cursor.execute("""
-                INSERT INTO variant_publications (variant_id, pmid, relevance_score, search_query)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO variant_publications (variant_id, gene_symbol, pmid)
+                VALUES (%s, %s, %s)
                 ON CONFLICT DO NOTHING
             """, (
                 variant_id,
-                pub.get("pmid"),
-                pub.get("relevance_score"),
-                pub.get("search_query") or pub.get("search_type")
+                gene_symbol,
+                pub.get("pmid")
             ))
         except Exception as e:
             self.logger.warning(f"Could not link variant {variant_id} to publication: {e}")
-    
-    def _insert_drug_publication_link(self, cursor: psycopg.Cursor, drug_name: str, pub: Dict):
-        """✅ Insert to drug_publications linking table"""
-        try:
-            cursor.execute("""
-                INSERT INTO drug_publications (drug_name, pmid, relevance_score, search_query)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT DO NOTHING
-            """, (
-                drug_name,
-                pub.get("pmid"),
-                pub.get("relevance_score"),
-                pub.get("search_query") or pub.get("search_type")
-            ))
-        except Exception as e:
-            self.logger.warning(f"Could not link drug {drug_name} to publication: {e}")
 

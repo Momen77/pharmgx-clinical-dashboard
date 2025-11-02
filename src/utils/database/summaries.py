@@ -107,7 +107,7 @@ class SummariesLoader:
             return 0
     
     def insert_literature_summary(self, cursor: psycopg.Cursor, profile: Dict) -> int:
-        """✅ SCHEMA-ALIGNED: Insert literature_summaries"""
+        """✅ SCHEMA-ALIGNED v2.1: Insert literature_summaries with correct columns"""
         try:
             patient_id = profile.get("patient_id")
             literature_summary = profile.get("literature_summary", {})
@@ -115,37 +115,62 @@ class SummariesLoader:
             if not literature_summary:
                 return 0
             
-            # Count publications
-            total_publications = 0
+            # Count publications by type
             gene_lit = literature_summary.get("gene_literature", {})
-            for gene_pubs in gene_lit.values():
-                total_publications += len(gene_pubs) if gene_pubs else 0
-            
             variant_lit = literature_summary.get("variant_literature", {})
-            for var_pubs in variant_lit.values():
-                total_publications += len(var_pubs) if var_pubs else 0
-            
             drug_lit = literature_summary.get("drug_literature", {})
-            for drug_pubs in drug_lit.values():
-                total_publications += len(drug_pubs) if drug_pubs else 0
+            
+            gene_publications = sum(len(pubs) if isinstance(pubs, list) else 1 for pubs in gene_lit.values() if pubs)
+            variant_specific_publications = sum(len(pubs) if isinstance(pubs, list) else 1 for pubs in variant_lit.values() if pubs)
+            drug_publications = sum(len(pubs) if isinstance(pubs, list) else 1 for pubs in drug_lit.values() if pubs)
+            total_publications = gene_publications + variant_specific_publications + drug_publications
+            
+            # Extract genes, variants, and drugs with literature
+            genes_with_literature = list(gene_lit.keys()) if isinstance(gene_lit, dict) else []
+            variants_with_literature = list(variant_lit.keys()) if isinstance(variant_lit, dict) else []
+            drugs_with_literature = list(drug_lit.keys()) if isinstance(drug_lit, dict) else []
+            
+            # Extract top cited PMIDs from all publications
+            top_cited_pmids = []
+            all_pubs = []
+            for pubs in list(gene_lit.values()) + list(variant_lit.values()) + list(drug_lit.values()):
+                if isinstance(pubs, list):
+                    all_pubs.extend(pubs)
+                elif isinstance(pubs, dict):
+                    all_pubs.append(pubs)
+            
+            # Sort by citation_count and get top 10
+            all_pubs_with_citations = [p for p in all_pubs if isinstance(p, dict) and p.get("citation_count") or p.get("citationCount")]
+            all_pubs_with_citations.sort(key=lambda x: (x.get("citation_count") or x.get("citationCount") or 0), reverse=True)
+            top_cited_pmids = [p.get("pmid") for p in all_pubs_with_citations[:10] if p.get("pmid")]
             
             cursor.execute("""
                 INSERT INTO literature_summaries (
-                    patient_id, total_publications, gene_literature_count,
-                    variant_literature_count, drug_literature_count,
-                    search_timestamp
+                    patient_id, total_publications,
+                    gene_publications, variant_specific_publications, drug_publications,
+                    genes_with_literature, variants_with_literature, drugs_with_literature,
+                    top_cited_pmids
                 )
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (patient_id) DO UPDATE SET
                     total_publications = EXCLUDED.total_publications,
-                    search_timestamp = EXCLUDED.search_timestamp
+                    gene_publications = EXCLUDED.gene_publications,
+                    variant_specific_publications = EXCLUDED.variant_specific_publications,
+                    drug_publications = EXCLUDED.drug_publications,
+                    genes_with_literature = EXCLUDED.genes_with_literature,
+                    variants_with_literature = EXCLUDED.variants_with_literature,
+                    drugs_with_literature = EXCLUDED.drugs_with_literature,
+                    top_cited_pmids = EXCLUDED.top_cited_pmids
             """, (
                 patient_id,
                 total_publications,
-                len(gene_lit),
-                len(variant_lit),
-                len(drug_lit),
-                datetime.now()
+                gene_publications,
+                variant_specific_publications,
+                drug_publications,
+                json.dumps(genes_with_literature) if genes_with_literature else None,
+                json.dumps(variants_with_literature) if variants_with_literature else None,
+                json.dumps(drugs_with_literature) if drugs_with_literature else None,
+                json.dumps(top_cited_pmids) if top_cited_pmids else None
             ))
             self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted literature summary for patient {patient_id}")
             return 1
