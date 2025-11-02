@@ -1,12 +1,13 @@
 """
-Linking Tables Loader - SCHEMA ALIGNED v2.0
+Linking Tables Loader - SCHEMA ALIGNED v2.1
 Handles: medication_to_variant_links, pgx_conflicts, conflict_variants, 
          ethnicity_medication_adjustments, population_frequencies
 FIXED: medication_to_variant_links - use medication_id (not drug_name), timestamp (not link_timestamp)
+FIXED: ethnicity_medication_adjustments - remove "source" column (doesn't exist in schema)
 """
 
-# VERSION: v2.0.20251102 - Force module reload
-_MODULE_VERSION = "2.0.20251102"
+# VERSION: v2.1.20251102 - Force module reload
+_MODULE_VERSION = "2.1.20251102"
 
 import json
 import logging
@@ -250,10 +251,10 @@ class LinkingTablesLoader:
     
     def insert_ethnicity_medication_adjustments(self, cursor: psycopg.Cursor, profile: Dict) -> int:
         """
-        ✅ SCHEMA-ALIGNED: Insert ethnicity_medication_adjustments
-        MAJOR FIX: Changed from patient-based to variant-based
-        Schema: ethnicity, variant_id, gene_symbol, drug_name, adjustment_factor, 
-                recommendation, evidence_level, source
+        ✅ SCHEMA-ALIGNED v2.1: Insert ethnicity_medication_adjustments
+        CRITICAL FIX: Schema has NO "source" column
+        Schema columns: variant_id, gene_symbol, ethnicity, drug_name, adjustment_type, 
+                       adjustment_factor, recommendation, evidence_level, frequency_in_population
         """
         count = 0
         patient_id = profile.get("patient_id")
@@ -271,27 +272,42 @@ class LinkingTablesLoader:
         ethnicity_adjustments = profile.get("ethnicity_medication_adjustments", [])
         
         for adjustment in ethnicity_adjustments:
+            savepoint_name = f"ethnicity_adj_{count}"
             try:
-                # SCHEMA-ALIGNED: variant-based, not patient-based
+                cursor.execute(f"SAVEPOINT {savepoint_name}")
+                
+                # SCHEMA-FIXED: Remove "source" column (doesn't exist)
+                # Schema: variant_id, gene_symbol, ethnicity, drug_name, adjustment_type, 
+                #         adjustment_factor, recommendation, evidence_level, frequency_in_population
                 cursor.execute("""
                     INSERT INTO ethnicity_medication_adjustments (
-                        ethnicity, variant_id, gene_symbol, drug_name,
-                        adjustment_factor, recommendation, evidence_level, source
+                        variant_id, gene_symbol, ethnicity, drug_name,
+                        adjustment_type, adjustment_factor, 
+                        recommendation, evidence_level, frequency_in_population
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
+                    adjustment.get("variant_id"),
+                    adjustment.get("gene_symbol"),
                     adjustment.get("ethnicity") or primary_ethnicity,
-                    adjustment.get("variant_id"),  # FIXED: variant_id instead of patient_id
-                    adjustment.get("gene_symbol"),  # FIXED: Added gene_symbol
                     adjustment.get("drug_name"),
-                    adjustment.get("adjustment_factor"),  # FIXED: adjustment_factor instead of adjustment_type
+                    adjustment.get("adjustment_type"),  # adjustment_type column
+                    adjustment.get("adjustment_factor"),
                     adjustment.get("recommendation"),
                     adjustment.get("evidence_level"),
-                    adjustment.get("source", "PharmGKB")
+                    adjustment.get("frequency_in_population")  # Optional frequency
                 ))
                 count += 1
+                cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
             except Exception as e:
-                self.logger.warning(f"Could not insert ethnicity adjustment: {e}")
+                error_msg = str(e)
+                self.logger.warning(f"Could not insert ethnicity adjustment: {error_msg}")
+                try:
+                    cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                except Exception as rollback_error:
+                    if "transaction is aborted" in str(rollback_error).lower():
+                        self.logger.error(f"Transaction aborted - cannot use savepoint. Original error: {error_msg}")
+                        raise RuntimeError(f"Transaction aborted in ethnicity_medication_adjustments: {error_msg}") from e
         
         self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} ethnicity medication adjustments")
         return count
