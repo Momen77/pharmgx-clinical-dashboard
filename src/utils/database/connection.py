@@ -103,11 +103,11 @@ class DatabaseConnection:
     
     def __init__(self, config):
         self.config = config
+        self.logger = logging.getLogger(__name__)  # Initialize logger first
         self.db_enabled = config.database_enabled
         self.non_blocking = config.database_non_blocking
         self.connection_type = "cloud_sql"
         self.db_params = self._get_db_params()
-        self.logger = logging.getLogger(__name__)
         self.connection = None
     
     def _get_db_params(self) -> Dict[str, str]:
