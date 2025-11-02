@@ -778,139 +778,213 @@ class PatientCreator:
                 }
             },
             "Southeast Asian": {
-                "Male": {
-                    "first": [
-                        # Vietnamese names
-                        "Nguyen", "Thanh", "Minh", "Tuan", "Hai", "Hung", "Duc", "Huy",
-                        "Khoa", "Phong", "Tung", "Dung", "Quan", "Kien", "Long", "Nam",
-                        # Thai names
-                        "Somchai", "Pra kit", "Surin", "Kittisak", "Anon", "Boon", "Chai",
-                        "Niran", "Thaksin", "Manop", "Prawit", "Somsak", "Wichai",
-                        # Filipino names
-                        "Jose", "Ramon", "Carlos", "Miguel", "Juan", "Antonio", "Francisco",
-                        "Manuel", "Luis", "Pedro", "Fernando", "Rafael", "Mario",
-                        # Indonesian/Malaysian names (Muslim)
-                        "Budi", "Ahmad", "Farid", "Amir", "Rizal", "Yusuf", "Hassan",
-                        "Ibrahim", "Ismail", "Abdullah", "Rahman", "Aziz", "Fikri"
-                    ],
-                    "last": [
-                        # Vietnamese surnames
-                        "Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang", "Bui", "Do", "Ngo", "Duong",
-                        # Thai surnames
-                        "Pong", "Srisai", "Boon", "Chai", "Somchai", "Thaksin", "Wongsakorn", "Rattana", "Sukhothai",
-                        # Filipino surnames
-                        "Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Garcia", "Mendoza", "Dela Cruz",
-                        "Ramos", "Flores", "Gonzales", "Torres", "Aquino", "Villanueva",
-                        # Indonesian/Malaysian surnames
-                        "Santoso", "Wijaya", "Rahman", "Abdullah", "Tan", "Lim", "Ng", "Wong", "Chan"
-                    ]
-                },
-                "Female": {
-                    "first": [
-                        # Vietnamese names
-                        "Linh", "Thu", "Mai", "Lan", "Hoa", "Huong", "Nga", "Thuy",
-                        "Hanh", "Phuong", "Van", "Thi", "Hong", "My", "Anh", "Vy",
-                        # Thai names
-                        "Siriporn", "Kanya", "Ratana", "Suda", "Malee", "Pranee", "Nittaya",
-                        "Arunee", "Busara", "Chanya", "Pimchanok", "Warunee",
-                        # Filipino names
-                        "Maria", "Rosa", "Carmen", "Ana", "Isabel", "Teresa", "Elena",
-                        "Sofia", "Luisa", "Angelica", "Cristina", "Patricia",
-                        # Indonesian/Malaysian names (Muslim)
-                        "Siti", "Nurul", "Aisyah", "Dewi", "Sri", "Fatimah", "Aminah",
-                        "Khadijah", "Maryam", "Zainab", "Nur", "Laila", "Salma"
-                    ],
-                    "last": [
-                        # Vietnamese surnames
-                        "Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang", "Bui", "Do", "Ngo", "Duong",
-                        # Thai surnames
-                        "Pong", "Srisai", "Boon", "Chai", "Somchai", "Thaksin", "Wongsakorn", "Rattana", "Sukhothai",
-                        # Filipino surnames
-                        "Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Garcia", "Mendoza", "Dela Cruz",
-                        "Ramos", "Flores", "Gonzales", "Torres", "Aquino", "Villanueva",
-                        # Indonesian/Malaysian surnames
-                        "Santoso", "Wijaya", "Rahman", "Abdullah", "Tan", "Lim", "Ng", "Wong", "Chan"
-                    ]
+                "regions": {
+                    "Vietnamese": {
+                        "countries": ["Vietnam"],
+                        "Male": {
+                            "first": ["Nguyen", "Thanh", "Minh", "Tuan", "Hai", "Hung", "Duc", "Huy", "Khoa", "Phong",
+                                      "Tung", "Dung", "Quan", "Kien", "Long", "Nam", "An", "Binh", "Cuong", "Dat",
+                                      "Hieu", "Hoang", "Khanh", "Linh", "Manh", "Quang", "Son", "Tam", "Thang", "Trung",
+                                      "Tien", "Vinh", "Vu", "Thien", "Phat", "Thinh", "Toan", "Tri", "Truong", "Viet"],
+                            "last": ["Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang",
+                                     "Bui", "Do", "Ngo", "Duong", "Ly", "Dinh", "Ha", "Cao", "Trinh", "Lam"]
+                        },
+                        "Female": {
+                            "first": ["Linh", "Thu", "Mai", "Lan", "Hoa", "Huong", "Nga", "Thuy", "Hanh", "Phuong",
+                                      "Van", "Thi", "Hong", "My", "Anh", "Vy", "Chi", "Dung", "Giang", "Ha",
+                                      "Hang", "Hien", "Kim", "Loan", "Nhu", "Quynh", "Tam", "Thao", "Trang", "Tuyet",
+                                      "Uyen", "Xuan", "Yen", "Bich", "Cam", "Dao", "Dieu", "Le", "Ngoc", "Phuong"],
+                            "last": ["Nguyen", "Tran", "Le", "Pham", "Hoang", "Huynh", "Phan", "Vu", "Vo", "Dang",
+                                     "Bui", "Do", "Ngo", "Duong", "Ly", "Dinh", "Ha", "Cao", "Trinh", "Lam"]
+                        }
+                    },
+                    "Thai": {
+                        "countries": ["Thailand"],
+                        "Male": {
+                            "first": ["Somchai", "Prakit", "Surin", "Kittisak", "Anon", "Boon", "Chai", "Niran", "Thaksin", "Manop",
+                                      "Prawit", "Somsak", "Wichai", "Apichat", "Chaiya", "Danai", "Ekachai", "Kriangsak", "Narong", "Prayut",
+                                      "Sarawut", "Somkid", "Supachai", "Thanakorn", "Weerasak", "Arthit", "Chatchai", "Itthipol", "Krit", "Nirut",
+                                      "Phakorn", "Rachan", "Sawat", "Thanat", "Wasan", "Yutthana", "Anucha", "Boonyong", "Chusak", "Damrong"],
+                            "last": ["Pong", "Srisai", "Boon", "Chai", "Somchai", "Thaksin", "Wongsakorn", "Rattana", "Sukhothai", "Pattana",
+                                     "Chaiyaporn", "Kittipong", "Narongrit", "Phongchai", "Suraphon", "Thawatchai", "Weerachai", "Yongyut", "Anusorn", "Chatchawan"]
+                        },
+                        "Female": {
+                            "first": ["Siriporn", "Kanya", "Ratana", "Suda", "Malee", "Pranee", "Nittaya", "Arunee", "Busara", "Chanya",
+                                      "Pimchanok", "Warunee", "Anchali", "Chanida", "Jintana", "Nongnat", "Parichat", "Saengdao", "Somjai", "Thitima",
+                                      "Wilaiwan", "Apinya", "Bussaba", "Chalinee", "Kannika", "Lakana", "Monthira", "Nisa", "Orawan", "Patcharee",
+                                      "Rachanee", "Saowapa", "Supaporn", "Tarika", "Wanpen", "Yaowares", "Apsara", "Boonyisa", "Chompoo", "Duangjai"],
+                            "last": ["Pong", "Srisai", "Boon", "Chai", "Somchai", "Thaksin", "Wongsakorn", "Rattana", "Sukhothai", "Pattana",
+                                     "Chaiyaporn", "Kittipong", "Narongrit", "Phongchai", "Suraphon", "Thawatchai", "Weerachai", "Yongyut", "Anusorn", "Chatchawan"]
+                        }
+                    },
+                    "Filipino": {
+                        "countries": ["Philippines"],
+                        "Male": {
+                            "first": ["Jose", "Ramon", "Carlos", "Miguel", "Juan", "Antonio", "Francisco", "Manuel", "Luis", "Pedro",
+                                      "Fernando", "Rafael", "Mario", "Ernesto", "Roberto", "Enrique", "Ricardo", "Alfredo", "Eduardo", "Rodrigo",
+                                      "Raul", "Sergio", "Arturo", "Jorge", "Alberto", "Felipe", "Julio", "Marcos", "Pablo", "Salvador",
+                                      "Vicente", "Dante", "Emilio", "Gregorio", "Jaime", "Leonardo", "Martin", "Oscar", "Pascual", "Rey"],
+                            "last": ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Garcia", "Mendoza", "Dela Cruz", "Ramos", "Flores",
+                                     "Gonzales", "Torres", "Aquino", "Villanueva", "Lopez", "Rivera", "Fernandez", "Martinez", "Domingo", "Castillo"]
+                        },
+                        "Female": {
+                            "first": ["Maria", "Rosa", "Carmen", "Ana", "Isabel", "Teresa", "Elena", "Sofia", "Luisa", "Angelica",
+                                      "Cristina", "Patricia", "Gloria", "Lourdes", "Mercedes", "Remedios", "Beatriz", "Concepcion", "Dolores", "Esperanza",
+                                      "Fe", "Guadalupe", "Imelda", "Josefina", "Luz", "Milagros", "Natividad", "Paz", "Rosario", "Soledad",
+                                      "Victoria", "Asuncion", "Caridad", "Divina", "Erlinda", "Felicidad", "Gracia", "Josefa", "Leonor", "Purificacion"],
+                            "last": ["Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Garcia", "Mendoza", "Dela Cruz", "Ramos", "Flores",
+                                     "Gonzales", "Torres", "Aquino", "Villanueva", "Lopez", "Rivera", "Fernandez", "Martinez", "Domingo", "Castillo"]
+                        }
+                    },
+                    "Indonesian": {
+                        "countries": ["Indonesia", "Malaysia", "Singapore"],
+                        "Male": {
+                            "first": ["Budi", "Ahmad", "Farid", "Amir", "Rizal", "Yusuf", "Hassan", "Ibrahim", "Ismail", "Abdullah",
+                                      "Rahman", "Aziz", "Fikri", "Hadi", "Ilham", "Joko", "Kurnia", "Lukman", "Muchtar", "Nur",
+                                      "Prayitno", "Raden", "Santoso", "Taufik", "Usman", "Wahyu", "Yanto", "Zainal", "Adi", "Bagus",
+                                      "Cahya", "Darmawan", "Eko", "Febrian", "Guntur", "Hendro", "Irfan", "Jaya", "Kusuma", "Luhur"],
+                            "last": ["Santoso", "Wijaya", "Rahman", "Abdullah", "Tan", "Lim", "Ng", "Wong", "Chan", "Putri",
+                                     "Sari", "Kusuma", "Pratama", "Utama", "Kurniawan", "Susanto", "Wibowo", "Setiawan", "Pranoto", "Hakim"]
+                        },
+                        "Female": {
+                            "first": ["Siti", "Nurul", "Aisyah", "Dewi", "Sri", "Fatimah", "Aminah", "Khadijah", "Maryam", "Zainab",
+                                      "Nur", "Laila", "Salma", "Ayu", "Citra", "Dian", "Eka", "Fitri", "Indah", "Kartika",
+                                      "Lestari", "Maya", "Nisa", "Putri", "Rina", "Sari", "Tuti", "Uswah", "Wulan", "Yuni",
+                                      "Anggun", "Bunga", "Cahaya", "Diah", "Endah", "Galuh", "Hasna", "Intan", "Jelita", "Kasih"],
+                            "last": ["Santoso", "Wijaya", "Rahman", "Abdullah", "Tan", "Lim", "Ng", "Wong", "Chan", "Putri",
+                                     "Sari", "Kusuma", "Pratama", "Utama", "Kurniawan", "Susanto", "Wibowo", "Setiawan", "Pranoto", "Hakim"]
+                        }
+                    }
                 }
             },
             "Caucasian/European": {
-                "Male": {
-                    "first": [
-                        # English/Anglo names
-                        "James", "William", "Thomas", "Oliver", "Alexander", "Henry", "Charles", "Daniel",
-                        "Lucas", "Michael", "John", "Robert", "David", "Richard", "Joseph", "Christopher",
-                        "Matthew", "Andrew", "George", "Edward", "Benjamin", "Samuel", "Jack", "Harry",
-                        # French names
-                        "Pierre", "Jean", "Louis", "François", "Antoine", "Nicolas", "Luc", "Marc",
-                        # German names
-                        "Hans", "Klaus", "Wolfgang", "Dieter", "Jürgen", "Helmut", "Stefan", "Matthias",
-                        # Italian names
-                        "Marco", "Luca", "Matteo", "Alessandro", "Giovanni", "Andrea", "Francesco",
-                        # Spanish names
-                        "Pablo", "Javier", "Alberto", "Fernando", "Rafael", "Jorge",
-                        # Slavic names
-                        "Ivan", "Dmitri", "Vladimir", "Sergei", "Alexei", "Nikolai", "Andrei", "Mikhail",
-                        "Aleksandr", "Pavel", "Boris", "Yuri"
-                    ],
-                    "last": [
-                        # English/Anglo surnames
-                        "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson",
-                        "Anderson", "Taylor", "Thomas", "Moore", "Jackson", "Martin", "Lee", "Thompson",
-                        "White", "Harris", "Clark", "Lewis", "Walker", "Hall", "Allen", "Young", "King",
-                        # French surnames
-                        "Dubois", "Martin", "Bernard", "Petit", "Robert", "Richard", "Durand", "Leroy",
-                        "Moreau", "Simon", "Laurent", "Lefebvre", "Michel", "Garcia", "Roux",
-                        # German surnames
-                        "Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker",
-                        "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer", "Richter", "Klein",
-                        # Italian surnames
-                        "Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci",
-                        "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Costa",
-                        # Spanish surnames
-                        "González", "Rodríguez", "García", "Fernández", "López", "Martínez", "Sánchez",
-                        # Slavic surnames
-                        "Ivanov", "Petrov", "Sidorov", "Volkov", "Sokolov", "Lebedev", "Kozlov", "Novak",
-                        "Kowalski", "Nowak", "Wojcik", "Kowalczyk", "Lewandowski"
-                    ]
-                },
-                "Female": {
-                    "first": [
-                        # English/Anglo names
-                        "Emma", "Olivia", "Sophia", "Charlotte", "Amelia", "Isabella", "Mia", "Evelyn",
-                        "Harper", "Emily", "Elizabeth", "Sarah", "Grace", "Victoria", "Hannah", "Jessica",
-                        "Sophie", "Lucy", "Alice", "Rose", "Lily", "Ella", "Chloe", "Abigail",
-                        # French names
-                        "Marie", "Sophie", "Camille", "Julie", "Chloé", "Emma", "Léa", "Manon", "Charlotte",
-                        # German names
-                        "Anna", "Emma", "Maria", "Sophie", "Laura", "Lena", "Julia", "Katharina",
-                        # Italian names
-                        "Giulia", "Sofia", "Francesca", "Chiara", "Martina", "Valentina", "Alessia",
-                        # Spanish names
-                        "María", "Carmen", "Dolores", "Pilar", "Isabel", "Teresa",
-                        # Slavic names
-                        "Anna", "Maria", "Elena", "Natalia", "Olga", "Tatiana", "Irina", "Svetlana",
-                        "Ekaterina", "Anastasia", "Yulia", "Daria"
-                    ],
-                    "last": [
-                        # English/Anglo surnames
-                        "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson",
-                        "Anderson", "Taylor", "Thomas", "Moore", "Jackson", "Martin", "Lee", "Thompson",
-                        "White", "Harris", "Clark", "Lewis", "Walker", "Hall", "Allen", "Young", "King",
-                        # French surnames
-                        "Dubois", "Martin", "Bernard", "Petit", "Robert", "Richard", "Durand", "Leroy",
-                        "Moreau", "Simon", "Laurent", "Lefebvre", "Michel", "Garcia", "Roux",
-                        # German surnames
-                        "Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker",
-                        "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer", "Richter", "Klein",
-                        # Italian surnames
-                        "Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci",
-                        "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Costa",
-                        # Spanish surnames
-                        "González", "Rodríguez", "García", "Fernández", "López", "Martínez", "Sánchez",
-                        # Slavic surnames
-                        "Ivanov", "Petrov", "Sidorov", "Volkov", "Sokolov", "Lebedev", "Kozlov", "Novak",
-                        "Kowalski", "Nowak", "Wojcik", "Kowalczyk", "Lewandowski"
-                    ]
+                "regions": {
+                    "British": {
+                        "countries": ["United Kingdom", "England", "Scotland", "Wales", "Ireland"],
+                        "Male": {
+                            "first": ["James", "William", "Thomas", "Oliver", "Alexander", "Henry", "Charles", "Daniel", "Lucas", "Michael",
+                                      "John", "Robert", "David", "Richard", "Joseph", "Christopher", "Matthew", "Andrew", "George", "Edward",
+                                      "Benjamin", "Samuel", "Jack", "Harry", "Liam", "Noah", "Jacob", "Ethan", "Logan", "Oscar",
+                                      "Arthur", "Archie", "Freddie", "Leo", "Theodore", "Alfie", "Finley", "Isaac", "Joshua", "Muhammad"],
+                            "last": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Anderson", "Taylor",
+                                     "Thomas", "Moore", "Jackson", "Martin", "Lee", "Thompson", "White", "Harris", "Clark", "Lewis",
+                                     "Walker", "Hall", "Allen", "Young", "King", "Wright", "Scott", "Green", "Baker", "Adams"]
+                        },
+                        "Female": {
+                            "first": ["Emma", "Olivia", "Sophia", "Charlotte", "Amelia", "Isabella", "Mia", "Evelyn", "Harper", "Emily",
+                                      "Elizabeth", "Sarah", "Grace", "Victoria", "Hannah", "Jessica", "Sophie", "Lucy", "Alice", "Rose",
+                                      "Lily", "Ella", "Chloe", "Abigail", "Ava", "Isla", "Poppy", "Freya", "Ivy", "Willow",
+                                      "Florence", "Daisy", "Phoebe", "Elsie", "Rosie", "Maisie", "Aria", "Matilda", "Sienna", "Eleanor"],
+                            "last": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Anderson", "Taylor",
+                                     "Thomas", "Moore", "Jackson", "Martin", "Lee", "Thompson", "White", "Harris", "Clark", "Lewis",
+                                     "Walker", "Hall", "Allen", "Young", "King", "Wright", "Scott", "Green", "Baker", "Adams"]
+                        }
+                    },
+                    "French": {
+                        "countries": ["France"],
+                        "Male": {
+                            "first": ["Pierre", "Jean", "Louis", "François", "Antoine", "Nicolas", "Luc", "Marc", "Jacques", "Michel",
+                                      "Philippe", "Alain", "Patrick", "Christophe", "Laurent", "Olivier", "Julien", "Sébastien", "Stéphane", "David",
+                                      "Thomas", "Alexandre", "Maxime", "Hugo", "Lucas", "Nathan", "Mathis", "Léo", "Gabriel", "Arthur",
+                                      "Jules", "Raphaël", "Théo", "Nolan", "Adam", "Ethan", "Paul", "Victor", "Sacha", "Romain"],
+                            "last": ["Dubois", "Martin", "Bernard", "Petit", "Robert", "Richard", "Durand", "Leroy", "Moreau", "Simon",
+                                     "Laurent", "Lefebvre", "Michel", "Garcia", "Roux", "Fontaine", "Chevalier", "Lambert", "Bonnet", "Blanc",
+                                     "Garnier", "Morel", "Fournier", "Rousseau", "Vincent", "Muller", "Leclerc", "Mercier", "Girard", "Dupont"]
+                        },
+                        "Female": {
+                            "first": ["Marie", "Sophie", "Camille", "Julie", "Chloé", "Emma", "Léa", "Manon", "Charlotte", "Sarah",
+                                      "Pauline", "Laura", "Lucie", "Anaïs", "Claire", "Marion", "Amélie", "Céline", "Nathalie", "Isabelle",
+                                      "Louise", "Alice", "Jade", "Léna", "Zoé", "Inès", "Lola", "Rose", "Anna", "Lily",
+                                      "Mila", "Nina", "Juliette", "Chloé", "Eva", "Romane", "Clara", "Elise", "Margot", "Ambre"],
+                            "last": ["Dubois", "Martin", "Bernard", "Petit", "Robert", "Richard", "Durand", "Leroy", "Moreau", "Simon",
+                                     "Laurent", "Lefebvre", "Michel", "Garcia", "Roux", "Fontaine", "Chevalier", "Lambert", "Bonnet", "Blanc",
+                                     "Garnier", "Morel", "Fournier", "Rousseau", "Vincent", "Muller", "Leclerc", "Mercier", "Girard", "Dupont"]
+                        }
+                    },
+                    "German": {
+                        "countries": ["Germany", "Austria", "Switzerland"],
+                        "Male": {
+                            "first": ["Hans", "Klaus", "Wolfgang", "Dieter", "Jürgen", "Helmut", "Stefan", "Matthias", "Andreas", "Michael",
+                                      "Thomas", "Christian", "Martin", "Daniel", "Sebastian", "Markus", "Alexander", "Tobias", "Florian", "Lukas",
+                                      "Felix", "Maximilian", "Leon", "Paul", "Jonas", "Noah", "Elias", "Finn", "Oskar", "Anton",
+                                      "Karl", "Friedrich", "Wilhelm", "Heinrich", "Otto", "Ludwig", "Franz", "Ernst", "Walter", "Hermann"],
+                            "last": ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann",
+                                     "Schäfer", "Koch", "Bauer", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Zimmermann",
+                                     "Braun", "Krüger", "Hofmann", "Hartmann", "Lange", "Schmitt", "Werner", "Schmitz", "Krause", "Meier"]
+                        },
+                        "Female": {
+                            "first": ["Anna", "Emma", "Maria", "Sophie", "Laura", "Lena", "Julia", "Katharina", "Sarah", "Lisa",
+                                      "Hannah", "Lea", "Mia", "Emilia", "Clara", "Charlotte", "Maja", "Luisa", "Amelie", "Johanna",
+                                      "Marie", "Paula", "Frieda", "Greta", "Ida", "Mila", "Ella", "Nele", "Pia", "Helene",
+                                      "Gertrud", "Hildegard", "Ursula", "Ingrid", "Brunhilde", "Heidi", "Anneliese", "Brigitte", "Christa", "Monika"],
+                            "last": ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann",
+                                     "Schäfer", "Koch", "Bauer", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Zimmermann",
+                                     "Braun", "Krüger", "Hofmann", "Hartmann", "Lange", "Schmitt", "Werner", "Schmitz", "Krause", "Meier"]
+                        }
+                    },
+                    "Italian": {
+                        "countries": ["Italy"],
+                        "Male": {
+                            "first": ["Marco", "Luca", "Matteo", "Alessandro", "Giovanni", "Andrea", "Francesco", "Giuseppe", "Antonio", "Luigi",
+                                      "Paolo", "Carlo", "Stefano", "Davide", "Federico", "Lorenzo", "Riccardo", "Simone", "Nicola", "Gabriele",
+                                      "Leonardo", "Tommaso", "Edoardo", "Pietro", "Filippo", "Vincenzo", "Salvatore", "Emanuele", "Alberto", "Roberto",
+                                      "Domenico", "Franco", "Bruno", "Sergio", "Mario", "Angelo", "Massimo", "Claudio", "Giorgio", "Daniele"],
+                            "last": ["Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci", "Marino", "Greco",
+                                     "Bruno", "Gallo", "Conti", "De Luca", "Costa", "Giordano", "Mancini", "Rizzo", "Lombardi", "Moretti",
+                                     "Barbieri", "Fontana", "Santoro", "Mariani", "Rinaldi", "Caruso", "Ferrara", "Galli", "Martini", "Leone"]
+                        },
+                        "Female": {
+                            "first": ["Giulia", "Sofia", "Francesca", "Chiara", "Martina", "Valentina", "Alessia", "Sara", "Elisa", "Anna",
+                                      "Laura", "Silvia", "Claudia", "Elena", "Paola", "Maria", "Federica", "Ilaria", "Roberta", "Michela",
+                                      "Giorgia", "Aurora", "Alice", "Greta", "Beatrice", "Emma", "Matilde", "Vittoria", "Camilla", "Viola",
+                                      "Rosa", "Teresa", "Lucia", "Carmela", "Angela", "Giovanna", "Isabella", "Caterina", "Margherita", "Serena"],
+                            "last": ["Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci", "Marino", "Greco",
+                                     "Bruno", "Gallo", "Conti", "De Luca", "Costa", "Giordano", "Mancini", "Rizzo", "Lombardi", "Moretti",
+                                     "Barbieri", "Fontana", "Santoro", "Mariani", "Rinaldi", "Caruso", "Ferrara", "Galli", "Martini", "Leone"]
+                        }
+                    },
+                    "Spanish_Portuguese": {
+                        "countries": ["Spain", "Portugal"],
+                        "Male": {
+                            "first": ["Pablo", "Javier", "Alberto", "Fernando", "Rafael", "Jorge", "Antonio", "Manuel", "José", "Carlos",
+                                      "Miguel", "Alejandro", "David", "Daniel", "Francisco", "Sergio", "Andrés", "Luis", "Pedro", "Óscar",
+                                      "Raúl", "Rubén", "Iván", "Adrián", "Víctor", "Álvaro", "Hugo", "Mario", "Diego", "Gonzalo",
+                                      "João", "Miguel", "Pedro", "Tiago", "Gonçalo", "Francisco", "Diogo", "André", "Rafael", "Martim"],
+                            "last": ["González", "Rodríguez", "García", "Fernández", "López", "Martínez", "Sánchez", "Pérez", "Gómez", "Martín",
+                                     "Jiménez", "Ruiz", "Hernández", "Díaz", "Moreno", "Álvarez", "Muñoz", "Romero", "Alonso", "Gutiérrez",
+                                     "Silva", "Santos", "Ferreira", "Pereira", "Oliveira", "Costa", "Rodrigues", "Martins", "Sousa", "Carvalho"]
+                        },
+                        "Female": {
+                            "first": ["María", "Carmen", "Dolores", "Pilar", "Isabel", "Teresa", "Ana", "Lucía", "Paula", "Laura",
+                                      "Marta", "Sara", "Cristina", "Elena", "Beatriz", "Raquel", "Silvia", "Natalia", "Patricia", "Andrea",
+                                      "Sofía", "Claudia", "Julia", "Alba", "Irene", "Marina", "Carla", "Nerea", "Daniela", "Victoria",
+                                      "Maria", "Ana", "Beatriz", "Inês", "Mariana", "Sofia", "Carolina", "Joana", "Leonor", "Matilde"],
+                            "last": ["González", "Rodríguez", "García", "Fernández", "López", "Martínez", "Sánchez", "Pérez", "Gómez", "Martín",
+                                     "Jiménez", "Ruiz", "Hernández", "Díaz", "Moreno", "Álvarez", "Muñoz", "Romero", "Alonso", "Gutiérrez",
+                                     "Silva", "Santos", "Ferreira", "Pereira", "Oliveira", "Costa", "Rodrigues", "Martins", "Sousa", "Carvalho"]
+                        }
+                    },
+                    "Slavic": {
+                        "countries": ["Russia", "Poland", "Ukraine", "Czech Republic", "Slovakia"],
+                        "Male": {
+                            "first": ["Ivan", "Dmitri", "Vladimir", "Sergei", "Alexei", "Nikolai", "Andrei", "Mikhail", "Aleksandr", "Pavel",
+                                      "Boris", "Yuri", "Igor", "Oleg", "Viktor", "Konstantin", "Roman", "Anton", "Maxim", "Artem",
+                                      "Piotr", "Wojciech", "Krzysztof", "Tomasz", "Marek", "Jan", "Jakub", "Kamil", "Adam", "Paweł",
+                                      "Oleksandr", "Andriy", "Yuriy", "Bohdan", "Mykola", "Vasyl", "Taras", "Dmytro", "Petro", "Stepan"],
+                            "last": ["Ivanov", "Petrov", "Sidorov", "Volkov", "Sokolov", "Lebedev", "Kozlov", "Novak", "Popov", "Smirnov",
+                                     "Kowalski", "Nowak", "Wojcik", "Kowalczyk", "Lewandowski", "Zielinski", "Szymanski", "Wozniak", "Dąbrowski", "Krawczyk",
+                                     "Shevchenko", "Kovalenko", "Bondarenko", "Tkachenko", "Melnyk", "Kravchenko", "Polishchuk", "Boyko", "Lysenko", "Marchenko"]
+                        },
+                        "Female": {
+                            "first": ["Anna", "Maria", "Elena", "Natalia", "Olga", "Tatiana", "Irina", "Svetlana", "Ekaterina", "Anastasia",
+                                      "Yulia", "Daria", "Victoria", "Alina", "Ksenia", "Polina", "Elizaveta", "Sofia", "Varvara", "Margarita",
+                                      "Agnieszka", "Katarzyna", "Małgorzata", "Anna", "Magdalena", "Ewa", "Barbara", "Joanna", "Natalia", "Maria",
+                                      "Oksana", "Olena", "Kateryna", "Iryna", "Natalia", "Tetyana", "Halyna", "Svitlana", "Lyudmyla", "Nina"],
+                            "last": ["Ivanova", "Petrova", "Sidorova", "Volkova", "Sokolova", "Lebedeva", "Kozlova", "Novak", "Popova", "Smirnova",
+                                     "Kowalska", "Nowak", "Wojcik", "Kowalczyk", "Lewandowska", "Zielinska", "Szymanska", "Wozniak", "Dąbrowska", "Krawczyk",
+                                     "Shevchenko", "Kovalenko", "Bondarenko", "Tkachenko", "Melnyk", "Kravchenko", "Polishchuk", "Boyko", "Lysenko", "Marchenko"]
+                        }
+                    }
                 }
             },
             "Hispanic/Latino": {
@@ -944,33 +1018,70 @@ class PatientCreator:
                 }
             },
             "Middle Eastern": {
-                "Male": {
-                    "first": [
-                        "Omar", "Ali", "Hassan", "Ahmed", "Yusuf", "Khalil", "Rashid", "Tariq", "Karim", "Samir",
-                        "Mohammed", "Mahmoud", "Abdullah", "Ibrahim", "Mustafa", "Faisal", "Hamza", "Bilal", "Zayd",
-                        "Malik", "Amin", "Nasir", "Jalal", "Rami", "Nabil", "Walid", "Adel", "Khaled", "Majid",
-                        "Sami", "Hadi", "Jamil", "Basel", "Zain", "Fadi", "Anwar", "Imad", "Tarek", "Hatem"
-                    ],
-                    "last": [
-                        "Al-Masri", "Al-Rashid", "Al-Farsi", "Al-Mansour", "Al-Hassan", "Al-Jabbar", "Al-Sayed", "Al-Najjar",
-                        "Al-Amin", "Al-Hakim", "Al-Sharif", "Al-Din", "Al-Khouri", "Al-Mahmoud", "Al-Ahmad", "Al-Ibrahim",
-                        "Al-Ali", "Al-Saleh", "Al-Khalil", "Al-Saad", "Al-Amir", "Al-Zahir", "Al-Qadir", "Al-Rashidi",
-                        "Hussein", "Abbas", "Khalil", "Mansour", "Nasr", "Farah", "Haddad", "Khoury", "Bitar", "Harb"
-                    ]
-                },
-                "Female": {
-                    "first": [
-                        "Layla", "Fatima", "Zainab", "Aisha", "Noor", "Yasmin", "Mariam", "Amina", "Hana", "Salma",
-                        "Sara", "Rania", "Dalia", "Lina", "Maya", "Reem", "Rana", "Noura", "Sana", "Hiba",
-                        "Bushra", "Samar", "Duha", "Iman", "Samira", "Nadine", "Malak", "Jana", "Rawan", "Lama",
-                        "Suha", "Dina", "Mona", "Nada", "Rim", "Ghada", "Maha", "Sawsan", "Hala", "Rasha"
-                    ],
-                    "last": [
-                        "Al-Masri", "Al-Rashid", "Al-Farsi", "Al-Mansour", "Al-Hassan", "Al-Jabbar", "Al-Sayed", "Al-Najjar",
-                        "Al-Amin", "Al-Hakim", "Al-Sharif", "Al-Din", "Al-Khouri", "Al-Mahmoud", "Al-Ahmad", "Al-Ibrahim",
-                        "Al-Ali", "Al-Saleh", "Al-Khalil", "Al-Saad", "Al-Amir", "Al-Zahir", "Al-Qadir", "Al-Rashidi",
-                        "Hussein", "Abbas", "Khalil", "Mansour", "Nasr", "Farah", "Haddad", "Khoury", "Bitar", "Harb"
-                    ]
+                "regions": {
+                    "Gulf_Arab": {
+                        "countries": ["Saudi Arabia", "UAE", "Kuwait", "Qatar", "Bahrain", "Oman"],
+                        "Male": {
+                            "first": ["Mohammed", "Ahmed", "Abdullah", "Khalid", "Fahad", "Sultan", "Faisal", "Mansour", "Turki", "Rashid",
+                                      "Abdulaziz", "Salman", "Nawaf", "Saud", "Majid", "Nasser", "Hamad", "Saeed", "Yousef", "Bandar",
+                                      "Talal", "Waleed", "Mishal", "Mutlaq", "Nayef", "Omar", "Rakan", "Saqr", "Thamer", "Zayed",
+                                      "Hamdan", "Rasheed", "Badr", "Fahd", "Jassim", "Khaled", "Mansoor", "Mubarak", "Saif", "Tariq"],
+                            "last": ["Al-Saud", "Al-Otaibi", "Al-Dosari", "Al-Ghamdi", "Al-Zahrani", "Al-Qahtani", "Al-Mutairi", "Al-Harbi",
+                                     "Al-Shammari", "Al-Rashid", "Al-Mansouri", "Al-Maktoum", "Al-Nahyan", "Al-Qasimi", "Al-Sabah", "Al-Thani",
+                                     "Al-Marri", "Al-Kuwari", "Al-Khalifa", "Al-Said", "Bin Laden", "Bin Talal", "Bin Zayed", "Al-Faisal"]
+                        },
+                        "Female": {
+                            "first": ["Noor", "Noura", "Fatima", "Aisha", "Maryam", "Sarah", "Hessa", "Amira", "Lulwa", "Shaikha",
+                                      "Mahra", "Sheikha", "Latifa", "Maysa", "Reem", "Salma", "Haya", "Mozah", "Shamsa", "Moza",
+                                      "Hind", "Jawahir", "Manal", "Nada", "Rania", "Wafa", "Abeer", "Buthaina", "Dalal", "Ghada",
+                                      "Hanan", "Jamilah", "Karima", "Laila", "Maha", "Nadia", "Raghad", "Sama", "Wedad", "Yasmin"],
+                            "last": ["Al-Saud", "Al-Otaibi", "Al-Dosari", "Al-Ghamdi", "Al-Zahrani", "Al-Qahtani", "Al-Mutairi", "Al-Harbi",
+                                     "Al-Shammari", "Al-Rashid", "Al-Mansouri", "Al-Maktoum", "Al-Nahyan", "Al-Qasimi", "Al-Sabah", "Al-Thani",
+                                     "Al-Marri", "Al-Kuwari", "Al-Khalifa", "Al-Said", "Bin Laden", "Bin Talal", "Bin Zayed", "Al-Faisal"]
+                        }
+                    },
+                    "Levantine": {
+                        "countries": ["Lebanon", "Syria", "Jordan", "Palestine"],
+                        "Male": {
+                            "first": ["Basel", "Fadi", "Rami", "Nabil", "Walid", "Tariq", "Jamil", "Sami", "Adel", "Imad",
+                                      "Tarek", "Hatem", "Karim", "Marwan", "Wael", "Ziad", "Amjad", "Hani", "Maher", "Raed",
+                                      "Samir", "Yasser", "Bilal", "Ghassan", "Hazem", "Ihab", "Jamal", "Kamal", "Mahmoud", "Nader",
+                                      "Omar", "Qusay", "Rayan", "Salim", "Tamer", "Usama", "Wassim", "Yazid", "Zaki", "Adnan"],
+                            "last": ["Haddad", "Khoury", "Bitar", "Harb", "Saleh", "Khalil", "Mansour", "Nasr", "Farah", "Abbas",
+                                     "Said", "Aoun", "Gemayel", "Frangieh", "Jumblatt", "Salam", "Karami", "Mikati", "Safadi", "Assaf",
+                                     "Hourani", "Masri", "Shaheen", "Atallah", "Karam", "Nasser", "Al-Assad", "Shami", "Halabi", "Hakim"]
+                        },
+                        "Female": {
+                            "first": ["Lina", "Maya", "Reem", "Rana", "Dalia", "Sana", "Hiba", "Samar", "Duha", "Iman",
+                                      "Nadine", "Jana", "Rawan", "Lama", "Suha", "Dina", "Mona", "Rim", "Hala", "Rasha",
+                                      "Layla", "Yasmin", "Hana", "Sara", "Malak", "Nada", "Ghada", "Maha", "Sawsan", "Bushra",
+                                      "Amal", "Farah", "Haneen", "Layan", "Nour", "Razan", "Sereen", "Tala", "Yara", "Zeina"],
+                            "last": ["Haddad", "Khoury", "Bitar", "Harb", "Saleh", "Khalil", "Mansour", "Nasr", "Farah", "Abbas",
+                                     "Said", "Aoun", "Gemayel", "Frangieh", "Jumblatt", "Salam", "Karami", "Mikati", "Safadi", "Assaf",
+                                     "Hourani", "Masri", "Shaheen", "Atallah", "Karam", "Nasser", "Al-Assad", "Shami", "Halabi", "Hakim"]
+                        }
+                    },
+                    "Egyptian_North_African": {
+                        "countries": ["Egypt", "Libya", "Tunisia", "Algeria", "Morocco"],
+                        "Male": {
+                            "first": ["Mohamed", "Ahmed", "Mahmoud", "Ali", "Hassan", "Omar", "Youssef", "Ibrahim", "Mustafa", "Khaled",
+                                      "Karim", "Amr", "Tamer", "Hossam", "Sherif", "Ashraf", "Wael", "Tarek", "Hany", "Ehab",
+                                      "Magdy", "Samir", "Adel", "Hatem", "Gamal", "Reda", "Essam", "Ayman", "Basel", "Fady",
+                                      "Yasser", "Walid", "Ramy", "Nader", "Hesham", "Salah", "Maged", "Hamza", "Medhat", "Sayed"],
+                            "last": ["Abdel-Nasser", "El-Sayed", "Mohamed", "Ahmed", "Hassan", "Hussein", "Mahmoud", "Ali", "Ibrahim", "Abdallah",
+                                     "Farouk", "Sadat", "Mubarak", "Morsi", "El-Masry", "El-Shazly", "El-Kady", "El-Sisi", "Fahmy", "Khalil",
+                                     "Ben Ali", "Bouazizi", "Ghannouchi", "Bourguiba", "Bouteflika", "Zeroual", "Belkhadem", "Tebboune", "Hassan II", "Mohammed VI"]
+                        },
+                        "Female": {
+                            "first": ["Fatima", "Mariam", "Zainab", "Aisha", "Nour", "Salma", "Heba", "Aya", "Yasmin", "Nada",
+                                      "Rania", "Dina", "Mona", "Noha", "Rana", "Hala", "Samar", "Laila", "Amira", "Nesrine",
+                                      "Eman", "Inas", "Nagwa", "Niveen", "Soha", "Yara", "Basma", "Dalia", "Ghada", "Hanan",
+                                      "Maha", "Manal", "Nawal", "Rasha", "Samira", "Wafaa", "Amina", "Farida", "Khadija", "Malika"],
+                            "last": ["Abdel-Nasser", "El-Sayed", "Mohamed", "Ahmed", "Hassan", "Hussein", "Mahmoud", "Ali", "Ibrahim", "Abdallah",
+                                     "Farouk", "Sadat", "Mubarak", "Morsi", "El-Masry", "El-Shazly", "El-Kady", "El-Sisi", "Fahmy", "Khalil",
+                                     "Ben Ali", "Bouazizi", "Ghannouchi", "Bourguiba", "Bouteflika", "Zeroual", "Belkhadem", "Tebboune", "Hassan II", "Mohammed VI"]
+                        }
+                    }
                 }
             },
             "Native American": {
