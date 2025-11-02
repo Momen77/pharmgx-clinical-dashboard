@@ -1688,9 +1688,14 @@ class PGxPipeline:
                         result = db_loader.load_patient_profile(profile)
                         db_status.update(result)
                         db_status["completed"] = True
-                        # Keep connection open for a moment to ensure commit completes
-                        import time
-                        time.sleep(0.5)  # Small delay to ensure commit is fully processed
+                        
+                        # CRITICAL: If commit succeeded, wait longer to ensure data is persisted
+                        if result.get('success'):
+                            import time
+                            print("✅ Database commit succeeded - waiting for data persistence...")
+                            time.sleep(2.0)  # Increased delay to ensure commit fully propagates
+                        
+                        # Close connection after ensuring commit has propagated
                         db_loader.close()
                     except Exception as e:
                         db_status["success"] = False

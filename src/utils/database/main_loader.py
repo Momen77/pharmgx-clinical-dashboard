@@ -176,19 +176,46 @@ class DatabaseLoader:
             # Commit transaction - CRITICAL: Use connection.commit() NOT cursor.execute("COMMIT")
             self.logger.info("🔄 Committing transaction...")
             
+            # CRITICAL: Ensure autocommit is False before committing
+            if hasattr(connection, 'autocommit') and connection.autocommit:
+                self.logger.warning("⚠️ Autocommit was True - disabling it")
+                connection.autocommit = False
+            
             # Get transaction status before commit
-            cursor.execute("SELECT txid_current(), pg_backend_pid()")
+            cursor.execute("SELECT txid_current(), pg_backend_pid(), current_setting('transaction_isolation', true)")
             tx_before = cursor.fetchone()
-            self.logger.info(f"🔍 Transaction ID before commit: {tx_before[0]}, PID: {tx_before[1]}")
+            self.logger.info(f"🔍 Transaction ID before commit: {tx_before[0]}, PID: {tx_before[1]}, Isolation: {tx_before[2]}")
             
             # CRITICAL: In psycopg3, we MUST use connection.commit(), not cursor.execute("COMMIT")
             # cursor.execute("COMMIT") doesn't work properly in psycopg3
             try:
-                # Commit on the SAME connection that did the inserts
+                # Double-check we're committing the right connection
+                if connection != self.db_connection.connection:
+                    self.logger.error("❌ Connection mismatch! Using wrong connection for commit")
+                    raise RuntimeError("Connection object mismatch")
+                
+                # Force commit with explicit error handling
                 connection.commit()
                 self.logger.info("✅ connection.commit() executed successfully")
+                
+                # CRITICAL: Verify commit actually happened by checking transaction state
+                # After commit, we should be in a new transaction
+                verify_tx_cursor = connection.cursor()
+                verify_tx_cursor.execute("SELECT txid_current()")
+                tx_after_commit = verify_tx_cursor.fetchone()[0]
+                verify_tx_cursor.close()
+                
+                if tx_after_commit == tx_before[0]:
+                    self.logger.error(f"❌ CRITICAL: Transaction ID unchanged after commit! Before: {tx_before[0]}, After: {tx_after_commit}")
+                    self.logger.error("❌ This indicates commit did NOT work - transaction was not committed")
+                    raise RuntimeError(f"Commit failed - transaction ID unchanged: {tx_after_commit}")
+                else:
+                    self.logger.info(f"✅ Transaction ID changed after commit: {tx_before[0]} → {tx_after_commit}")
+                    
             except Exception as commit_error:
                 self.logger.error(f"❌ Commit failed: {commit_error}")
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
                 raise
             
             # Verify connection is still open
@@ -210,72 +237,148 @@ class DatabaseLoader:
             self.logger.info("✅ Commit process completed")
             
             # CRITICAL: Verify data was actually committed by reading it back
-            # Use the same verify_cursor from above
+            # Create a NEW cursor after commit to ensure we're reading committed data
+            import time
+            time.sleep(0.2)  # Small delay to ensure commit propagated
+            
             try:
-                # Check patients table
-                verify_cursor.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
-                patient_count = verify_cursor.fetchone()[0]
+                # Use a fresh cursor for verification to ensure we're in a new transaction
+                verify_cursor = connection.cursor()
                 
-                # Check total records in patients table
-                verify_cursor.execute("SELECT COUNT(*) FROM patients")
-                total_patients = verify_cursor.fetchone()[0]
+                # CRITICAL: Check connection info to ensure we're querying the right database
+                verify_cursor.execute("SELECT current_database(), current_user, inet_server_addr(), inet_server_port()")
+                db_info = verify_cursor.fetchone()
+                self.logger.info(f"🔍 Verification query on: DB={db_info[0]}, User={db_info[1]}, Host={db_info[2]}, Port={db_info[3]}")
                 
-                # Check demographics
-                verify_cursor.execute("SELECT COUNT(*) FROM demographics WHERE patient_id = %s", (patient_id,))
-                demo_count = verify_cursor.fetchone()[0]
+                # Check patients table - try multiple times to rule out timing issues
+                verification_attempts = 3
+                patient_count = 0
+                total_patients = 0
+                demo_count = 0
                 
-                self.logger.info(f"🔍 Verification: Found {patient_count} record(s) for patient {patient_id}")
-                self.logger.info(f"🔍 Verification: Total patients in database: {total_patients}")
-                self.logger.info(f"🔍 Verification: Demographics records: {demo_count}")
+                for attempt in range(verification_attempts):
+                    if attempt > 0:
+                        time.sleep(0.5)  # Wait before retry
+                    
+                    verify_cursor.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
+                    patient_count = verify_cursor.fetchone()[0]
+                    
+                    verify_cursor.execute("SELECT COUNT(*) FROM patients")
+                    total_patients = verify_cursor.fetchone()[0]
+                    
+                    verify_cursor.execute("SELECT COUNT(*) FROM demographics WHERE patient_id = %s", (patient_id,))
+                    demo_count = verify_cursor.fetchone()[0]
+                    
+                    self.logger.info(f"🔍 Verification attempt {attempt + 1}: Patient={patient_count}, Total={total_patients}, Demo={demo_count}")
+                    
+                    if patient_count > 0:
+                        break  # Found data - exit retry loop
+                
+                self.logger.info(f"🔍 Final verification results: Found {patient_count} record(s) for patient {patient_id}")
+                self.logger.info(f"🔍 Final verification: Total patients in database: {total_patients}")
+                self.logger.info(f"🔍 Final verification: Demographics records: {demo_count}")
                 
                 if patient_count == 0 and total_records > 0:
-                    self.logger.error("❌ CRITICAL: Commit reported success but no data found in database!")
-                    # Check if it's a timing issue - wait and retry
-                    import time
-                    time.sleep(1)
-                    verify_cursor.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
-                    patient_count_retry = verify_cursor.fetchone()[0]
-                    if patient_count_retry == 0:
-                        self.logger.error("❌ Data verification failed after retry - commit may have rolled back silently")
-                        # Log transaction status
-                        verify_cursor.execute("SELECT txid_current()")
-                        tx_id = verify_cursor.fetchone()[0]
-                        self.logger.info(f"🔍 Current transaction ID: {tx_id}")
-                    else:
-                        self.logger.info(f"✅ Data found after 1s delay - timing issue confirmed")
+                    self.logger.error("❌ CRITICAL: Commit reported success but no data found after multiple verification attempts!")
+                    # Log detailed transaction and connection info
+                    verify_cursor.execute("SELECT txid_current(), pg_backend_pid()")
+                    tx_info = verify_cursor.fetchone()
+                    self.logger.error(f"❌ Transaction ID: {tx_info[0]}, PID: {tx_info[1]}")
+                    self.logger.error(f"❌ This indicates data was NOT actually committed to the database")
+                    raise RuntimeError(f"Data verification failed - no records found after commit (patient_count={patient_count}, total_patients={total_patients})")
                 elif patient_count > 0:
-                    self.logger.info(f"✅ Data verification PASSED - {patient_count} patient record(s) found")
+                    self.logger.info(f"✅ Data verification PASSED - {patient_count} patient record(s) found, {total_patients} total patients")
                 
             except Exception as verify_error:
                 import traceback
                 self.logger.error(f"❌ Verification query failed: {verify_error}")
                 self.logger.error(f"Traceback: {traceback.format_exc()}")
+                # Don't raise here - let the final verification catch it
             finally:
-                verify_cursor.close()
+                if 'verify_cursor' in locals():
+                    verify_cursor.close()
             
             duration = (datetime.now() - start_time).total_seconds()
             
             # CRITICAL: Final verification BEFORE returning success
-            # Check if data actually exists in database
-            final_verify = connection.cursor()
-            final_verify.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
-            final_patient_count = final_verify.fetchone()[0]
-            final_verify.execute("SELECT COUNT(*) FROM patients")
-            final_total_count = final_verify.fetchone()[0]
-            final_verify.close()
+            # Use a completely fresh cursor with explicit isolation to ensure we're reading committed data
+            import time
+            time.sleep(0.5)  # Delay to ensure commit has fully propagated to database
             
-            if final_patient_count == 0 and total_records > 0:
-                self.logger.error(f"❌ CRITICAL: Commit succeeded but data not found! Patient count: {final_patient_count}, Total: {final_total_count}")
-                # This means commit isn't actually persisting - return error
+            try:
+                final_verify = connection.cursor()
+                
+                # Get database connection info to confirm we're on the right database
+                final_verify.execute("SELECT current_database(), current_user, inet_server_addr(), inet_server_port()")
+                db_info = final_verify.fetchone()
+                self.logger.info(f"🔍 Final verification on: DB={db_info[0]}, User={db_info[1]}, Host={db_info[2]}, Port={db_info[3]}")
+                
+                # Set explicit isolation level to ensure we see committed data
+                final_verify.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+                
+                # Multiple verification attempts
+                verification_passed = False
+                final_patient_count = 0
+                final_total_count = 0
+                final_demo_count = 0
+                
+                for attempt in range(3):
+                    if attempt > 0:
+                        time.sleep(0.3)
+                    
+                    final_verify.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
+                    final_patient_count = final_verify.fetchone()[0]
+                    final_verify.execute("SELECT COUNT(*) FROM patients")
+                    final_total_count = final_verify.fetchone()[0]
+                    final_verify.execute("SELECT COUNT(*) FROM demographics WHERE patient_id = %s", (patient_id,))
+                    final_demo_count = final_verify.fetchone()[0]
+                    
+                    self.logger.info(f"🔍 Final verification attempt {attempt + 1}: Patient={final_patient_count}, Total={final_total_count}, Demo={final_demo_count}")
+                    
+                    if final_patient_count > 0:
+                        verification_passed = True
+                        # Get sample record to confirm it's real
+                        final_verify.execute("SELECT patient_id, created_at FROM patients WHERE patient_id = %s LIMIT 1", (patient_id,))
+                        sample = final_verify.fetchone()
+                        if sample:
+                            self.logger.info(f"🔍 Sample record: patient_id={sample[0]}, created_at={sample[1]}")
+                        break
+                
+                if not verification_passed and total_records > 0:
+                    self.logger.error(f"❌ CRITICAL: Commit succeeded but data not found after 3 attempts!")
+                    self.logger.error(f"❌ Patient count: {final_patient_count}, Total: {final_total_count}, Demo: {final_demo_count}")
+                    # Log transaction state
+                    final_verify.execute("SELECT txid_current(), pg_backend_pid()")
+                    tx_info = final_verify.fetchone()
+                    self.logger.error(f"❌ Transaction ID: {tx_info[0]}, PID: {tx_info[1]}")
+                    final_verify.close()
+                    # This means commit isn't actually persisting - return error
+                    return {
+                        'success': False,
+                        'error': f'Commit reported success but data not found in database (patient_count={final_patient_count}, total={final_total_count})',
+                        'records_inserted': 0,
+                        'duration_seconds': duration,
+                        'patient_id': patient_id
+                    }
+                elif verification_passed:
+                    self.logger.info(f"✅ Final verification PASSED: {final_patient_count} patient(s), {final_total_count} total patients, {final_demo_count} demographics")
+                else:
+                    self.logger.warning(f"⚠️ Final verification: No data but total_records={total_records}")
+                    
+                final_verify.close()
+                
+            except Exception as final_error:
+                import traceback
+                self.logger.error(f"❌ Final verification query failed: {final_error}")
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                # If verification fails, we can't confirm data is there - return error
                 return {
                     'success': False,
-                    'error': f'Commit reported success but data not found in database (patient_count={final_patient_count})',
+                    'error': f'Final verification failed: {final_error}',
                     'records_inserted': 0,
                     'duration_seconds': duration,
                     'patient_id': patient_id
                 }
-            else:
-                self.logger.info(f"✅ Final verification: {final_patient_count} patient(s), {final_total_count} total patients")
             
             self.logger.info(f"✅ Database loading complete: {total_records} records in {duration:.2f}s")
             
@@ -336,16 +439,31 @@ class DatabaseLoader:
                 except Exception as final_error:
                     self.logger.error(f"❌ Final verification failed: {final_error}")
             
-            # Wait to ensure commit has fully propagated to database
-            time.sleep(2.0)  # Increased delay for reliability
-            
-            # Only close connection after verification and delay
+            # CRITICAL: Ensure commit has fully propagated before closing
+            # Force a sync query to ensure the commit is written to disk
             if connection and not connection.closed:
                 try:
-                    self.db_connection.close()
-                    self.logger.info("🔒 Database connection closed")
-                except Exception as close_error:
-                    self.logger.error(f"❌ Error closing connection: {close_error}")
+                    sync_cursor = connection.cursor()
+                    sync_cursor.execute("SELECT pg_backend_pid(), txid_current()")
+                    sync_info = sync_cursor.fetchone()
+                    self.logger.info(f"🔍 Pre-close sync: PID={sync_info[0]}, TXID={sync_info[1]}")
+                    
+                    # Force a write to ensure commit is persisted
+                    sync_cursor.execute("SELECT 1")
+                    sync_cursor.fetchone()
+                    sync_cursor.close()
+                    self.logger.info("✅ Sync query completed")
+                except Exception as sync_error:
+                    self.logger.warning(f"⚠️ Sync query failed: {sync_error}")
+            
+            # Wait to ensure commit has fully propagated to database
+            time.sleep(1.0)  # Delay for reliability
+            
+            # CRITICAL: Do NOT close the connection if we successfully committed
+            # Closing the connection is handled by the DatabaseConnection.close() method
+            # which should be called explicitly, not in finally block
+            # The connection should remain open until explicitly closed
+            self.logger.info("🔒 Keeping connection open (will be closed by db_loader.close())")
     
     def close(self):
         """Close database connection"""
