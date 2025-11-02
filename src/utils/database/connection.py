@@ -5,7 +5,15 @@ Database Connection Management
 import os
 import logging
 from typing import Dict, Optional
+from pathlib import Path
 import psycopg
+
+# Try to import toml for reading secrets.toml
+try:
+    import toml
+    _toml_available = True
+except ImportError:
+    _toml_available = False
 
 # Try to import the Cloud SQL Connector (but don't instantiate yet)
 try:
@@ -19,12 +27,70 @@ except ImportError:
 _connector = None
 
 
+def _load_secrets_toml() -> Dict:
+    """Load secrets.toml file manually (for use outside Streamlit context)"""
+    if not _toml_available:
+        return {}
+    
+    # Try to find secrets.toml in common locations
+    current_file = Path(__file__).resolve()
+    base_dir = current_file.parent.parent.parent.parent.parent
+    
+    candidates = [
+        base_dir / "src" / "pharmgx-clinical-dashboard" / ".streamlit" / "secrets.toml",
+        base_dir / ".streamlit" / "secrets.toml",
+        Path.cwd() / "src" / "pharmgx-clinical-dashboard" / ".streamlit" / "secrets.toml",
+        Path.cwd() / ".streamlit" / "secrets.toml",
+    ]
+    
+    for secrets_path in candidates:
+        if secrets_path.exists():
+            try:
+                with open(secrets_path, 'r') as f:
+                    return toml.load(f)
+            except Exception as e:
+                logging.getLogger(__name__).debug(f"Could not load secrets.toml from {secrets_path}: {e}")
+                break
+    
+    return {}
+
+
 def _get_connector():
     """Get or create the Cloud SQL Connector (lazy initialization)"""
     global _connector
     if _connector is None and _connector_available:
         try:
-            _connector = Connector()
+            # Add timeout to prevent hanging on metadata service calls
+            import threading
+            import queue
+            
+            result = queue.Queue()
+            
+            def init_connector():
+                try:
+                    result.put(Connector())
+                except Exception as e:
+                    result.put(e)
+            
+            # Start connector initialization in a separate thread
+            thread = threading.Thread(target=init_connector, daemon=True)
+            thread.start()
+            thread.join(timeout=3)  # Wait up to 3 seconds
+            
+            if thread.is_alive():
+                # Thread is still running, initialization timed out
+                logging.getLogger(__name__).debug("Cloud SQL Connector initialization timed out (metadata service not available)")
+                _connector = None
+            else:
+                # Get the result
+                try:
+                    result_obj = result.get(timeout=0.1)
+                    if isinstance(result_obj, Exception):
+                        raise result_obj
+                    _connector = result_obj
+                except queue.Empty:
+                    _connector = None
+                
         except Exception as e:
             # Silently handle metadata service errors when not on GCP
             logging.getLogger(__name__).debug(f"Could not initialize Cloud SQL Connector: {e}")
@@ -45,55 +111,69 @@ class DatabaseConnection:
         self.connection = None
     
     def _get_db_params(self) -> Dict[str, str]:
-        """Read database credentials from Streamlit secrets or environment variables"""
-        # Try Streamlit secrets first
+        """Read database credentials from Streamlit secrets, secrets.toml, or environment variables"""
+        secrets_data = {}
+        
+        # Try Streamlit secrets first (when running inside Streamlit)
         try:
             import streamlit as st
+            secrets_data = dict(st.secrets)
+        except Exception:
+            # Not in Streamlit context, try loading secrets.toml manually
+            try:
+                secrets_data = _load_secrets_toml()
+                if secrets_data:
+                    self.logger.debug("Loaded secrets from secrets.toml file")
+            except Exception as e:
+                self.logger.debug(f"Could not load secrets.toml: {e}")
+        
+        # Process the secrets data
+        if secrets_data:
             # Check for PostgreSQL connection first
-            db_host = st.secrets.get("DB_HOST", "")
+            db_host = secrets_data.get("DB_HOST", "")
             if db_host:
                 # Direct PostgreSQL connection
                 self.connection_type = "postgresql"
-                self.logger.debug("Using direct PostgreSQL connection from Streamlit secrets")
+                self.logger.debug("Using direct PostgreSQL connection from secrets")
                 return {
                     "db_host": db_host,
-                    "db_port": st.secrets.get("DB_PORT", "5432"),
-                    "db_user": st.secrets.get("DB_USER", ""),
-                    "db_pass": st.secrets.get("DB_PASS", ""),
-                    "db_name": st.secrets.get("DB_NAME", "")
+                    "db_port": secrets_data.get("DB_PORT", "5432"),
+                    "db_user": secrets_data.get("DB_USER", ""),
+                    "db_pass": secrets_data.get("DB_PASS", ""),
+                    "db_name": secrets_data.get("DB_NAME", "")
                 }
             else:
                 # Cloud SQL connection
                 return {
-                    "instance_connection_name": st.secrets.get("INSTANCE_CONNECTION_NAME", ""),
-                    "db_user": st.secrets.get("DB_USER", ""),
-                    "db_pass": st.secrets.get("DB_PASS", ""),
-                    "db_name": st.secrets.get("DB_NAME", "")
+                    "instance_connection_name": secrets_data.get("INSTANCE_CONNECTION_NAME", ""),
+                    "db_user": secrets_data.get("DB_USER", ""),
+                    "db_pass": secrets_data.get("DB_PASS", ""),
+                    "db_name": secrets_data.get("DB_NAME", "")
                 }
-        except Exception as e:
-            # Fallback to environment variables
-            self.logger.warning(f"Could not load Streamlit secrets, trying environment variables: {e}")
-            # Check for PostgreSQL connection first
-            db_host = os.getenv("DB_HOST", "")
-            if db_host:
-                # Direct PostgreSQL connection
-                self.connection_type = "postgresql"
-                self.logger.debug("Using direct PostgreSQL connection from environment variables")
-                return {
-                    "db_host": db_host,
-                    "db_port": os.getenv("DB_PORT", "5432"),
-                    "db_user": os.getenv("DB_USER", ""),
-                    "db_pass": os.getenv("DB_PASS", ""),
-                    "db_name": os.getenv("DB_NAME", "")
-                }
-            else:
-                # Cloud SQL connection
-                return {
-                    "instance_connection_name": os.getenv("INSTANCE_CONNECTION_NAME", ""),
-                    "db_user": os.getenv("DB_USER", ""),
-                    "db_pass": os.getenv("DB_PASS", ""),
-                    "db_name": os.getenv("DB_NAME", "")
-                }
+        
+        # Fallback to environment variables
+        self.logger.debug("Using environment variables for database credentials")
+        # Check for PostgreSQL connection first
+        db_host = os.getenv("DB_HOST", "")
+        if db_host:
+            # Direct PostgreSQL connection
+            self.connection_type = "postgresql"
+            self.logger.debug("Using direct PostgreSQL connection from environment variables")
+            return {
+                "db_host": db_host,
+                "db_port": os.getenv("DB_PORT", "5432"),
+                "db_user": os.getenv("DB_USER", ""),
+                "db_pass": os.getenv("DB_PASS", ""),
+                "db_name": os.getenv("DB_NAME", "")
+            }
+        else:
+            # Cloud SQL connection
+            return {
+                "instance_connection_name": os.getenv("INSTANCE_CONNECTION_NAME", ""),
+                "db_user": os.getenv("DB_USER", ""),
+                "db_pass": os.getenv("DB_PASS", ""),
+                "db_name": os.getenv("DB_NAME", "")
+            }
     
     def connect(self) -> Optional[psycopg.Connection]:
         """Establish database connection"""
@@ -118,8 +198,8 @@ class DatabaseConnection:
                     self.logger.error("Missing required PostgreSQL connection parameters")
                     return None
                 
-                # Build connection string
-                conn_string = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_pass}"
+                # Build connection string with timeout
+                conn_string = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_pass} connect_timeout=5"
                 self.connection = psycopg.connect(conn_string)
                 self.logger.info(f"✓ Connected to PostgreSQL at {db_host}:{db_port}")
                 return self.connection
