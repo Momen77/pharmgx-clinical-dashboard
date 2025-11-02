@@ -1,13 +1,21 @@
 """
-Summaries Loader - SCHEMA ALIGNED
+Summaries Loader - SCHEMA ALIGNED v2.0
 Handles: clinical_summaries, literature_summaries, processing_summary
+FIXED: processing_summary - use correct column names from schema
 """
+
+# VERSION: v2.0.20251102 - Force module reload
+_MODULE_VERSION = "2.0.20251102"
 
 import json
 import logging
 from datetime import datetime
 from typing import Dict
 import psycopg
+
+# Log module version on import
+_logger_init = logging.getLogger(__name__)
+_logger_init.info(f"📦 Loading SummariesLoader module v{_MODULE_VERSION}")
 
 
 class SummariesLoader:
@@ -147,79 +155,89 @@ class SummariesLoader:
     
     def insert_processing_summary(self, cursor: psycopg.Cursor, profile: Dict) -> int:
         """
-        ✅ SCHEMA-ALIGNED: Insert processing_summary
-        MAJOR FIX: Complete restructure with all required fields
-        Schema: patient_id, variants_total, variants_processed, variants_annotated,
-                conflicts_total, conflicts_critical, conflicts_moderate, conflicts_minor,
-                genes_analyzed, drugs_analyzed,
-                analysis_start_time, analysis_end_time, total_processing_time_seconds,
-                provenance_source, provenance_date, pipeline_version, raw_metadata
+        ✅ SCHEMA-ALIGNED v2.0: Insert processing_summary
+        CRITICAL FIX: Schema uses different column names
+        Schema: patient_id, total_medication_variant_links, total_condition_disease_links,
+                total_variant_phenotype_links, total_drug_variant_links,
+                conflicts_total, conflicts_critical, conflicts_warnings, conflicts_info,
+                patient_conditions_count, patient_medications_count,
+                total_variants, variants_with_drug_data,
+                analysis_timestamp, provenance_source, provenance_date, rdf_context
         """
         try:
             patient_id = profile.get("patient_id")
             
             # Count variants
             variants = profile.get("variants", [])
-            variants_total = len(variants)
-            variants_processed = variants_total
-            variants_annotated = sum(1 for v in variants if v.get("pharmgkb") or v.get("drugs"))
+            total_variants = len(variants)
+            variants_with_drug_data = sum(1 for v in variants if v.get("pharmgkb") or v.get("drugs"))
             
-            # Count conflicts by severity
+            # Count conflicts by severity - map to schema column names
             conflicts = profile.get("conflicts", [])
             conflicts_total = len(conflicts)
-            conflicts_critical = sum(1 for c in conflicts if c.get("severity") == "critical")
-            conflicts_moderate = sum(1 for c in conflicts if c.get("severity") == "moderate")
-            conflicts_minor = sum(1 for c in conflicts if c.get("severity") == "minor")
+            conflicts_critical = sum(1 for c in conflicts if c.get("severity", "").upper() == "CRITICAL")
+            conflicts_warnings = sum(1 for c in conflicts if c.get("severity", "").upper() in ("WARNING", "MODERATE"))
+            conflicts_info = sum(1 for c in conflicts if c.get("severity", "").upper() in ("INFO", "MINOR"))
             
-            # Count genes and drugs analyzed
-            genes_analyzed = len(set(v.get("gene") for v in variants if v.get("gene")))
-            drugs_analyzed_set = set()
-            for v in variants:
-                for drug in v.get("drugs", []):
-                    drugs_analyzed_set.add(drug.get("name"))
-            drugs_analyzed = len(drugs_analyzed_set)
+            # Count patient conditions and medications
+            clinical_info = profile.get("clinical_information", {})
+            patient_conditions_count = len(clinical_info.get("current_conditions", []))
+            patient_medications_count = len(clinical_info.get("current_medications", []))
             
-            # Processing times (if available)
-            processing_metadata = profile.get("processing_metadata", {})
-            analysis_start_time = processing_metadata.get("start_time")
-            analysis_end_time = processing_metadata.get("end_time")
-            total_processing_time_seconds = processing_metadata.get("duration_seconds")
+            # Count links (from variant_linking data if available)
+            variant_linking = profile.get("variant_linking", {})
+            links = variant_linking.get("links", {}) if variant_linking else {}
+            total_medication_variant_links = len(links.get("medication_to_variant", []))
+            total_condition_disease_links = len(links.get("condition_to_disease", []))
+            total_variant_phenotype_links = len(links.get("variant_to_phenotype", []))
+            total_drug_variant_links = len(links.get("drug_to_variant", []))
             
-            # SCHEMA-ALIGNED INSERT
+            # RDF context (if available)
+            rdf_context = variant_linking.get("rdf_context") if variant_linking else None
+            
+            # SCHEMA-FIXED INSERT - match exact column names from schema
             cursor.execute("""
                 INSERT INTO processing_summary (
-                    patient_id, variants_total, variants_processed, variants_annotated,
-                    conflicts_total, conflicts_critical, conflicts_moderate, conflicts_minor,
-                    genes_analyzed, drugs_analyzed,
-                    analysis_start_time, analysis_end_time, total_processing_time_seconds,
-                    provenance_source, provenance_date, pipeline_version, raw_metadata
+                    patient_id, 
+                    total_medication_variant_links, total_condition_disease_links,
+                    total_variant_phenotype_links, total_drug_variant_links,
+                    conflicts_total, conflicts_critical, conflicts_warnings, conflicts_info,
+                    patient_conditions_count, patient_medications_count,
+                    total_variants, variants_with_drug_data,
+                    analysis_timestamp, provenance_source, provenance_date, rdf_context
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (patient_id) DO UPDATE SET
-                    variants_total = EXCLUDED.variants_total,
+                    total_medication_variant_links = EXCLUDED.total_medication_variant_links,
+                    total_condition_disease_links = EXCLUDED.total_condition_disease_links,
+                    total_variant_phenotype_links = EXCLUDED.total_variant_phenotype_links,
+                    total_drug_variant_links = EXCLUDED.total_drug_variant_links,
                     conflicts_total = EXCLUDED.conflicts_total,
                     conflicts_critical = EXCLUDED.conflicts_critical,
-                    conflicts_moderate = EXCLUDED.conflicts_moderate,
-                    conflicts_minor = EXCLUDED.conflicts_minor,
+                    conflicts_warnings = EXCLUDED.conflicts_warnings,
+                    conflicts_info = EXCLUDED.conflicts_info,
+                    total_variants = EXCLUDED.total_variants,
+                    variants_with_drug_data = EXCLUDED.variants_with_drug_data,
+                    analysis_timestamp = EXCLUDED.analysis_timestamp,
                     provenance_date = EXCLUDED.provenance_date
             """, (
                 patient_id,
-                variants_total,  # FIXED: Added
-                variants_processed,  # FIXED: Added
-                variants_annotated,  # FIXED: Added
-                conflicts_total,  # FIXED: Restructured
-                conflicts_critical,  # FIXED: Added
-                conflicts_moderate,  # FIXED: Added
-                conflicts_minor,  # FIXED: Added
-                genes_analyzed,  # FIXED: Added
-                drugs_analyzed,  # FIXED: Added
-                analysis_start_time,  # FIXED: Added
-                analysis_end_time,  # FIXED: Added
-                total_processing_time_seconds,  # FIXED: Added
+                total_medication_variant_links,
+                total_condition_disease_links,
+                total_variant_phenotype_links,
+                total_drug_variant_links,
+                conflicts_total,
+                conflicts_critical,
+                conflicts_warnings,
+                conflicts_info,
+                patient_conditions_count,
+                patient_medications_count,
+                total_variants,
+                variants_with_drug_data,
+                datetime.now(),  # analysis_timestamp
                 "PGx Dashboard",  # provenance_source
                 datetime.now(),  # provenance_date
-                profile.get("data_version", "1.0"),  # pipeline_version
-                json.dumps(processing_metadata) if processing_metadata else None  # raw_metadata
+                json.dumps(rdf_context) if rdf_context else None  # rdf_context JSONB
             ))
             self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted processing summary for patient {patient_id}")
             return 1
