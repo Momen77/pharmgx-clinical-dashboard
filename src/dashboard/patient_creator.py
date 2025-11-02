@@ -513,62 +513,108 @@ class PatientCreator:
         ethnicity = [random.choices(ethnicity_options, weights=ethnicity_weights, k=1)[0]]
         ethnicity_key = ethnicity[0]
 
-        # Diverse names by ethnicity and gender - COMPREHENSIVE pools for unique profiles
-        names_by_ethnicity = {
+        # REGIONAL NAME STRUCTURE - Ensures cultural/geographic matching
+        # First names from a region are ONLY paired with last names from that SAME region
+        # This prevents unrealistic combinations (e.g., Nigerian first + Kenyan last)
+        names_by_ethnicity_regional = {
             "African": {
-                "Male": {
-                    "first": [
-                        # West African names
-                        "Kwame", "Kofi", "Kwesi", "Kwaku", "Yaw", "Kojo", "Kobina",
-                        "Ade", "Adebayo", "Adewale", "Ademola", "Oluwaseun", "Olumide", "Babatunde",
-                        "Chike", "Chidi", "Chinonso", "Chibueze", "Emeka", "Ikenna", "Obinna",
-                        "Tunde", "Sekou", "Amadi", "Nnamdi", "Okechukwu", "Uchenna",
-                        # East African names
-                        "Themba", "Thabo", "Sipho", "Mandla", "Jabu", "Sizwe",
-                        "Jabari", "Zuri", "Bakari", "Baraka", "Tendai", "Tapiwa",
-                        # North African names
-                        "Amari", "Kamau", "Kofi", "Juma", "Rashid", "Tariq"
-                    ],
-                    "last": [
-                        # Nigerian
-                        "Okafor", "Okeke", "Okonkwo", "Udoka", "Nwosu", "Eze", "Nnamdi", "Adeyemi", "Adeleke", "Akinyemi",
-                        "Oluwole", "Babatunde", "Ogundele", "Adekunle", "Adebayo", "Olawale", "Ogunleye",
-                        # Ghanaian
-                        "Mensah", "Asante", "Boateng", "Owusu", "Osei", "Nkrumah",
-                        # Kenyan
-                        "Mwangi", "Kamau", "Njoroge", "Otieno", "Ochieng", "Wanjiru",
-                        # Senegalese/West African
-                        "Diallo", "Sow", "Ba", "Sy", "Gueye", "Ndiaye", "Diop",
-                        # Southern African
-                        "Banda", "Phiri", "Dube", "Khumalo", "Moyo", "Ncube"
-                    ]
-                },
-                "Female": {
-                    "first": [
-                        # West African
-                        "Amara", "Chioma", "Ngozi", "Adaeze", "Ifeoma", "Chiamaka", "Nneka",
-                        "Zola", "Nia", "Ama", "Afua", "Akua", "Abena", "Afia",
-                        "Ayana", "Safiya", "Kaya", "Thandiwe", "Thando", "Nosipho",
-                        "Imani", "Asha", "Nala", "Zuri", "Amani", "Faraja",
-                        # East African
-                        "Nia", "Makena", "Wanjiru", "Akinyi", "Nyambura", "Njeri",
-                        "Thandiwe", "Nomsa", "Precious", "Lindiwe", "Nandi", "Busisiwe",
-                        # Contemporary
-                        "Ayanna", "Sanaa", "Kioni", "Jamila", "Amina", "Fatou"
-                    ],
-                    "last": [
-                        # Nigerian
-                        "Okafor", "Okeke", "Okonkwo", "Udoka", "Nwosu", "Eze", "Nnamdi", "Adeyemi", "Adeleke", "Akinyemi",
-                        "Oluwole", "Babatunde", "Ogundele", "Adekunle", "Adebayo", "Olawale", "Ogunleye",
-                        # Ghanaian
-                        "Mensah", "Asante", "Boateng", "Owusu", "Osei", "Nkrumah",
-                        # Kenyan
-                        "Mwangi", "Kamau", "Njoroge", "Otieno", "Ochieng", "Wanjiru",
-                        # Senegalese/West African
-                        "Diallo", "Sow", "Ba", "Sy", "Gueye", "Ndiaye", "Diop",
-                        # Southern African
-                        "Banda", "Phiri", "Dube", "Khumalo", "Moyo", "Ncube"
-                    ]
+                "regions": {
+                    "Nigerian_Igbo": {
+                        "Male": {
+                            "first": ["Chike", "Chidi", "Chinonso", "Chibueze", "Emeka", "Ikenna", "Obinna", "Nnamdi", "Okechukwu", "Uchenna",
+                                      "Chinedu", "Chijioke", "Obafemi", "Enyinnaya", "Ifeanyi", "Kelechi", "Nkem", "Obi", "Oge", "Ugo",
+                                      "Chukwudi", "Chukwuemeka", "Ebuka", "Echezona", "Izuchukwu", "Kenechukwu", "Nnamani", "Obichukwu", "Okolie", "Onyeka"],
+                            "last": ["Okafor", "Okeke", "Okonkwo", "Udoka", "Nwosu", "Eze", "Nnamdi", "Nwankwo", "Obinna", "Obi",
+                                     "Onyekwere", "Ugochukwu", "Uzodinma", "Ezekiel", "Chukwu", "Onwuachu", "Nwachukwu", "Emezie"]
+                        },
+                        "Female": {
+                            "first": ["Amara", "Chioma", "Ngozi", "Adaeze", "Ifeoma", "Chiamaka", "Nneka", "Obiageli", "Uchenna", "Nkechi",
+                                      "Chidinma", "Chinwe", "Ebere", "Ego", "Ifunanya", "Njideka", "Nkiruka", "Nneoma", "Nwamaka", "Obioma",
+                                      "Adanna", "Amarachi", "Chinenye", "Chinyere", "Echezona", "Ezinne", "Ijeoma", "Kamsiyochi", "Nkemdilim", "Onyinye"],
+                            "last": ["Okafor", "Okeke", "Okonkwo", "Udoka", "Nwosu", "Eze", "Nnamdi", "Nwankwo", "Obinna", "Obi",
+                                     "Onyekwere", "Ugochukwu", "Uzodinma", "Ezekiel", "Chukwu", "Onwuachu", "Nwachukwu", "Emezie"]
+                        }
+                    },
+                    "Nigerian_Yoruba": {
+                        "Male": {
+                            "first": ["Ade", "Adebayo", "Adewale", "Ademola", "Oluwaseun", "Olumide", "Babatunde", "Ayodele", "Akinwale", "Olusegun",
+                                      "Adeyemi", "Adekunle", "Adeniyi", "Akintunde", "Bolaji", "Damilola", "Kayode", "Olalekan", "Olaniyan", "Oluwatobi",
+                                      "Adeyinka", "Akinola", "Ayotunde", "Babajide", "Femi", "Olamide", "Olaseni", "Oluseyi", "Omowale", "Taiwo"],
+                            "last": ["Adeyemi", "Adeleke", "Akinyemi", "Oluwole", "Babatunde", "Ogundele", "Adekunle", "Adebayo", "Olawale", "Ogunleye",
+                                     "Akinde", "Akinola", "Ayodele", "Famuyiwa", "Ogunbiyi", "Ogunsola", "Oladele", "Olatunji", "Oyewole"]
+                        },
+                        "Female": {
+                            "first": ["Adunni", "Ayomide", "Bisola", "Folake", "Ife", "Jumoke", "Kehinde", "Modupe", "Omolara", "Titilayo",
+                                      "Abosede", "Adetoun", "Aisha", "Boluwatife", "Damilola", "Folashade", "Funmilayo", "Iyabo", "Mojisola", "Olabisi",
+                                      "Adebimpe", "Adedoyin", "Adeola", "Akinyi", "Bolanle", "Morayo", "Omowunmi", "Ronke", "Seun", "Yetunde"],
+                            "last": ["Adeyemi", "Adeleke", "Akinyemi", "Oluwole", "Babatunde", "Ogundele", "Adekunle", "Adebayo", "Olawale", "Ogunleye",
+                                     "Akinde", "Akinola", "Ayodele", "Famuyiwa", "Ogunbiyi", "Ogunsola", "Oladele", "Olatunji", "Oyewole"]
+                        }
+                    },
+                    "Ghanaian_Akan": {
+                        "Male": {
+                            "first": ["Kwame", "Kofi", "Kwesi", "Kwaku", "Yaw", "Kojo", "Kobina", "Kwadwo", "Kwabena", "Koffi",
+                                      "Agyeman", "Akwasi", "Ato", "Kwamena", "Nana", "Opoku", "Yeboah", "Akosua", "Boateng", "Osei",
+                                      "Adom", "Agyei", "Anane", "Atta", "Boadi", "Darkwa", "Frimpong", "Mensah", "Nyantakyi", "Owusu"],
+                            "last": ["Mensah", "Asante", "Boateng", "Owusu", "Osei", "Nkrumah", "Agyeman", "Agyei", "Amoah", "Antwi",
+                                     "Appiah", "Asare", "Attah", "Darkwa", "Frimpong", "Konadu", "Nyantakyi", "Opoku", "Yeboah"]
+                        },
+                        "Female": {
+                            "first": ["Ama", "Afua", "Akua", "Abena", "Afia", "Akosua", "Adwoa", "Yaa", "Adjoa", "Esi",
+                                      "Abena", "Efua", "Akosua", "Abenaa", "Ama", "Adwoa", "Afua", "Akua", "Yaa", "Esi",
+                                      "Akosua", "Akosuah", "Amma", "Efua", "Ekua", "Enyonam", "Maame", "Nana", "Oboshie", "Yaayaa"],
+                            "last": ["Mensah", "Asante", "Boateng", "Owusu", "Osei", "Nkrumah", "Agyeman", "Agyei", "Amoah", "Antwi",
+                                     "Appiah", "Asare", "Attah", "Darkwa", "Frimpong", "Konadu", "Nyantakyi", "Opoku", "Yeboah"]
+                        }
+                    },
+                    "Kenyan_Kikuyu": {
+                        "Male": {
+                            "first": ["Kamau", "Mwangi", "Njoroge", "Kariuki", "Waweru", "Githinji", "Kimani", "Mugo", "Maina", "Ndungu",
+                                      "Gachanja", "Gathii", "Karanja", "Kihara", "Macharia", "Mbugua", "Munyua", "Ng'ang'a", "Wachira", "Waititu",
+                                      "Gacheru", "Gakuru", "Kamande", "Kariuki", "Kinyua", "Muhoro", "Mungai", "Muriithi", "Mutuku", "Njeru"],
+                            "last": ["Mwangi", "Kamau", "Njoroge", "Kariuki", "Waweru", "Githinji", "Kimani", "Mugo", "Maina", "Ndungu",
+                                     "Gachanja", "Githongo", "Karanja", "Macharia", "Mbugua", "Munyua", "Ng'ang'a", "Wachira", "Waithaka"]
+                        },
+                        "Female": {
+                            "first": ["Wanjiru", "Njeri", "Nyambura", "Wangari", "Wanjiku", "Wairimu", "Gathoni", "Muthoni", "Nyokabi", "Wangui",
+                                      "Kagure", "Mumbi", "Nduta", "Njoki", "Wambui", "Wangari", "Wanjiru", "Wawira", "Wacera", "Wamuyu",
+                                      "Gitau", "Kanini", "Kariuki", "Mwihaki", "Njambi", "Nyaguthii", "Wahu", "Wainaina", "Wangu", "Warui"],
+                            "last": ["Mwangi", "Kamau", "Njoroge", "Kariuki", "Waweru", "Githinji", "Kimani", "Mugo", "Maina", "Ndungu",
+                                     "Gachanja", "Githongo", "Karanja", "Macharia", "Mbugua", "Munyua", "Ng'ang'a", "Wachira", "Waithaka"]
+                        }
+                    },
+                    "Senegalese_Wolof": {
+                        "Male": {
+                            "first": ["Amadou", "Ibrahima", "Mamadou", "Moussa", "Oumar", "Abdoulaye", "Aliou", "Babacar", "Cheikh", "Demba",
+                                      "Fallou", "Lamine", "Mbacke", "Modou", "Omar", "Pape", "Samba", "Serigne", "Souleymane", "Youssou",
+                                      "Ababacar", "Alioune", "Assane", "Baye", "Doudou", "El Hadji", "Gorgui", "Khadim", "Malick", "Ndiaga"],
+                            "last": ["Diallo", "Sow", "Ba", "Sy", "Gueye", "Ndiaye", "Diop", "Fall", "Faye", "Sarr",
+                                     "Cisse", "Diouf", "Kane", "Niang", "Sall", "Seck", "Thiam", "Toure", "Wade"]
+                        },
+                        "Female": {
+                            "first": ["Aissatou", "Fatou", "Maimouna", "Mariame", "Ndeye", "Astou", "Coumba", "Diarra", "Khady", "Mame",
+                                      "Nafi", "Ndella", "Oumou", "Rama", "Rokhaya", "Sokhna", "Yacine", "Aminata", "Bintou", "Dieynaba",
+                                      "Adama", "Awa", "Daba", "Fama", "Hawa", "Kine", "Mbossé", "Seynabou", "Thierno", "Yaye"],
+                            "last": ["Diallo", "Sow", "Ba", "Sy", "Gueye", "Ndiaye", "Diop", "Fall", "Faye", "Sarr",
+                                     "Cisse", "Diouf", "Kane", "Niang", "Sall", "Seck", "Thiam", "Toure", "Wade"]
+                        }
+                    },
+                    "South_African_Zulu": {
+                        "Male": {
+                            "first": ["Themba", "Thabo", "Sipho", "Mandla", "Jabu", "Sizwe", "Bongani", "Mthunzi", "Sbu", "Vusi",
+                                      "Bheki", "Dumisani", "Jabulani", "Khulekani", "Lungile", "Mlungisi", "Musa", "Nkosinathi", "Sandile", "Thulani",
+                                      "Ayanda", "Bhekisisa", "Celimpilo", "Lwazi", "Mfundo", "Nhlanhla", "Nkululeko", "Sfiso", "Simphiwe", "Zweli"],
+                            "last": ["Dube", "Khumalo", "Moyo", "Ncube", "Nkosi", "Ntuli", "Zulu", "Buthelezi", "Cele", "Gumede",
+                                     "Hadebe", "Khanyile", "Mkhize", "Mlotshwa", "Ndlovu", "Ngcobo", "Nxumalo", "Shabalala", "Vilakazi"]
+                        },
+                        "Female": {
+                            "first": ["Thandiwe", "Thando", "Nosipho", "Nomsa", "Precious", "Lindiwe", "Nandi", "Busisiwe", "Zandile", "Nonhle",
+                                      "Ayanda", "Bongi", "Dudu", "Fikile", "Hlengiwe", "Khanyisile", "Londiwe", "Mandisa", "Mbali", "Nelisiwe",
+                                      "Nompilo", "Nonhlanhla", "Ntombifuthi", "Phindile", "Sanelephi", "Sibongile", "Thembeka", "Zamani", "Zanele", "Zinhle"],
+                            "last": ["Dube", "Khumalo", "Moyo", "Ncube", "Nkosi", "Ntuli", "Zulu", "Buthelezi", "Cele", "Gumede",
+                                     "Hadebe", "Khanyile", "Mkhize", "Mlotshwa", "Ndlovu", "Ngcobo", "Nxumalo", "Shabalala", "Vilakazi"]
+                        }
+                    }
                 }
             },
             "South Asian": {
@@ -1006,22 +1052,47 @@ class PatientCreator:
         # Use biological_sex for name selection to match photo appearance
         name_gender = biological_sex if biological_sex in ["Male", "Female"] else "Male"
 
-        # Get appropriate names for ethnicity and gender
-        if ethnicity_key in names_by_ethnicity:
-            first_name = random.choice(names_by_ethnicity[ethnicity_key][name_gender]["first"])
-            last_name = random.choice(names_by_ethnicity[ethnicity_key][name_gender]["last"])
+        # Get appropriate names for ethnicity and gender WITH REGIONAL MATCHING
+        # This ensures first names from a region are ONLY paired with last names from the SAME region
+        # (e.g., Nigerian Igbo first name will only get Nigerian Igbo surname, never Kenyan or Ghanaian)
+
+        if ethnicity_key in names_by_ethnicity_regional:
+            ethnicity_data = names_by_ethnicity_regional[ethnicity_key]
+
+            # Check if this ethnicity has regional structure
+            if "regions" in ethnicity_data:
+                # Pick a random region within this ethnicity
+                regions = ethnicity_data["regions"]
+                region_key = random.choice(list(regions.keys()))
+                region_data = regions[region_key]
+
+                # Get MATCHED first and last name from the SAME region
+                first_name = random.choice(region_data[name_gender]["first"])
+                last_name = random.choice(region_data[name_gender]["last"])
+
+                # Middle name also from same region
+                middle_name_pool = region_data[name_gender]["first"]
+            else:
+                # Old flat structure (for ethnicities not yet regionalized)
+                first_name = random.choice(ethnicity_data[name_gender]["first"])
+                last_name = random.choice(ethnicity_data[name_gender]["last"])
+                middle_name_pool = ethnicity_data[name_gender]["first"]
         else:
             # Fallback to Mixed names if ethnicity not in dictionary
-            first_name = random.choice(names_by_ethnicity["Mixed"][name_gender]["first"])
-            last_name = random.choice(names_by_ethnicity["Mixed"][name_gender]["last"])
+            if "Mixed" in names_by_ethnicity_regional and "regions" not in names_by_ethnicity_regional["Mixed"]:
+                first_name = random.choice(names_by_ethnicity_regional["Mixed"][name_gender]["first"])
+                last_name = random.choice(names_by_ethnicity_regional["Mixed"][name_gender]["last"])
+                middle_name_pool = names_by_ethnicity_regional["Mixed"][name_gender]["first"]
+            else:
+                # Ultimate fallback
+                first_name = "John" if name_gender == "Male" else "Jane"
+                last_name = "Doe"
+                middle_name_pool = [first_name]
 
-        # Generate middle name (optional, 70% chance)
+        # Generate middle name (optional, 70% chance) from SAME region
         middle_name = ""
         if random.random() < 0.7:
-            if ethnicity_key in names_by_ethnicity:
-                middle_name = random.choice(names_by_ethnicity[ethnicity_key][name_gender]["first"])
-            else:
-                middle_name = random.choice(names_by_ethnicity["Mixed"][name_gender]["first"])
+            middle_name = random.choice(middle_name_pool)
 
         # Random demographics
         age = random.randint(25, 75)
