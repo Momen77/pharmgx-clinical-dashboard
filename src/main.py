@@ -1733,8 +1733,10 @@ class PGxPipeline:
                 db_thread.start()
                 print("✓ Started database loading in parallel thread")
                 
-                # Wait for database loading to complete (with timeout)
-                db_thread.join(timeout=60)  # Wait up to 60 seconds
+                # Wait for database loading to complete (with initial timeout check)
+                # ✅ FIX: Increased timeout to match final check (allows up to 5 minutes)
+                # This is just an early check - final status will be checked later
+                db_thread.join(timeout=60)  # Initial check after 60 seconds (informational only)
                 if db_thread.is_alive():
                     print("⚠️  Database loading still in progress (will continue in background)")
                 elif db_status.get("completed"):
@@ -1897,11 +1899,38 @@ class PGxPipeline:
             outputs["error"] = str(e)
         
         # Wait for database loading to complete (with timeout)
+        # ✅ FIX: Increased timeout from 30s to 5 minutes (300s) to accommodate full data loading
+        # Database loading can take 2-3 minutes for complex profiles with many variants/drugs
         if db_thread and db_thread.is_alive():
-            db_thread.join(timeout=30)  # Wait up to 30 seconds
+            # Only wait if we haven't already waited (avoid double waiting)
+            # If thread is still alive after initial 60s wait, wait for remaining time
+            remaining_timeout = 240  # Remaining time to reach 5 minutes total (300 - 60)
+            db_thread.join(timeout=remaining_timeout)
             if db_thread.is_alive():
-                print("⚠ Database loading timed out after 30 seconds")
-                db_status["error"] = "Timeout"
+                print("⚠ Database loading timed out after 5 minutes - loading continues in background")
+                # Only set timeout if not already completed
+                if not db_status.get("completed"):
+                    db_status["error"] = "Timeout"
+                    db_status["note"] = "Loading may still complete in background"
+            else:
+                # Thread completed - verify final status
+                if db_status.get("completed"):
+                    if db_status.get("success"):
+                        records = db_status.get('records_inserted', 0)
+                        print(f"✅ Database loading completed successfully: {records} records inserted")
+                        db_status["error"] = None  # Clear any previous timeout error
+                    else:
+                        error = db_status.get('error', 'Unknown error')
+                        print(f"❌ Database loading failed: {error}")
+                else:
+                    # Thread finished but status not set - wait a moment and check again
+                    import time
+                    time.sleep(0.5)
+                    if db_status.get("completed"):
+                        if db_status.get("success"):
+                            print(f"✅ Database loading completed: {db_status.get('records_inserted', 0)} records")
+                    else:
+                        print("⚠ Database loading thread completed but status unclear")
         
         # Add database status to outputs
         outputs["db_status"] = db_status
