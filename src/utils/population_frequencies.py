@@ -14,18 +14,20 @@ DBSNP_ALFA_URL = "https://www.ncbi.nlm.nih.gov/snp/{rsid}?report=Json"
 
 
 # Map upstream population labels to our canonical ethnicity categories
+# IMPORTANT: Asian populations are split into East/South/Southeast for accurate PGx frequencies
 _POPULATION_MAP = {
     # Ensembl/1000G
     "1000GENOMES:phase_3:AFR": "African",
-    "1000GENOMES:phase_3:EAS": "Asian",
+    "1000GENOMES:phase_3:EAS": "East Asian",      # Chinese, Japanese, Korean
     "1000GENOMES:phase_3:EUR": "Caucasian/European",
     "1000GENOMES:phase_3:AMR": "Hispanic/Latino",
-    "1000GENOMES:phase_3:SAS": "Asian",
+    "1000GENOMES:phase_3:SAS": "South Asian",     # Indian, Pakistani, Bangladeshi, Sri Lankan
     # gnomAD (if present in Ensembl payload)
     "gnomAD:AFR": "African",
     "gnomAD:AMR": "Hispanic/Latino",
     "gnomAD:ASJ": "Caucasian/European",  # Ashkenazi Jewish (closest canonical bucket)
-    "gnomAD:EAS": "Asian",
+    "gnomAD:EAS": "East Asian",           # East Asian populations in gnomAD
+    "gnomAD:SAS": "South Asian",          # South Asian populations in gnomAD
     "gnomAD:NFE": "Caucasian/European",
     "gnomAD:FIN": "Caucasian/European",
     "gnomAD:OTH": "Mixed",
@@ -35,11 +37,15 @@ _POPULATION_MAP = {
 def _category_template() -> Dict[str, Optional[float]]:
     return {
         "African": None,
-        "Asian": None,
+        "South Asian": None,       # Indian, Pakistani, Bangladeshi, Sri Lankan
+        "East Asian": None,        # Chinese, Japanese, Korean
+        "Southeast Asian": None,   # Thai, Vietnamese, Filipino, Indonesian, Malaysian
         "Caucasian/European": None,
         "Hispanic/Latino": None,
         "Middle Eastern": None,  # Not typically present upstream; left for future sources
         "Mixed": None,
+        "Native American": None,
+        "Pacific Islander": None,
     }
 
 
@@ -137,7 +143,8 @@ class PopulationFrequencyService:
                 source = "dbSNP"
                 for key, cat in (
                     ("AFR", "African"),
-                    ("EAS", "Asian"),
+                    ("EAS", "East Asian"),      # dbSNP EAS = East Asian
+                    ("SAS", "South Asian"),     # dbSNP SAS = South Asian (if available)
                     ("EUR", "Caucasian/European"),
                     ("AMR", "Hispanic/Latino"),
                 ):
@@ -339,7 +346,18 @@ class PopulationFrequencyService:
             if not variant:
                 return None
                 
-            buckets = {"African": [], "Asian": [], "Caucasian/European": [], "Hispanic/Latino": [], "Middle Eastern": [], "Mixed": []}
+            buckets = {
+                "African": [],
+                "South Asian": [],      # SAS
+                "East Asian": [],       # EAS
+                "Southeast Asian": [],  # Not typically in gnomAD, but included for completeness
+                "Caucasian/European": [],
+                "Hispanic/Latino": [],
+                "Middle Eastern": [],
+                "Native American": [],
+                "Pacific Islander": [],
+                "Mixed": []
+            }
             def collect(pop_list):
                 for p in (pop_list or []):
                     pid = (p.get("id") or "").upper()
@@ -348,11 +366,13 @@ class PopulationFrequencyService:
                     if not an:
                         continue
                     af = ac / an
-                    # Map common gnomAD pop IDs
+                    # Map common gnomAD pop IDs - IMPORTANT: Split Asian populations for accurate PGx
                     if pid in ("AFR",):
                         buckets["African"].append(af)
-                    elif pid in ("EAS", "SAS"):
-                        buckets["Asian"].append(af)
+                    elif pid in ("EAS",):  # East Asian: Chinese, Japanese, Korean
+                        buckets["East Asian"].append(af)
+                    elif pid in ("SAS",):  # South Asian: Indian, Pakistani, Bangladeshi
+                        buckets["South Asian"].append(af)
                     elif pid in ("NFE", "FIN", "ASJ"):
                         buckets["Caucasian/European"].append(af)
                     elif pid in ("AMR",):

@@ -97,7 +97,9 @@ class AIPhotoGenerator:
             # Map ethnicity to description
             ethnicity_map = {
                 'African': 'African descent with dark skin',
-                'Asian': 'Asian descent with East Asian features',
+                'South Asian': 'South Asian descent with brown skin (Indian, Pakistani, Bangladeshi)',
+                'East Asian': 'East Asian descent with pale/yellowish skin (Chinese, Japanese, Korean)',
+                'Southeast Asian': 'Southeast Asian descent with tan skin (Filipino, Vietnamese, Thai, Indonesian)',
                 'Caucasian/European': 'European descent with fair skin',
                 'Hispanic/Latino': 'Hispanic/Latino descent with olive skin',
                 'Middle Eastern': 'Middle Eastern descent with tan skin',
@@ -113,10 +115,12 @@ class AIPhotoGenerator:
             face_block = None
             if 'middle eastern' in ethn or 'arab' in ethn:
                 face_block = f"Middle Eastern {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, olive or tan skin, brown eyes, thick dark eyebrows, Middle Eastern facial features"
-            elif 'asian' in ethn and ('east' in ethn or 'china' in birth_country.lower() or 'japan' in birth_country.lower() or 'korea' in birth_country.lower()):
-                face_block = f"East Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, pale or yellowish skin tone, almond-shaped eyes, straight black hair, East Asian facial features"
-            elif 'asian' in ethn:
-                face_block = f"South Asian {'woman' if gender_str == 'female' else 'man ' if gender_str == 'male' else 'person'}, light brown skin, dark eyes, dark straight or wavy hair, South Asian facial features"
+            elif 'east asian' in ethn:
+                face_block = f"East Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, pale or yellowish skin tone, almond-shaped eyes, straight black hair, delicate facial features, East Asian facial structure (Chinese/Japanese/Korean)"
+            elif 'south asian' in ethn:
+                face_block = f"South Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, light to medium brown skin, dark brown eyes, dark straight or wavy hair, South Asian facial features (Indian/Pakistani/Bangladeshi)"
+            elif 'southeast asian' in ethn:
+                face_block = f"Southeast Asian {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, tan or light brown skin, dark eyes, dark straight hair, Southeast Asian facial features (Filipino/Vietnamese/Thai/Indonesian)"
             elif 'african' in ethn or 'black' in ethn:
                 face_block = f"Black/African {'woman' if gender_str == 'female' else 'man' if gender_str == 'male' else 'person'}, dark brown or black skin, curly/coily hair, strong jawline, fuller lips, African facial features"
             elif 'hispanic' in ethn or 'latino' in ethn:
@@ -305,8 +309,15 @@ class AIPhotoGenerator:
             # fallback by ethnicity if needed
             if not region_hint:
                 eth_l = str(ethnicity).lower()
-                if "asian" in eth_l:
-                    region_hint = "east/south asian patient attire (long tunic, blouse, or casual shirt)"
+                if "south asian" in eth_l:
+                    if gender_l == "female":
+                        region_hint = "south asian patient attire: kurta tunic and pants, dupatta or light scarf covering hair"
+                    else:
+                        region_hint = "south asian patient attire: kurta or collared shirt and pants, no head covering"
+                elif "east asian" in eth_l:
+                    region_hint = "east asian patient attire: simple, modern, minimalist casual clothing, no head covering"
+                elif "southeast asian" in eth_l:
+                    region_hint = "southeast asian patient attire: casual modern clothing, simple shirt/blouse and pants, no head covering"
                 elif any(x in eth_l for x in ["african", "black"]):
                     region_hint = "african-inspired patient attire; modest patterned dress for female, colorful shirt for male"
                 elif any(x in eth_l for x in ["middle eastern", "arab"]):

@@ -492,19 +492,22 @@ class PatientCreator:
         from datetime import datetime, timedelta
 
         # Diverse ethnicity options with realistic population-based weights
+        # IMPORTANT: Matches manual form - Asian is split into South/East/Southeast for accurate representation
         # Weights balance global demographics with testing diversity (e.g., Pacific Islander ~0.1% globally, not 12.5%)
         ethnicity_options = [
-            "Asian",              # 35% - reflects ~59% global population (reduced for more diversity)
+            "South Asian",        # 15% - Indian, Pakistani, Bangladeshi, Sri Lankan (~24% global)
+            "East Asian",         # 15% - Chinese, Japanese, Korean (~23% global)
             "Caucasian/European", # 20% - reflects ~16% global population (reduced from previous 45% bias)
             "African",            # 17% - reflects ~17% global population
             "Hispanic/Latino",    # 13% - reflects ~8% global population
             "Middle Eastern",     # 7%  - reflects ~5% global population
+            "Southeast Asian",    # 5%  - Thai, Vietnamese, Filipino, Indonesian, Malaysian (~9% global)
             "Mixed",              # 5%  - ensures diverse mixed-ethnicity representation
             "Native American",    # 2%  - reflects <1% global population
             "Pacific Islander"    # 1%  - reflects <0.5% global population
         ]
 
-        ethnicity_weights = [0.35, 0.20, 0.17, 0.13, 0.07, 0.05, 0.02, 0.01]
+        ethnicity_weights = [0.15, 0.15, 0.20, 0.17, 0.13, 0.07, 0.05, 0.05, 0.02, 0.01]
 
         # Select ethnicity based on weighted probabilities (not uniform!)
         ethnicity = [random.choices(ethnicity_options, weights=ethnicity_weights, k=1)[0]]
@@ -522,14 +525,34 @@ class PatientCreator:
                     "last": ["Okafor", "Mensah", "Adeyemi", "Kamara", "Nkrumah", "Diallo", "Banda", "Mwangi", "Ngozi", "Okeke"]
                 }
             },
-            "Asian": {
+            "South Asian": {
                 "Male": {
-                    "first": ["Wei", "Hiroshi", "Min-jun", "Raj", "Arjun", "Chen", "Kenji", "Ravi", "Jin", "Ankit"],
-                    "last": ["Wang", "Tanaka", "Kim", "Patel", "Singh", "Li", "Yamamoto", "Chen", "Park", "Kumar"]
+                    "first": ["Raj", "Arjun", "Ravi", "Ankit", "Vikram", "Amit", "Rohan", "Aditya", "Sanjay", "Kiran", "Farhan", "Imran", "Hassan"],
+                    "last": ["Patel", "Singh", "Kumar", "Sharma", "Reddy", "Gupta", "Khan", "Ahmed", "Ali", "Rahman", "Rao", "Mehta"]
                 },
                 "Female": {
-                    "first": ["Mei", "Yuki", "Ji-woo", "Priya", "Aisha", "Lin", "Sakura", "Suki", "Devi", "Hana"],
-                    "last": ["Wang", "Tanaka", "Kim", "Patel", "Singh", "Li", "Yamamoto", "Chen", "Park", "Kumar"]
+                    "first": ["Priya", "Aisha", "Devi", "Anjali", "Neha", "Kavita", "Lakshmi", "Fatima", "Zara", "Meera", "Sana", "Nisha"],
+                    "last": ["Patel", "Singh", "Kumar", "Sharma", "Reddy", "Gupta", "Khan", "Ahmed", "Ali", "Rahman", "Rao", "Mehta"]
+                }
+            },
+            "East Asian": {
+                "Male": {
+                    "first": ["Wei", "Chen", "Li", "Hiroshi", "Kenji", "Takashi", "Min-jun", "Jin", "Hwan", "Joon", "Ryu"],
+                    "last": ["Wang", "Li", "Chen", "Zhang", "Liu", "Tanaka", "Yamamoto", "Suzuki", "Kim", "Park", "Lee", "Choi"]
+                },
+                "Female": {
+                    "first": ["Mei", "Lin", "Ying", "Yuki", "Sakura", "Hana", "Ji-woo", "Suki", "Min-ji", "Hye", "Yuna"],
+                    "last": ["Wang", "Li", "Chen", "Zhang", "Liu", "Tanaka", "Yamamoto", "Suzuki", "Kim", "Park", "Lee", "Choi"]
+                }
+            },
+            "Southeast Asian": {
+                "Male": {
+                    "first": ["Nguyen", "Thanh", "Minh", "Somchai", "Prakit", "Jose", "Ramon", "Budi", "Ahmad", "Farid", "Amir"],
+                    "last": ["Nguyen", "Tran", "Le", "Pham", "Pong", "Srisai", "Santos", "Reyes", "Cruz", "Santoso", "Rahman", "Abdullah"]
+                },
+                "Female": {
+                    "first": ["Linh", "Thu", "Mai", "Siriporn", "Kanya", "Maria", "Rosa", "Siti", "Nurul", "Aisyah", "Dewi"],
+                    "last": ["Nguyen", "Tran", "Le", "Pham", "Pong", "Srisai", "Santos", "Reyes", "Cruz", "Santoso", "Rahman", "Abdullah"]
                 }
             },
             "Caucasian/European": {
@@ -648,7 +671,9 @@ class PatientCreator:
         # Generate diverse birth countries based on ethnicity
         birth_countries_by_ethnicity = {
             "African": ["Nigeria", "Kenya", "Ghana", "Ethiopia", "South Africa", "Egypt", "Morocco", "Tanzania", "Uganda", "Senegal"],
-            "Asian": ["China", "India", "Japan", "South Korea", "Pakistan", "Bangladesh", "Vietnam", "Thailand", "Philippines", "Indonesia"],
+            "South Asian": ["India", "Pakistan", "Bangladesh", "Sri Lanka", "Nepal", "Bhutan", "Maldives"],
+            "East Asian": ["China", "Japan", "South Korea", "Taiwan", "Hong Kong", "Mongolia"],
+            "Southeast Asian": ["Vietnam", "Thailand", "Philippines", "Indonesia", "Malaysia", "Singapore", "Myanmar", "Cambodia", "Laos"],
             "Caucasian/European": ["USA", "UK", "Germany", "France", "Italy", "Spain", "Poland", "Netherlands", "Belgium", "Sweden"],
             "Hispanic/Latino": ["Mexico", "Colombia", "Argentina", "Peru", "Venezuela", "Chile", "Ecuador", "Guatemala", "Cuba", "Dominican Republic"],
             "Middle Eastern": ["Saudi Arabia", "UAE", "Egypt", "Turkey", "Iran", "Iraq", "Jordan", "Lebanon", "Syria", "Morocco"],
@@ -665,8 +690,23 @@ class PatientCreator:
             "Belgium": ["Brussels", "Antwerp", "Ghent", "Bruges", "Liège", "Namur", "Leuven"],
             "Nigeria": ["Lagos", "Abuja", "Kano", "Ibadan", "Port Harcourt"],
             "Kenya": ["Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret"],
+            # South Asian cities
             "India": ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune"],
+            "Pakistan": ["Karachi", "Lahore", "Islamabad", "Rawalpindi", "Faisalabad"],
+            "Bangladesh": ["Dhaka", "Chittagong", "Khulna", "Rajshahi", "Sylhet"],
+            "Sri Lanka": ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo"],
+            # East Asian cities
             "China": ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu", "Hangzhou"],
+            "Japan": ["Tokyo", "Osaka", "Kyoto", "Yokohama", "Nagoya", "Sapporo"],
+            "South Korea": ["Seoul", "Busan", "Incheon", "Daegu", "Daejeon"],
+            "Taiwan": ["Taipei", "Kaohsiung", "Taichung", "Tainan"],
+            # Southeast Asian cities
+            "Vietnam": ["Ho Chi Minh City", "Hanoi", "Da Nang", "Hue", "Can Tho"],
+            "Thailand": ["Bangkok", "Chiang Mai", "Phuket", "Pattaya", "Krabi"],
+            "Philippines": ["Manila", "Quezon City", "Davao", "Cebu", "Makati"],
+            "Indonesia": ["Jakarta", "Surabaya", "Bandung", "Medan", "Bali"],
+            "Malaysia": ["Kuala Lumpur", "Penang", "Johor Bahru", "Ipoh", "Malacca"],
+            "Singapore": ["Singapore"],
             "Mexico": ["Mexico City", "Guadalajara", "Monterrey", "Puebla", "Tijuana"],
             # Add more as needed...
         }
@@ -706,9 +746,26 @@ class PatientCreator:
             "France": "French",
             "Germany": "German",
             "Spain": "Spanish",
+            # South Asian languages
+            "India": "Hindi",
+            "Pakistan": "Urdu",
+            "Bangladesh": "Bengali",
+            "Sri Lanka": "English",  # Official languages: Sinhala/Tamil, but English widely used
+            # East Asian languages
             "China": "Chinese",
             "Japan": "Japanese",
-            "India": "Hindi",
+            "South Korea": "Korean",
+            "Taiwan": "Chinese",
+            "Hong Kong": "Chinese",
+            # Southeast Asian languages
+            "Vietnam": "Vietnamese",
+            "Thailand": "Thai",
+            "Philippines": "English",  # Filipino/Tagalog and English are official
+            "Indonesia": "Bahasa Indonesia",
+            "Malaysia": "Bahasa Melayu",
+            "Singapore": "English",
+            "Myanmar": "Burmese",
+            # Other
             "Mexico": "Spanish",
             "Brazil": "Portuguese",
             "Saudi Arabia": "Arabic",
