@@ -155,7 +155,7 @@ class DatabaseLoader:
             # Get patient_id for verification
             patient_id = profile.get('patient_id', '')
             
-            # Commit transaction EXPLICITLY with BEGIN/COMMIT block
+            # Commit transaction - CRITICAL: Use connection.commit() NOT cursor.execute("COMMIT")
             self.logger.info("🔄 Committing transaction...")
             
             # Get transaction status before commit
@@ -163,36 +163,36 @@ class DatabaseLoader:
             tx_before = cursor.fetchone()
             self.logger.info(f"🔍 Transaction ID before commit: {tx_before[0]}, PID: {tx_before[1]}")
             
-            # Use SQL COMMIT instead of connection.commit() to ensure it's processed
-            # Close old cursor first
-            cursor.close()
+            # CRITICAL: In psycopg3, we MUST use connection.commit(), not cursor.execute("COMMIT")
+            # cursor.execute("COMMIT") doesn't work properly in psycopg3
+            try:
+                # Commit on the SAME connection that did the inserts
+                connection.commit()
+                self.logger.info("✅ connection.commit() executed successfully")
+            except Exception as commit_error:
+                self.logger.error(f"❌ Commit failed: {commit_error}")
+                raise
             
-            # Get a fresh cursor for COMMIT
-            commit_cursor = connection.cursor()
-            commit_cursor.execute("COMMIT")
-            commit_cursor.close()
-            self.logger.info("✅ SQL COMMIT executed")
-            
-            # Also call connection.commit() as backup
-            commit_success = self.db_connection.commit()
-            self.logger.info(f"✅ Connection.commit() result: {commit_success}")
-            
-            # Verify connection is still open and committed
+            # Verify connection is still open
             if connection.closed:
                 self.logger.error("❌ Connection closed immediately after commit!")
             else:
                 self.logger.info("✅ Connection still open after commit")
             
-            # Get new transaction ID after commit (should be different)
+            # Get new transaction ID after commit (should be different or same if autocommit)
             verify_cursor = connection.cursor()
             verify_cursor.execute("SELECT txid_current(), pg_backend_pid()")
             tx_after = verify_cursor.fetchone()
             self.logger.info(f"🔍 Transaction ID after commit: {tx_after[0]}, PID: {tx_after[1]}")
             
+            # CRITICAL: Force a read query to ensure commit propagated
+            verify_cursor.execute("SELECT 1")
+            verify_cursor.fetchone()
+            
             self.logger.info("✅ Commit process completed")
             
             # CRITICAL: Verify data was actually committed by reading it back
-            # verify_cursor is already open from above
+            # Use the same verify_cursor from above
             try:
                 # Check patients table
                 verify_cursor.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
@@ -236,13 +236,36 @@ class DatabaseLoader:
                 verify_cursor.close()
             
             duration = (datetime.now() - start_time).total_seconds()
+            
+            # CRITICAL: Final verification BEFORE returning success
+            # Check if data actually exists in database
+            final_verify = connection.cursor()
+            final_verify.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
+            final_patient_count = final_verify.fetchone()[0]
+            final_verify.execute("SELECT COUNT(*) FROM patients")
+            final_total_count = final_verify.fetchone()[0]
+            final_verify.close()
+            
+            if final_patient_count == 0 and total_records > 0:
+                self.logger.error(f"❌ CRITICAL: Commit succeeded but data not found! Patient count: {final_patient_count}, Total: {final_total_count}")
+                # This means commit isn't actually persisting - return error
+                return {
+                    'success': False,
+                    'error': f'Commit reported success but data not found in database (patient_count={final_patient_count})',
+                    'records_inserted': 0,
+                    'duration_seconds': duration,
+                    'patient_id': patient_id
+                }
+            else:
+                self.logger.info(f"✅ Final verification: {final_patient_count} patient(s), {final_total_count} total patients")
+            
             self.logger.info(f"✅ Database loading complete: {total_records} records in {duration:.2f}s")
             
             return {
                 'success': True,
                 'records_inserted': total_records,
                 'duration_seconds': duration,
-                'patient_id': profile.get('patient_id')
+                'patient_id': patient_id
             }
         
         except Exception as e:
@@ -266,11 +289,45 @@ class DatabaseLoader:
                 raise
         
         finally:
-            # Keep connection open briefly to ensure commit propagates
+            # CRITICAL: Keep connection open and verify commit before closing
             import time
-            time.sleep(0.3)  # Small delay to ensure commit is fully processed
-            self.db_connection.close()
-            self.logger.info("🔒 Database connection closed")
+            
+            # Final verification - check if data exists before closing
+            if connection and not connection.closed:
+                try:
+                    final_check = connection.cursor()
+                    final_check.execute("SELECT COUNT(*) FROM patients")
+                    final_count = final_check.fetchone()[0]
+                    final_check.close()
+                    self.logger.info(f"🔍 Pre-close verification: {final_count} patients in database")
+                    
+                    if final_count == 0:
+                        self.logger.error("❌ CRITICAL: No data found before closing connection!")
+                        # Try one more explicit commit
+                        try:
+                            connection.commit()
+                            self.logger.info("🔄 Attempted emergency commit before close")
+                            # Verify again
+                            final_check2 = connection.cursor()
+                            final_check2.execute("SELECT COUNT(*) FROM patients")
+                            final_count2 = final_check2.fetchone()[0]
+                            final_check2.close()
+                            self.logger.info(f"🔍 Post-emergency-commit verification: {final_count2} patients")
+                        except Exception as emergency_error:
+                            self.logger.error(f"❌ Emergency commit failed: {emergency_error}")
+                except Exception as final_error:
+                    self.logger.error(f"❌ Final verification failed: {final_error}")
+            
+            # Wait to ensure commit has fully propagated to database
+            time.sleep(2.0)  # Increased delay for reliability
+            
+            # Only close connection after verification and delay
+            if connection and not connection.closed:
+                try:
+                    self.db_connection.close()
+                    self.logger.info("🔒 Database connection closed")
+                except Exception as close_error:
+                    self.logger.error(f"❌ Error closing connection: {close_error}")
     
     def close(self):
         """Close database connection"""

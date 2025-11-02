@@ -203,10 +203,15 @@ class DatabaseConnection:
                     self.logger.error("Missing required PostgreSQL connection parameters")
                     return None
                 
-                # Build connection string with timeout and autocommit=False
+                # Build connection string with timeout
+                # CRITICAL: psycopg3 requires autocommit=False for transactions
                 conn_string = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_pass} connect_timeout=10"
-                self.connection = psycopg.connect(conn_string, autocommit=False)
+                self.connection = psycopg.connect(conn_string)
+                # Explicitly disable autocommit (default is False, but being explicit)
+                if hasattr(self.connection, 'autocommit'):
+                    self.connection.autocommit = False
                 self.logger.info(f"✓ Connected to PostgreSQL at {db_host}:{db_port}")
+                self.logger.info(f"✓ Autocommit: {getattr(self.connection, 'autocommit', False)}")
                 return self.connection
                 
             elif self.connection_type == "cloud_sql":
