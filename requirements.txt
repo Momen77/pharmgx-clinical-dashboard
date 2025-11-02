@@ -20,13 +20,8 @@ qrcode>=7.4.0
 google-genai>=0.7.0
 
 # Database dependencies
-<<<<<<< HEAD
-psycopg>=3.0.0
-google-cloud-sql-connector
-=======
 cloud-sql-python-connector
 psycopg
->>>>>>> 118f45106e21933ab1d4073f90d82cacab215c4f
 
 # Utilities
 python-dateutil>=2.8.0
