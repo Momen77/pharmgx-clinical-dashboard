@@ -94,10 +94,9 @@ class DatabaseLoader:
             
             cursor = connection.cursor()
             
-            # CRITICAL: Start explicit transaction block
-            # Some PostgreSQL configurations require explicit BEGIN
-            cursor.execute("BEGIN")
-            self.logger.info("🔄 Started explicit transaction block (BEGIN)")
+            # CRITICAL: Set up error handling to prevent transaction abort
+            # PostgreSQL aborts transaction on first error unless we use SAVEPOINT
+            self.logger.info("🔄 Starting transaction with error handling")
             
             # Initialize submodule loaders
             self.reference_loader = ReferenceDataLoader()

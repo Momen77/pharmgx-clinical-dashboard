@@ -266,27 +266,37 @@ class PatientClinicalLoader:
         patient_id = profile.get("patient_id")
         lifestyle_factors = profile.get("clinical_information", {}).get("lifestyle_factors", [])
         
-        for factor in lifestyle_factors:
+        for idx, factor in enumerate(lifestyle_factors):
+            savepoint_name = f"lifestyle_{idx}"
             try:
+                # Use SAVEPOINT to prevent transaction abort on error
+                cursor.execute(f"SAVEPOINT {savepoint_name}")
                 cursor.execute("""
                     INSERT INTO lifestyle_factors (
-                        patient_id, factor_type, snomed_code, snomed_url, rdfs_label,
+                        patient_id, factor_type, snomed_code, rdfs_label,
                         status, frequency, note
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (
                     patient_id,
                     factor.get("factor_type"),
                     factor.get("snomed:code") or factor.get("snomed_code"),
-                    factor.get("@id"),  # snomed_url
                     factor.get("rdfs:label") or factor.get("skos:prefLabel"),  # rdfs_label
                     factor.get("status"),
                     factor.get("frequency"),
                     factor.get("note")
                 ))
                 count += 1
+                cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
             except Exception as e:
-                self.logger.warning(f"Could not insert lifestyle factor: {e}")
+                # Rollback to savepoint and continue
+                try:
+                    cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                    self.logger.warning(f"Could not insert lifestyle factor (skipped): {e}")
+                except Exception as rollback_error:
+                    # If savepoint failed, transaction might be aborted - need full rollback
+                    self.logger.error(f"Transaction aborted by lifestyle factor error: {e}")
+                    raise  # Re-raise to trigger transaction rollback
         
         self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} lifestyle factors")
         return count
