@@ -12,13 +12,29 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
-# Try to import the Cloud SQL Connector
+# Try to import the Cloud SQL Connector (but don't instantiate yet)
 try:
     from google.cloud.sql.connector import Connector
-    _connector = Connector()
+    _connector_available = True
 except ImportError:
-    _connector = None
+    _connector_available = False
     print("Warning: google-cloud-sql-connector not found. Cloud SQL connections will not work.")
+
+# Global connector instance (created lazily only when needed)
+_connector = None
+
+
+def _get_connector():
+    """Get or create the Cloud SQL Connector (lazy initialization)"""
+    global _connector
+    if _connector is None and _connector_available:
+        try:
+            _connector = Connector()
+        except Exception as e:
+            # Silently handle metadata service errors when not on GCP
+            logging.getLogger(__name__).debug(f"Could not initialize Cloud SQL Connector: {e}")
+            _connector = None
+    return _connector
 
 
 class SchemaAlignedDatabaseLoader:
@@ -56,48 +72,103 @@ class SchemaAlignedDatabaseLoader:
     
     def _get_db_params(self) -> Dict[str, str]:
         """Read database credentials from Streamlit secrets or environment variables"""
+        # Try Streamlit secrets first
         try:
-            # Try Streamlit secrets first
             import streamlit as st
-            return {
-                "instance_connection_name": st.secrets.get("INSTANCE_CONNECTION_NAME", ""),
-                "db_user": st.secrets.get("DB_USER", ""),
-                "db_pass": st.secrets.get("DB_PASS", ""),
-                "db_name": st.secrets.get("DB_NAME", "")
-            }
+            # Check for PostgreSQL connection first
+            db_host = st.secrets.get("DB_HOST", "")
+            if db_host:
+                # Direct PostgreSQL connection
+                self.connection_type = "postgresql"
+                self.logger.debug("Using direct PostgreSQL connection from Streamlit secrets")
+                return {
+                    "db_host": db_host,
+                    "db_port": st.secrets.get("DB_PORT", "5432"),
+                    "db_user": st.secrets.get("DB_USER", ""),
+                    "db_pass": st.secrets.get("DB_PASS", ""),
+                    "db_name": st.secrets.get("DB_NAME", "")
+                }
+            else:
+                # Cloud SQL connection
+                return {
+                    "instance_connection_name": st.secrets.get("INSTANCE_CONNECTION_NAME", ""),
+                    "db_user": st.secrets.get("DB_USER", ""),
+                    "db_pass": st.secrets.get("DB_PASS", ""),
+                    "db_name": st.secrets.get("DB_NAME", "")
+                }
         except Exception as e:
             # Fallback to environment variables
             self.logger.warning(f"Could not load Streamlit secrets, trying environment variables: {e}")
-            return {
-                "instance_connection_name": os.getenv("INSTANCE_CONNECTION_NAME", ""),
-                "db_user": os.getenv("DB_USER", ""),
-                "db_pass": os.getenv("DB_PASS", ""),
-                "db_name": os.getenv("DB_NAME", "")
-            }
+            # Check for PostgreSQL connection first
+            db_host = os.getenv("DB_HOST", "")
+            if db_host:
+                # Direct PostgreSQL connection
+                self.connection_type = "postgresql"
+                self.logger.debug("Using direct PostgreSQL connection from environment variables")
+                return {
+                    "db_host": db_host,
+                    "db_port": os.getenv("DB_PORT", "5432"),
+                    "db_user": os.getenv("DB_USER", ""),
+                    "db_pass": os.getenv("DB_PASS", ""),
+                    "db_name": os.getenv("DB_NAME", "")
+                }
+            else:
+                # Cloud SQL connection
+                return {
+                    "instance_connection_name": os.getenv("INSTANCE_CONNECTION_NAME", ""),
+                    "db_user": os.getenv("DB_USER", ""),
+                    "db_pass": os.getenv("DB_PASS", ""),
+                    "db_name": os.getenv("DB_NAME", "")
+                }
     
     def get_connection(self) -> Optional[psycopg.Connection]:
         """Get database connection"""
         if not self.db_enabled:
             self.logger.info("Database loading is disabled in config.")
             return None
-        if not self.db_params or not self.db_params.get("instance_connection_name"):
+        if not self.db_params:
             self.logger.error("Database parameters not configured.")
             return None
         
         try:
-            if self.connection_type == "cloud_sql" and _connector:
-                conn = _connector.connect(
-                    self.db_params["instance_connection_name"],
-                    "psycopg",
-                    user=self.db_params["db_user"],
-                    password=self.db_params["db_pass"],
-                    db=self.db_params["db_name"]
-                )
-                self.logger.info("Successfully connected to Google Cloud SQL.")
+            if self.connection_type == "postgresql":
+                # Direct PostgreSQL connection
+                db_host = self.db_params.get("db_host")
+                db_port = self.db_params.get("db_port", "5432")
+                db_user = self.db_params.get("db_user")
+                db_pass = self.db_params.get("db_pass")
+                db_name = self.db_params.get("db_name")
+                
+                if not all([db_host, db_user, db_pass, db_name]):
+                    self.logger.error("Missing required PostgreSQL connection parameters")
+                    return None
+                
+                # Build connection string
+                conn_string = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_pass}"
+                conn = psycopg.connect(conn_string)
+                self.logger.info(f"Successfully connected to PostgreSQL at {db_host}:{db_port}")
                 return conn
+                
+            elif self.connection_type == "cloud_sql":
+                # Use lazy initialization of connector
+                connector = _get_connector()
+                if connector:
+                    conn = connector.connect(
+                        self.db_params["instance_connection_name"],
+                        "psycopg",
+                        user=self.db_params["db_user"],
+                        password=self.db_params["db_pass"],
+                        db=self.db_params["db_name"]
+                    )
+                    self.logger.info("Successfully connected to Google Cloud SQL.")
+                    return conn
+                else:
+                    self.logger.error("Cloud SQL connector not available")
+                    return None
             else:
-                self.logger.error("Cloud SQL connector not available or connection type not supported.")
+                self.logger.error(f"Unknown connection type: {self.connection_type}")
                 return None
+                
         except Exception as e:
             self.logger.error(f"Database connection failed: {e}")
             if not self.non_blocking:

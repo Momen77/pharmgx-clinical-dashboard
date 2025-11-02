@@ -14,8 +14,42 @@ class Config:
         Args:
             config_path: Path to config.yaml file
         """
-        self.config_path = Path(config_path)
+        self.config_path = self._resolve_config_path(config_path)
         self.config = self._load_config()
+    
+    def _resolve_config_path(self, config_path: str) -> Path:
+        """
+        Resolve config.yaml path - try multiple locations
+        
+        Args:
+            config_path: Initial config path
+            
+        Returns:
+            Resolved Path object
+        """
+        # If absolute or exists, use as-is
+        path = Path(config_path)
+        if path.is_absolute() and path.exists():
+            return path
+        if path.exists():
+            return path
+        
+        # Try common locations relative to current file
+        # From: src/pharmgx-clinical-dashboard/src/utils/config.py
+        # To project root: go up 5 levels (utils -> src -> pharmgx-clinical-dashboard -> src -> root)
+        base_dir = Path(__file__).parent.parent.parent.parent.parent
+        candidates = [
+            base_dir / config_path,  # Project root
+            base_dir / "src" / "pharmgx-clinical-dashboard" / config_path,  # Dashboard dir
+            base_dir.parent / config_path,  # One level up
+        ]
+        
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        
+        # Last resort: return the original path (will raise FileNotFoundError later)
+        return path
     
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from YAML file"""
