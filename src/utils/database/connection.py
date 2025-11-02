@@ -203,9 +203,9 @@ class DatabaseConnection:
                     self.logger.error("Missing required PostgreSQL connection parameters")
                     return None
                 
-                # Build connection string with timeout
-                conn_string = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_pass} connect_timeout=5"
-                self.connection = psycopg.connect(conn_string)
+                # Build connection string with timeout and autocommit=False
+                conn_string = f"host={db_host} port={db_port} dbname={db_name} user={db_user} password={db_pass} connect_timeout=10"
+                self.connection = psycopg.connect(conn_string, autocommit=False)
                 self.logger.info(f"✓ Connected to PostgreSQL at {db_host}:{db_port}")
                 return self.connection
                 

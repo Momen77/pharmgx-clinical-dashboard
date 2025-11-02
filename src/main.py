@@ -1698,9 +1698,19 @@ class PGxPipeline:
                         else:
                             raise
                 
-                db_thread = threading.Thread(target=load_to_database, daemon=True)
+                db_thread = threading.Thread(target=load_to_database, daemon=False)
                 db_thread.start()
                 print("✓ Started database loading in parallel thread")
+                
+                # Wait for database loading to complete (with timeout)
+                db_thread.join(timeout=60)  # Wait up to 60 seconds
+                if db_thread.is_alive():
+                    print("⚠️  Database loading still in progress (will continue in background)")
+                elif db_status.get("completed"):
+                    if db_status.get("success"):
+                        print(f"✅ Database loading complete: {db_status.get('records_inserted', 0)} records")
+                    else:
+                        print(f"❌ Database loading failed: {db_status.get('error', 'Unknown error')}")
             except Exception as e:
                 db_status["error"] = str(e)
                 db_status["completed"] = True
