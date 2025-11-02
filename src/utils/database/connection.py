@@ -99,11 +99,12 @@ def _get_connector():
 
 
 class DatabaseConnection:
-    """Manages database connections for Cloud SQL"""
+    """Manages database connections for Cloud SQL - v1.2"""
     
     def __init__(self, config):
         self.config = config
-        self.logger = logging.getLogger(__name__)  # Initialize logger first
+        # Initialize logger immediately
+        self.logger = logging.getLogger(__name__)
         self.db_enabled = config.database_enabled
         self.non_blocking = config.database_non_blocking
         self.connection_type = "cloud_sql"
@@ -112,6 +113,10 @@ class DatabaseConnection:
     
     def _get_db_params(self) -> Dict[str, str]:
         """Read database credentials from Streamlit secrets, secrets.toml, or environment variables"""
+        # Safety guard: ensure logger exists (in case of initialization order issues)
+        if not hasattr(self, 'logger'):
+            self.logger = logging.getLogger(__name__)
+        
         secrets_data = {}
         
         # Try Streamlit secrets first (when running inside Streamlit)
