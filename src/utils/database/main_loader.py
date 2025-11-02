@@ -94,6 +94,11 @@ class DatabaseLoader:
             
             cursor = connection.cursor()
             
+            # CRITICAL: Start explicit transaction block
+            # Some PostgreSQL configurations require explicit BEGIN
+            cursor.execute("BEGIN")
+            self.logger.info("🔄 Started explicit transaction block (BEGIN)")
+            
             # Initialize submodule loaders
             self.reference_loader = ReferenceDataLoader()
             self.patient_core_loader = PatientCoreLoader()
@@ -133,13 +138,44 @@ class DatabaseLoader:
             # Get patient_id for verification
             patient_id = profile.get('patient_id', '')
             
-            # Commit transaction EXPLICITLY
+            # Commit transaction EXPLICITLY with BEGIN/COMMIT block
             self.logger.info("🔄 Committing transaction...")
-            self.db_connection.commit()
-            self.logger.info("✅ Commit called successfully")
+            
+            # Get transaction status before commit
+            cursor.execute("SELECT txid_current(), pg_backend_pid()")
+            tx_before = cursor.fetchone()
+            self.logger.info(f"🔍 Transaction ID before commit: {tx_before[0]}, PID: {tx_before[1]}")
+            
+            # Use SQL COMMIT instead of connection.commit() to ensure it's processed
+            # Close old cursor first
+            cursor.close()
+            
+            # Get a fresh cursor for COMMIT
+            commit_cursor = connection.cursor()
+            commit_cursor.execute("COMMIT")
+            commit_cursor.close()
+            self.logger.info("✅ SQL COMMIT executed")
+            
+            # Also call connection.commit() as backup
+            commit_success = self.db_connection.commit()
+            self.logger.info(f"✅ Connection.commit() result: {commit_success}")
+            
+            # Verify connection is still open and committed
+            if connection.closed:
+                self.logger.error("❌ Connection closed immediately after commit!")
+            else:
+                self.logger.info("✅ Connection still open after commit")
+            
+            # Get new transaction ID after commit (should be different)
+            verify_cursor = connection.cursor()
+            verify_cursor.execute("SELECT txid_current(), pg_backend_pid()")
+            tx_after = verify_cursor.fetchone()
+            self.logger.info(f"🔍 Transaction ID after commit: {tx_after[0]}, PID: {tx_after[1]}")
+            
+            self.logger.info("✅ Commit process completed")
             
             # CRITICAL: Verify data was actually committed by reading it back
-            verify_cursor = connection.cursor()
+            # verify_cursor is already open from above
             try:
                 # Check patients table
                 verify_cursor.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
@@ -181,7 +217,6 @@ class DatabaseLoader:
                 self.logger.error(f"Traceback: {traceback.format_exc()}")
             finally:
                 verify_cursor.close()
-                cursor.close()
             
             duration = (datetime.now() - start_time).total_seconds()
             self.logger.info(f"✅ Database loading complete: {total_records} records in {duration:.2f}s")

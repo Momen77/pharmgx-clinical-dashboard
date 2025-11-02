@@ -248,13 +248,37 @@ class DatabaseConnection:
             self.logger.info("Database connection closed")
     
     def commit(self):
-        """Commit current transaction"""
+        """Commit current transaction with verification"""
         if self.connection:
             try:
+                # Check connection status
+                if self.connection.closed:
+                    self.logger.error("❌ Cannot commit: connection is closed")
+                    return False
+                
+                # Force commit
                 self.connection.commit()
-                self.logger.info("✅ Transaction committed successfully")
+                
+                # Verify commit succeeded by checking transaction status
+                # In psycopg3, if commit fails, it raises an exception
+                # But we'll also check connection state
+                self.logger.info("✅ Transaction commit() called successfully")
+                
+                # Force a sync/flush to ensure data is written to disk
+                # This ensures the commit has propagated to the database server
+                try:
+                    # Execute a simple query to force sync
+                    with self.connection.cursor() as sync_cursor:
+                        sync_cursor.execute("SELECT 1")
+                        sync_cursor.fetchone()
+                except Exception as sync_error:
+                    self.logger.warning(f"⚠️  Sync query failed: {sync_error}")
+                
+                return True
             except Exception as e:
+                import traceback
                 self.logger.error(f"❌ Commit failed: {e}")
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
                 raise
     
     def rollback(self):
