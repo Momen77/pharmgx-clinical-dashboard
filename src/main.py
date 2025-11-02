@@ -1024,6 +1024,9 @@ class PGxPipeline:
             # Enhanced Clinical Information
             "clinical_information": clinical_info,
             
+            # ✅ FIX: Generate literature_summary once (used in both locations)
+            # Generate before dict to avoid calling twice
+            "literature_summary": (lit_summary := self._generate_literature_summary(variants)),
             "pharmacogenomics_profile": {
                 "genes_analyzed": genes,
                 "total_variants": len(variants),
@@ -1031,7 +1034,7 @@ class PGxPipeline:
                 "affected_drugs": list(drugs),
                 "associated_diseases": list(diseases),
                 "clinical_summary": self._generate_clinical_summary(variants),
-                "literature_summary": self._generate_literature_summary(variants)
+                "literature_summary": lit_summary  # Reuse same object
             },
             "variants": variants,
             "dataSource": "EMBL-EBI Proteins API + UniProt + ClinVar + PharmGKB + OpenFDA + Europe PMC"
@@ -1651,7 +1654,9 @@ class PGxPipeline:
         return summary
     
     def _generate_literature_summary(self, variants: list) -> dict:
-        """Generate literature summary from variants with enhanced variant-specific data"""
+        """Generate literature summary from variants with enhanced variant-specific data
+        ✅ CRITICAL FIX: Now includes actual publication dictionaries for database loader
+        """
         total_publications = 0
         total_gene_pubs = 0
         total_variant_pubs = 0
@@ -1661,24 +1666,67 @@ class PGxPipeline:
         variants_with_literature = set()
         top_publications = []
         
+        # ✅ CRITICAL: Build actual publication dictionaries for database loader
+        gene_literature = {}  # {gene_symbol: [pub1, pub2, ...]}
+        variant_literature = {}  # {variant_key: [pub1, pub2, ...]}
+        drug_literature = {}  # {drug_name: [pub1, pub2, ...]}
+        
         for variant in variants:
             literature = variant.get("literature", {})
             variant_id = variant.get("variant_id", "Unknown")
             gene = variant.get("gene")
             
-            # Count gene publications
+            # ✅ Extract gene publications and organize by gene
             gene_pubs = literature.get("gene_publications", [])
             total_gene_pubs += len(gene_pubs)
+            if gene and gene_pubs:
+                if gene not in gene_literature:
+                    gene_literature[gene] = []
+                # Add publications (avoid duplicates by PMID)
+                existing_pmids = {p.get("pmid") for p in gene_literature[gene] if p.get("pmid")}
+                for pub in gene_pubs:
+                    if pub.get("pmid") and pub.get("pmid") not in existing_pmids:
+                        gene_literature[gene].append(pub)
+                        existing_pmids.add(pub.get("pmid"))
+                genes_with_literature.add(gene)
             
-            # Count variant-specific publications (NEW)
+            # ✅ Extract variant-specific publications and organize by variant
             variant_pubs = literature.get("variant_specific_publications", [])
             total_variant_pubs += len(variant_pubs)
-            
-            if gene_pubs or variant_pubs:
-                genes_with_literature.add(gene)
+            if variant_id and variant_pubs:
+                variant_key = f"{gene}:{variant_id}" if gene else variant_id
+                if variant_key not in variant_literature:
+                    variant_literature[variant_key] = []
+                # Add publications (avoid duplicates by PMID)
+                existing_pmids = {p.get("pmid") for p in variant_literature[variant_key] if p.get("pmid")}
+                for pub in variant_pubs:
+                    # Add gene and variant_id to pub for linking
+                    if not pub.get("gene"):
+                        pub["gene"] = gene
+                    if not pub.get("gene_symbol"):
+                        pub["gene_symbol"] = gene
+                    if not pub.get("variant_id"):
+                        pub["variant_id"] = variant_id
+                    if pub.get("pmid") and pub.get("pmid") not in existing_pmids:
+                        variant_literature[variant_key].append(pub)
+                        existing_pmids.add(pub.get("pmid"))
+                if variant_pubs:
+                    variants_with_literature.add(variant_key)
                 
-            if variant_pubs:
-                variants_with_literature.add(f"{gene}:{variant_id}")
+            # ✅ Extract drug publications and organize by drug
+            drug_pubs = literature.get("drug_publications", {})
+            for drug, pubs in drug_pubs.items():
+                total_drug_pubs += len(pubs)
+                if pubs:
+                    drugs_with_literature.add(drug)
+                    if drug not in drug_literature:
+                        drug_literature[drug] = []
+                    # Add publications (avoid duplicates by PMID)
+                    existing_pmids = {p.get("pmid") for p in drug_literature[drug] if p.get("pmid")}
+                    for pub in pubs:
+                        if pub.get("pmid") and pub.get("pmid") not in existing_pmids:
+                            drug_literature[drug].append(pub)
+                            existing_pmids.add(pub.get("pmid"))
                 
             # Collect top publications from gene-level sources
             for pub in gene_pubs:
@@ -1691,13 +1739,6 @@ class PGxPipeline:
                         "variant": None,  # Gene-level publications don't have specific variants
                         "search_type": "gene-level"
                     })
-            
-            # Count drug publications
-            drug_pubs = literature.get("drug_publications", {})
-            for drug, pubs in drug_pubs.items():
-                total_drug_pubs += len(pubs)
-                if pubs:
-                    drugs_with_literature.add(drug)
         
         total_publications = total_gene_pubs + total_variant_pubs + total_drug_pubs
         
@@ -1705,6 +1746,7 @@ class PGxPipeline:
         top_publications.sort(key=lambda x: x.get("citation_count", 0), reverse=True)
         
         return {
+            # Statistics (for summaries table)
             "total_publications": total_publications,
             "gene_publications": total_gene_pubs,
             "variant_specific_publications": total_variant_pubs,
@@ -1717,7 +1759,11 @@ class PGxPipeline:
                 "genes_covered": list(genes_with_literature),
                 "variants_covered": list(variants_with_literature)[:10],
                 "drugs_covered": list(drugs_with_literature)[:10]
-            }
+            },
+            # ✅ CRITICAL: Actual publication dictionaries for database loader
+            "gene_literature": gene_literature,
+            "variant_literature": variant_literature,
+            "drug_literature": drug_literature
         }
     
     def _generate_all_outputs(self, profile: dict, gene_results: dict, db_status: dict = None, db_thread = None) -> dict:
