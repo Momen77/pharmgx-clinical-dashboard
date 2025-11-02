@@ -20,9 +20,9 @@ qrcode>=7.4.0
 google-genai>=0.7.0
 
 # Database dependencies
-# Note: google-cloud-sql-connector is optional and may not be available for all Python versions
-# The app will work without it, but Cloud SQL connections will be disabled
-google-cloud-sql-connector<0.11.0
+# Note: google-cloud-sql-connector is optional and not available on Streamlit Cloud
+# To enable Cloud SQL connections, install separately: pip install google-cloud-sql-connector
+# The app works without it - Cloud SQL connections will be gracefully disabled
 psycopg>=3.0.0
 
 # Utilities
