@@ -130,8 +130,58 @@ class DatabaseLoader:
             total_records += self.literature_loader.load_all(cursor, profile)
             total_records += self.summaries_loader.load_all(cursor, profile)
             
-            # Commit transaction
+            # Get patient_id for verification
+            patient_id = profile.get('patient_id', '')
+            
+            # Commit transaction EXPLICITLY
+            self.logger.info("🔄 Committing transaction...")
             self.db_connection.commit()
+            self.logger.info("✅ Commit called successfully")
+            
+            # CRITICAL: Verify data was actually committed by reading it back
+            verify_cursor = connection.cursor()
+            try:
+                # Check patients table
+                verify_cursor.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
+                patient_count = verify_cursor.fetchone()[0]
+                
+                # Check total records in patients table
+                verify_cursor.execute("SELECT COUNT(*) FROM patients")
+                total_patients = verify_cursor.fetchone()[0]
+                
+                # Check demographics
+                verify_cursor.execute("SELECT COUNT(*) FROM demographics WHERE patient_id = %s", (patient_id,))
+                demo_count = verify_cursor.fetchone()[0]
+                
+                self.logger.info(f"🔍 Verification: Found {patient_count} record(s) for patient {patient_id}")
+                self.logger.info(f"🔍 Verification: Total patients in database: {total_patients}")
+                self.logger.info(f"🔍 Verification: Demographics records: {demo_count}")
+                
+                if patient_count == 0 and total_records > 0:
+                    self.logger.error("❌ CRITICAL: Commit reported success but no data found in database!")
+                    # Check if it's a timing issue - wait and retry
+                    import time
+                    time.sleep(1)
+                    verify_cursor.execute("SELECT COUNT(*) FROM patients WHERE patient_id = %s", (patient_id,))
+                    patient_count_retry = verify_cursor.fetchone()[0]
+                    if patient_count_retry == 0:
+                        self.logger.error("❌ Data verification failed after retry - commit may have rolled back silently")
+                        # Log transaction status
+                        verify_cursor.execute("SELECT txid_current()")
+                        tx_id = verify_cursor.fetchone()[0]
+                        self.logger.info(f"🔍 Current transaction ID: {tx_id}")
+                    else:
+                        self.logger.info(f"✅ Data found after 1s delay - timing issue confirmed")
+                elif patient_count > 0:
+                    self.logger.info(f"✅ Data verification PASSED - {patient_count} patient record(s) found")
+                
+            except Exception as verify_error:
+                import traceback
+                self.logger.error(f"❌ Verification query failed: {verify_error}")
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+            finally:
+                verify_cursor.close()
+                cursor.close()
             
             duration = (datetime.now() - start_time).total_seconds()
             self.logger.info(f"✅ Database loading complete: {total_records} records in {duration:.2f}s")
@@ -144,9 +194,15 @@ class DatabaseLoader:
             }
         
         except Exception as e:
+            import traceback
             self.logger.error(f"❌ Database loading failed: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             if connection:
-                self.db_connection.rollback()
+                try:
+                    self.db_connection.rollback()
+                    self.logger.info("🔄 Transaction rolled back")
+                except Exception as rollback_error:
+                    self.logger.error(f"Failed to rollback: {rollback_error}")
             
             if self.db_connection.non_blocking:
                 return {
@@ -158,7 +214,11 @@ class DatabaseLoader:
                 raise
         
         finally:
+            # Keep connection open briefly to ensure commit propagates
+            import time
+            time.sleep(0.3)  # Small delay to ensure commit is fully processed
             self.db_connection.close()
+            self.logger.info("🔒 Database connection closed")
     
     def close(self):
         """Close database connection"""

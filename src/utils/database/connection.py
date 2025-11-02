@@ -250,7 +250,12 @@ class DatabaseConnection:
     def commit(self):
         """Commit current transaction"""
         if self.connection:
-            self.connection.commit()
+            try:
+                self.connection.commit()
+                self.logger.info("✅ Transaction committed successfully")
+            except Exception as e:
+                self.logger.error(f"❌ Commit failed: {e}")
+                raise
     
     def rollback(self):
         """Rollback current transaction"""

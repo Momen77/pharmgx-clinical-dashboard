@@ -1688,6 +1688,9 @@ class PGxPipeline:
                         result = db_loader.load_patient_profile(profile)
                         db_status.update(result)
                         db_status["completed"] = True
+                        # Keep connection open for a moment to ensure commit completes
+                        import time
+                        time.sleep(0.5)  # Small delay to ensure commit is fully processed
                         db_loader.close()
                     except Exception as e:
                         db_status["success"] = False
