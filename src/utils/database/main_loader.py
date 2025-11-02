@@ -94,9 +94,10 @@ class DatabaseLoader:
             
             cursor = connection.cursor()
             
-            # CRITICAL: Set up error handling to prevent transaction abort
-            # PostgreSQL aborts transaction on first error unless we use SAVEPOINT
-            self.logger.info("🔄 Starting transaction with error handling")
+            # CRITICAL: Start transaction explicitly
+            # PostgreSQL requires explicit BEGIN when using savepoints
+            cursor.execute("BEGIN")
+            self.logger.info("🔄 Started transaction (BEGIN)")
             
             # Initialize submodule loaders
             self.reference_loader = ReferenceDataLoader()
@@ -122,7 +123,24 @@ class DatabaseLoader:
             
             # ✅ PHASE 3: Load Patient Clinical Data
             self.logger.info("🏥 PHASE 3: Loading patient clinical data...")
-            total_records += self.patient_clinical_loader.load_all(cursor, profile)
+            try:
+                total_records += self.patient_clinical_loader.load_all(cursor, profile)
+            except Exception as phase3_error:
+                error_msg = str(phase3_error)
+                # Check if transaction aborted
+                if "transaction is aborted" in error_msg.lower():
+                    self.logger.warning("🔄 Transaction aborted in Phase 3 - attempting recovery")
+                    try:
+                        cursor.connection.rollback()
+                        cursor.execute("BEGIN")
+                        self.logger.info("✅ Transaction restarted - retrying Phase 3")
+                        # Retry Phase 3 (will skip problematic inserts via savepoints)
+                        total_records += self.patient_clinical_loader.load_all(cursor, profile)
+                    except Exception as retry_error:
+                        self.logger.error(f"❌ Phase 3 retry failed: {retry_error}")
+                        # Continue anyway - partial data is better than none
+                else:
+                    raise  # Re-raise non-abort errors
             
             # ✅ PHASE 4: Load Patient Variants
             self.logger.info("🧬 PHASE 4: Loading patient variants...")

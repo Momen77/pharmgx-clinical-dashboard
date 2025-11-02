@@ -457,24 +457,35 @@ elif page == "🔬 Run Test":
     storyboard_finish_time = [time.time() + 600]  # Default: 10 minutes in the future (use list to allow mutation)
     storyboard_speed = [10000]  # Default storyboard speed (ms per step) (use list to allow mutation)
 
-    # Preconditions
+    # Preconditions with better error messages
+    missing_prerequisites = []
     if not st.session_state.get('patient_created'):
-        st.warning("⚠️ Please create a patient profile first (Step 1)")
-        st.stop()
-    if not st.session_state.get('selected_genes'):
-        st.warning("⚠️ Please select genes to test (Step 2)")
+        missing_prerequisites.append("patient profile")
+    if not st.session_state.get('selected_genes') or len(st.session_state.get('selected_genes', [])) == 0:
+        missing_prerequisites.append("genes to test")
+    
+    if missing_prerequisites:
+        st.warning(f"⚠️ Please complete the following steps first:")
+        for prereq in missing_prerequisites:
+            if prereq == "patient profile":
+                st.write("  1. **👤 Create Patient** - Create a patient profile")
+            elif prereq == "genes to test":
+                st.write("  2. **🧬 Select Genes** - Choose which genes to analyze")
+        st.info("Use the sidebar to navigate to these steps.")
         st.stop()
 
+    # Always show content if prerequisites are met
+    # Get profile from session state
+    profile = (st.session_state.get('patient_profile') or {}).copy()
+
+    # Extract patient demographics for display
+    # Use top-level demographics shortcut (added for compatibility)
+    demo = profile.get('demographics', {}) or profile.get('clinical_information', {}).get('demographics', {})
+    first_name = demo.get('first_name', 'N/A')
+    last_name = demo.get('last_name', 'N/A')
+    mrn = demo.get('mrn', 'N/A')
+    
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
-        # Get profile from session state
-        profile = (st.session_state.get('patient_profile') or {}).copy()
-
-        # Extract patient demographics for display
-        # Use top-level demographics shortcut (added for compatibility)
-        demo = profile.get('demographics', {})
-        first_name = demo.get('first_name', 'N/A')
-        last_name = demo.get('last_name', 'N/A')
-        mrn = demo.get('mrn', 'N/A')
 
         # Check if test is running - either button was clicked OR test results exist but not complete
         # We need to check button state first before defining it
@@ -868,13 +879,17 @@ elif page == "🔬 Run Test":
 
                 # Ensure results is not None
                 if results is None:
-                    raise RuntimeError("Pipeline completed but no results were returned")
+                    st.error("❌ Pipeline completed but returned no results")
+                    results = {"success": False, "error": "Pipeline returned None"}
+                    st.session_state['test_results'] = results
+                    st.session_state['_test_started'] = False
+                    st.stop()
                 
                 # Complete progress handled by storyboard
                 
-                # Show what we got
-                with st.expander("🔍 Raw Results", expanded=False):
-                    st.json(results)
+                # Show what we got (only if debugging)
+                # with st.expander("🔍 Raw Results", expanded=False):
+                #     st.json(results)
             
             except Exception as e:
                 st.error(f"❌ Pipeline failed: {e}")
@@ -882,6 +897,8 @@ elif page == "🔬 Run Test":
                 with st.expander("🐛 Error Details", expanded=True):
                     st.code(traceback.format_exc())
                 results = {"success": False, "error": str(e)}
+                # Store error result so user can see it
+                st.session_state['test_results'] = results
                 # Clear test started flag on error so summary can show again
                 st.session_state['_test_started'] = False
             
@@ -923,8 +940,27 @@ elif page == "🔬 Run Test":
                         st.caption("💾 Patient profile saved to database")
                     elif db_status.get('error'):
                         st.caption(f"⚠️ Database storage: {db_status.get('error', 'Failed')}")
+            elif results:
+                # Results exist but success is False
+                error_msg = results.get('error', 'Unknown error')
+                st.error(f"❌ Test failed: {error_msg}")
+                st.info("Check the error details above for more information.")
             else:
-                st.error(f"❌ Test failed: {results.get('error', 'Unknown error')}")
+                # No results at all - shouldn't happen but handle gracefully
+                st.warning("⚠️ No results returned from pipeline")
+                st.info("Please try running the test again. If the problem persists, check the console logs.")
+                st.session_state['_test_started'] = False
+    else:
+        # Fallback: Should not reach here if prerequisites check worked, but just in case
+        st.warning("⚠️ Page initialization issue")
+        st.info("Please refresh the page or navigate away and back.")
+        with st.expander("🔍 Debug Info", expanded=False):
+            st.json({
+                'patient_created': st.session_state.get('patient_created', False),
+                'has_selected_genes': bool(st.session_state.get('selected_genes')),
+                'selected_genes': st.session_state.get('selected_genes', []),
+                'has_profile': bool(st.session_state.get('patient_profile'))
+            })
 
 elif page == "📊 View Results":
     st.title("📊 Clinical Report")

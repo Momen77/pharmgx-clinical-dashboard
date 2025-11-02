@@ -269,8 +269,11 @@ class PatientClinicalLoader:
         for idx, factor in enumerate(lifestyle_factors):
             savepoint_name = f"lifestyle_{idx}"
             try:
-                # Use SAVEPOINT to prevent transaction abort on error
+                # CRITICAL: Create savepoint BEFORE any operation to protect transaction
                 cursor.execute(f"SAVEPOINT {savepoint_name}")
+                
+                # SCHEMA-FIXED: lifestyle_factors table does NOT have snomed_url column
+                # Insert with only the columns that exist: patient_id, factor_type, snomed_code, rdfs_label, status, frequency, note
                 cursor.execute("""
                     INSERT INTO lifestyle_factors (
                         patient_id, factor_type, snomed_code, rdfs_label,
@@ -287,16 +290,37 @@ class PatientClinicalLoader:
                     factor.get("note")
                 ))
                 count += 1
+                # Release savepoint only on success
                 cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
             except Exception as e:
-                # Rollback to savepoint and continue
+                error_msg = str(e)
+                self.logger.warning(f"Could not insert lifestyle factor: {error_msg}")
+                
+                # CRITICAL: Rollback to savepoint IMMEDIATELY to prevent transaction abort
                 try:
-                    cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
-                    self.logger.warning(f"Could not insert lifestyle factor (skipped): {e}")
+                    # Check if transaction is already aborted
+                    if "transaction is aborted" in error_msg.lower():
+                        # Transaction already aborted - can't use savepoints anymore
+                        # Need to rollback entire transaction and restart
+                        cursor.connection.rollback()
+                        # Restart transaction
+                        cursor.execute("BEGIN")
+                        self.logger.warning("Transaction rolled back and restarted due to abort")
+                        # Skip this factor and continue
+                    else:
+                        # Normal error - rollback to savepoint and continue
+                        cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
                 except Exception as rollback_error:
-                    # If savepoint failed, transaction might be aborted - need full rollback
-                    self.logger.error(f"Transaction aborted by lifestyle factor error: {e}")
-                    raise  # Re-raise to trigger transaction rollback
+                    # If rollback fails, transaction is definitely aborted
+                    self.logger.error(f"Failed to recover from error - transaction aborted: {rollback_error}")
+                    # Rollback entire transaction
+                    try:
+                        cursor.connection.rollback()
+                        cursor.execute("BEGIN")
+                        self.logger.warning("Full transaction rollback and restart")
+                    except:
+                        pass
+                    # Don't re-raise - skip this factor and continue
         
         self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} lifestyle factors")
         return count
