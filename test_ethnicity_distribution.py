@@ -9,17 +9,17 @@ def test_weighted_distribution():
 
     # Same weights as in the fixed code
     ethnicity_options = [
-        "Asian",              # 40%
+        "Asian",              # 35%
         "Caucasian/European", # 20%
-        "African",            # 15%
-        "Hispanic/Latino",    # 12%
-        "Middle Eastern",     # 6%
-        "Mixed",              # 4%
+        "African",            # 17%
+        "Hispanic/Latino",    # 13%
+        "Middle Eastern",     # 7%
+        "Mixed",              # 5%
         "Native American",    # 2%
         "Pacific Islander"    # 1%
     ]
 
-    ethnicity_weights = [0.40, 0.20, 0.15, 0.12, 0.06, 0.04, 0.02, 0.01]
+    ethnicity_weights = [0.35, 0.20, 0.17, 0.13, 0.07, 0.05, 0.02, 0.01]
 
     # Sample 10,000 times to verify distribution
     samples = 10000
@@ -48,8 +48,10 @@ def test_weighted_distribution():
     print("\nKey findings:")
     print(f"  • Pacific Islander: {counter['Pacific Islander']} ({counter['Pacific Islander']/samples*100:.2f}%) - Should be ~1%")
     print(f"  • Caucasian/European: {counter['Caucasian/European']} ({counter['Caucasian/European']/samples*100:.2f}%) - Reduced from 45% to 20%")
-    print(f"  • Asian: {counter['Asian']} ({counter['Asian']/samples*100:.2f}%) - Increased from 20% to 40%")
-    print("\n✓ Distribution is now realistic and avoids over-representation of Pacific Islanders!\n")
+    print(f"  • Asian: {counter['Asian']} ({counter['Asian']/samples*100:.2f}%) - Reduced from 40% to 35% for more diversity")
+    print(f"  • African: {counter['African']} ({counter['African']/samples*100:.2f}%) - Increased to 17%")
+    print(f"  • Mixed: {counter['Mixed']} ({counter['Mixed']/samples*100:.2f}%) - Increased to 5%")
+    print("\n✓ Distribution is realistic with improved diversity across all ethnicities!\n")
 
 if __name__ == "__main__":
     test_weighted_distribution()

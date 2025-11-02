@@ -1097,11 +1097,11 @@ class PGxPipeline:
         
         # Ethnicity-aware name and demographic generation
         # Important: Different ethnic groups have different pharmacogenetic variant frequencies
-        # Weights adjusted to better reflect global population distribution
+        # Weights adjusted to balance global population trends with testing diversity
         ethnicity_profiles = [
             {
                 "ethnicity": ["Asian"],
-                "weight": 0.40,  # 40% probability (reflects ~59% global population, adjusted for diversity)
+                "weight": 0.35,  # 35% probability (reflects ~59% global population, reduced for more diversity)
                 "first_names": ["Wei", "Yuki", "Min-ho", "Sakura", "Chen", "Hana", "Raj", "Priya"],
                 "last_names": ["Wang", "Kim", "Chen", "Tanaka", "Zhang", "Lee", "Patel", "Kumar"],
                 "cities": [
@@ -1125,7 +1125,7 @@ class PGxPipeline:
             },
             {
                 "ethnicity": ["African"],
-                "weight": 0.15,  # 15% probability (reflects ~17% global population)
+                "weight": 0.17,  # 17% probability (matches ~17% global population)
                 "first_names": ["Amara", "Kwame", "Zara", "Kofi", "Nia", "Jabari", "Aisha", "Malik"],
                 "last_names": ["Okafor", "Mensah", "Diallo", "Nkosi", "Kamau", "Adeyemi", "Mwangi", "Banda"],
                 "cities": [
@@ -1136,7 +1136,7 @@ class PGxPipeline:
             },
             {
                 "ethnicity": ["Hispanic/Latino"],
-                "weight": 0.12,  # 12% probability (reflects ~8% global population)
+                "weight": 0.13,  # 13% probability (reflects ~8% global population)
                 "first_names": ["Sofia", "Diego", "Maria", "Carlos", "Isabella", "Miguel", "Valentina", "Javier"],
                 "last_names": ["Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez"],
                 "cities": [
@@ -1147,7 +1147,7 @@ class PGxPipeline:
             },
             {
                 "ethnicity": ["Middle Eastern"],
-                "weight": 0.06,  # 6% probability (reflects ~5% global population)
+                "weight": 0.07,  # 7% probability (reflects ~5% global population)
                 "first_names": ["Fatima", "Omar", "Layla", "Ahmed", "Zainab", "Hassan", "Amina", "Ali"],
                 "last_names": ["Al-Rashid", "Ibrahim", "Hassan", "Mansour", "Khalil", "Rahman", "Aziz", "Mahmoud"],
                 "cities": [
@@ -1158,7 +1158,7 @@ class PGxPipeline:
             },
             {
                 "ethnicity": ["Mixed"],
-                "weight": 0.04,  # 4% probability (ensures diverse mixed-ethnicity representation)
+                "weight": 0.05,  # 5% probability (ensures diverse mixed-ethnicity representation)
                 "first_names": ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Skyler", "Avery"],
                 "last_names": ["Santos", "Silva", "Costa", "Morales", "Nguyen", "Patel", "Anderson", "Williams"],
                 "cities": [

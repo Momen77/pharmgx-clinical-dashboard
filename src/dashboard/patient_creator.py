@@ -492,19 +492,19 @@ class PatientCreator:
         from datetime import datetime, timedelta
 
         # Diverse ethnicity options with realistic population-based weights
-        # Weights reflect global demographics to avoid bias (e.g., Pacific Islander ~0.1% globally, not 12.5%)
+        # Weights balance global demographics with testing diversity (e.g., Pacific Islander ~0.1% globally, not 12.5%)
         ethnicity_options = [
-            "Asian",              # 40% - reflects ~59% global population
+            "Asian",              # 35% - reflects ~59% global population (reduced for more diversity)
             "Caucasian/European", # 20% - reflects ~16% global population (reduced from previous 45% bias)
-            "African",            # 15% - reflects ~17% global population
-            "Hispanic/Latino",    # 12% - reflects ~8% global population
-            "Middle Eastern",     # 6%  - reflects ~5% global population
-            "Mixed",              # 4%  - ensures diverse mixed-ethnicity representation
+            "African",            # 17% - reflects ~17% global population
+            "Hispanic/Latino",    # 13% - reflects ~8% global population
+            "Middle Eastern",     # 7%  - reflects ~5% global population
+            "Mixed",              # 5%  - ensures diverse mixed-ethnicity representation
             "Native American",    # 2%  - reflects <1% global population
             "Pacific Islander"    # 1%  - reflects <0.5% global population
         ]
 
-        ethnicity_weights = [0.40, 0.20, 0.15, 0.12, 0.06, 0.04, 0.02, 0.01]
+        ethnicity_weights = [0.35, 0.20, 0.17, 0.13, 0.07, 0.05, 0.02, 0.01]
 
         # Select ethnicity based on weighted probabilities (not uniform!)
         ethnicity = [random.choices(ethnicity_options, weights=ethnicity_weights, k=1)[0]]
