@@ -618,68 +618,96 @@ class PatientCreator:
                 }
             },
             "South Asian": {
-                "Male": {
-                    "first": [
-                        # Indian Hindu names
-                        "Raj", "Rajesh", "Ravi", "Rohan", "Rahul", "Rohit", "Rakesh",
-                        "Arjun", "Aditya", "Amit", "Ankit", "Aman", "Abhishek", "Ashok",
-                        "Vikram", "Vikas", "Vinod", "Vishal", "Vijay", "Varun",
-                        "Sanjay", "Suresh", "Sunil", "Sandeep", "Sachin", "Sameer",
-                        "Kiran", "Kishore", "Krishna", "Karthik", "Karan",
-                        "Deepak", "Dev", "Dinesh", "Dhruv",
-                        # Pakistani/Muslim names
-                        "Farhan", "Faisal", "Fahad", "Faraz",
-                        "Imran", "Irfan", "Ibrahim", "Ismail",
-                        "Hassan", "Hamza", "Hasan", "Haider",
-                        "Ahmed", "Ali", "Arslan", "Asif", "Adnan",
-                        "Bilal", "Babar", "Rehan", "Rizwan", "Salman", "Shahid", "Tariq", "Usman", "Zain"
-                    ],
-                    "last": [
-                        # Indian surnames
-                        "Patel", "Shah", "Desai", "Mehta", "Modi", "Joshi", "Trivedi",
-                        "Singh", "Kaur", "Gill", "Sandhu", "Bhatia", "Kapoor", "Malhotra", "Chopra",
-                        "Kumar", "Sharma", "Verma", "Gupta", "Agarwal", "Jain", "Bansal",
-                        "Reddy", "Rao", "Naidu", "Nair", "Menon", "Iyer", "Krishnan",
-                        "Mukherjee", "Chatterjee", "Banerjee", "Ghosh", "Sen", "Das",
-                        # Pakistani/Muslim surnames
-                        "Khan", "Ahmed", "Ali", "Malik", "Sheikh", "Syed",
-                        "Rahman", "Hussain", "Hassan", "Abbas", "Raza",
-                        # Bangladeshi surnames
-                        "Chowdhury", "Rahman", "Hossain", "Islam", "Mahmud"
-                    ]
-                },
-                "Female": {
-                    "first": [
-                        # Indian Hindu names
-                        "Priya", "Preeti", "Pooja", "Pallavi", "Pratiksha",
-                        "Anjali", "Ananya", "Aishwarya", "Aditi", "Aarti", "Aparna",
-                        "Neha", "Nisha", "Nikita", "Namrata", "Nidhi",
-                        "Kavita", "Kamini", "Kiran", "Komal",
-                        "Lakshmi", "Lata", "Leela",
-                        "Meera", "Megha", "Manisha", "Madhuri", "Maya",
-                        "Devi", "Deepa", "Divya", "Diya",
-                        "Sonia", "Shreya", "Shweta", "Simran", "Sapna",
-                        "Rani", "Rekha", "Ritu", "Radha",
-                        # Pakistani/Muslim names
-                        "Aisha", "Ayesha", "Amina", "Aliya",
-                        "Fatima", "Farah", "Farhana",
-                        "Zara", "Zainab", "Zahra",
-                        "Sana", "Sara", "Sadia", "Samina",
-                        "Nadia", "Noor", "Mariam", "Maria", "Hina", "Hira"
-                    ],
-                    "last": [
-                        # Indian surnames
-                        "Patel", "Shah", "Desai", "Mehta", "Modi", "Joshi", "Trivedi",
-                        "Singh", "Kaur", "Gill", "Sandhu", "Bhatia", "Kapoor", "Malhotra", "Chopra",
-                        "Kumar", "Sharma", "Verma", "Gupta", "Agarwal", "Jain", "Bansal",
-                        "Reddy", "Rao", "Naidu", "Nair", "Menon", "Iyer", "Krishnan",
-                        "Mukherjee", "Chatterjee", "Banerjee", "Ghosh", "Sen", "Das",
-                        # Pakistani/Muslim surnames
-                        "Khan", "Ahmed", "Ali", "Malik", "Sheikh", "Syed",
-                        "Rahman", "Hussain", "Hassan", "Abbas", "Raza",
-                        # Bangladeshi surnames
-                        "Chowdhury", "Rahman", "Hossain", "Islam", "Mahmud"
-                    ]
+                "regions": {
+                    "North_Indian_Hindi": {
+                        "countries": ["India"],
+                        "Male": {
+                            "first": ["Raj", "Rajesh", "Ravi", "Rohan", "Rahul", "Rohit", "Rakesh", "Amit", "Ankit", "Aman", "Abhishek",
+                                      "Sanjay", "Suresh", "Sunil", "Sandeep", "Sachin", "Sameer", "Ajay", "Arun", "Ashok", "Atul",
+                                      "Deepak", "Dev", "Dinesh", "Dhruv", "Gaurav", "Hemant", "Jatin", "Karan", "Kunal", "Lalit",
+                                      "Manoj", "Mohit", "Naveen", "Nitin", "Pankaj", "Pramod", "Ramesh", "Saurabh", "Sumit", "Tarun"],
+                            "last": ["Sharma", "Verma", "Gupta", "Agarwal", "Jain", "Bansal", "Kumar", "Singh", "Saxena", "Mathur",
+                                     "Srivastava", "Tiwari", "Mishra", "Pandey", "Tripathi", "Chaturvedi", "Dixit", "Dwivedi", "Joshi", "Khanna"]
+                        },
+                        "Female": {
+                            "first": ["Priya", "Preeti", "Pooja", "Pallavi", "Anjali", "Ananya", "Aditi", "Aarti", "Aparna", "Neha",
+                                      "Nisha", "Nikita", "Namrata", "Nidhi", "Kavita", "Komal", "Meera", "Megha", "Manisha", "Maya",
+                                      "Deepa", "Divya", "Ritu", "Radha", "Sonia", "Shreya", "Shweta", "Simran", "Sapna", "Swati",
+                                      "Tanvi", "Vaishali", "Vidya", "Anita", "Asha", "Geeta", "Jaya", "Kiran", "Lata", "Mamta"],
+                            "last": ["Sharma", "Verma", "Gupta", "Agarwal", "Jain", "Bansal", "Kumar", "Singh", "Saxena", "Mathur",
+                                     "Srivastava", "Tiwari", "Mishra", "Pandey", "Tripathi", "Chaturvedi", "Dixit", "Dwivedi", "Joshi", "Khanna"]
+                        }
+                    },
+                    "North_Indian_Punjabi": {
+                        "countries": ["India"],
+                        "Male": {
+                            "first": ["Gurpreet", "Harpreet", "Jaspreet", "Kuldeep", "Mandeep", "Navdeep", "Parmeet", "Rajinder", "Sukhdev", "Tejinder",
+                                      "Amarjit", "Balwinder", "Gurbir", "Harbir", "Inderjit", "Joginder", "Kulwant", "Manjit", "Navjot", "Paramjit",
+                                      "Ranjit", "Satwinder", "Surinder", "Tarlok", "Varinder", "Bhagat", "Gurdev", "Hardev", "Jasbir", "Lakhwinder"],
+                            "last": ["Singh", "Kaur", "Gill", "Sandhu", "Bhatia", "Dhillon", "Grewal", "Sidhu", "Saini", "Randhawa",
+                                     "Bajwa", "Cheema", "Virk", "Brar", "Chahal", "Hundal", "Mann", "Sohi", "Bal", "Deol"]
+                        },
+                        "Female": {
+                            "first": ["Simran", "Harleen", "Jasmeet", "Kulwant", "Manpreet", "Navneet", "Parminder", "Rajinder", "Sukhjit", "Tejinder",
+                                      "Amarjit", "Balwinder", "Gurbir", "Harbir", "Inderjit", "Jagjit", "Kulvir", "Manjit", "Navjot", "Parveen",
+                                      "Ramandeep", "Satwant", "Surinder", "Taranjit", "Varinder", "Bhagwant", "Gurdev", "Hardev", "Jasbir", "Lakhwinder"],
+                            "last": ["Singh", "Kaur", "Gill", "Sandhu", "Bhatia", "Dhillon", "Grewal", "Sidhu", "Saini", "Randhawa",
+                                     "Bajwa", "Cheema", "Virk", "Brar", "Chahal", "Hundal", "Mann", "Sohi", "Bal", "Deol"]
+                        }
+                    },
+                    "South_Indian_Tamil": {
+                        "countries": ["India", "Sri Lanka"],
+                        "Male": {
+                            "first": ["Arun", "Balaji", "Dinesh", "Ganesh", "Karthik", "Kumar", "Murali", "Prakash", "Rajesh", "Ramesh",
+                                      "Suresh", "Venkat", "Vijay", "Aravind", "Bala", "Chandru", "Durai", "Ganesan", "Hari", "Ilango",
+                                      "Jagan", "Kannan", "Kumaran", "Loganathan", "Murugan", "Naveen", "Pandiyan", "Raja", "Saravanan", "Tamil"],
+                            "last": ["Kumar", "Raj", "Selvam", "Murugan", "Rajan", "Krishnan", "Narayanan", "Subramanian", "Ramachandran", "Venkatesh",
+                                     "Sundaram", "Pillai", "Nair", "Menon", "Iyer", "Iyengar", "Chettiar", "Gounder", "Mudaliar", "Nadar"]
+                        },
+                        "Female": {
+                            "first": ["Devi", "Lakshmi", "Meera", "Priya", "Radha", "Saranya", "Sita", "Uma", "Vani", "Vijaya",
+                                      "Anitha", "Bhavani", "Deepa", "Geetha", "Hema", "Indira", "Janaki", "Kamala", "Latha", "Malini",
+                                      "Nithya", "Padma", "Revathi", "Sangeetha", "Tamilselvi", "Usha", "Vasantha", "Yamuna", "Asha", "Kavitha"],
+                            "last": ["Kumar", "Raj", "Selvam", "Murugan", "Rajan", "Krishnan", "Narayanan", "Subramanian", "Ramachandran", "Venkatesh",
+                                     "Sundaram", "Pillai", "Nair", "Menon", "Iyer", "Iyengar", "Chettiar", "Gounder", "Mudaliar", "Nadar"]
+                        }
+                    },
+                    "Pakistani": {
+                        "countries": ["Pakistan"],
+                        "Male": {
+                            "first": ["Farhan", "Faisal", "Fahad", "Faraz", "Imran", "Irfan", "Ibrahim", "Ismail", "Hassan", "Hamza",
+                                      "Ahmed", "Ali", "Arslan", "Asif", "Adnan", "Bilal", "Babar", "Rehan", "Rizwan", "Salman",
+                                      "Shahid", "Tariq", "Usman", "Zain", "Aamir", "Aslam", "Azhar", "Danish", "Fawad", "Haider",
+                                      "Junaid", "Kamran", "Majid", "Naveed", "Omar", "Qaiser", "Saad", "Sohail", "Waqar", "Yasir"],
+                            "last": ["Khan", "Ahmed", "Ali", "Malik", "Sheikh", "Syed", "Hussain", "Hassan", "Abbas", "Raza",
+                                     "Akhtar", "Aziz", "Butt", "Chaudhry", "Iqbal", "Javed", "Mirza", "Qureshi", "Riaz", "Shah"]
+                        },
+                        "Female": {
+                            "first": ["Aisha", "Ayesha", "Amina", "Aliya", "Fatima", "Farah", "Farhana", "Zara", "Zainab", "Zahra",
+                                      "Sana", "Sara", "Sadia", "Samina", "Nadia", "Noor", "Mariam", "Maria", "Hina", "Hira",
+                                      "Bushra", "Dur-e-Shehwar", "Eman", "Fozia", "Kiran", "Laiba", "Mehwish", "Naila", "Rabiya", "Saima",
+                                      "Shazia", "Sidra", "Tahira", "Uzma", "Wardah", "Zoya", "Anum", "Fiza", "Maheen", "Rabia"],
+                            "last": ["Khan", "Ahmed", "Ali", "Malik", "Sheikh", "Syed", "Hussain", "Hassan", "Abbas", "Raza",
+                                     "Akhtar", "Aziz", "Butt", "Chaudhry", "Iqbal", "Javed", "Mirza", "Qureshi", "Riaz", "Shah"]
+                        }
+                    },
+                    "Bangladeshi": {
+                        "countries": ["Bangladesh"],
+                        "Male": {
+                            "first": ["Abdul", "Akram", "Alam", "Aziz", "Faruk", "Habib", "Hasan", "Iqbal", "Jalal", "Kamal",
+                                      "Latif", "Majid", "Moin", "Nasir", "Rafiq", "Rahim", "Rashid", "Salam", "Salim", "Shafiq",
+                                      "Shahin", "Shakil", "Taher", "Tariq", "Wahid", "Yusuf", "Zahid", "Zia", "Asad", "Babar"],
+                            "last": ["Chowdhury", "Rahman", "Hossain", "Islam", "Mahmud", "Ahmed", "Ali", "Haque", "Khan", "Miah",
+                                     "Alam", "Aziz", "Bhuiyan", "Chowdhury", "Hasan", "Hussain", "Kabir", "Karim", "Molla", "Uddin"]
+                        },
+                        "Female": {
+                            "first": ["Aklima", "Amina", "Ayesha", "Farida", "Fatema", "Hasina", "Jasmin", "Joya", "Khadija", "Kulsum",
+                                      "Laila", "Morium", "Nasima", "Parveen", "Rahima", "Rehana", "Rokshana", "Sabina", "Salma", "Shamsun",
+                                      "Shapla", "Sharmin", "Shireen", "Sufia", "Sultana", "Tahmina", "Taslima", "Yasmin", "Zakia", "Zebunnessa"],
+                            "last": ["Chowdhury", "Rahman", "Hossain", "Islam", "Mahmud", "Ahmed", "Ali", "Haque", "Khan", "Miah",
+                                     "Alam", "Aziz", "Bhuiyan", "Chowdhury", "Hasan", "Hussain", "Kabir", "Karim", "Molla", "Uddin"]
+                        }
+                    }
                 }
             },
             "East Asian": {
