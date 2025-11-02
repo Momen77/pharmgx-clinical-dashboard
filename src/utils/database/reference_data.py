@@ -436,24 +436,65 @@ class ReferenceDataLoader:
                 count += 1
                 
                 # ✅ ALWAYS EXTRACT: Try to insert related tables even with partial data
-                genomic_locations = extract_genomic_locations(variant)
-                self.logger.debug(f"   DEBUG: Found {len(genomic_locations)} genomic locations for {variant_id}")
-                for loc in genomic_locations:
-                    if loc:  # Insert even if incomplete
-                        self._insert_genomic_location(cursor, variant_id, loc)
+                # Use nested try/except with savepoint rollback to prevent one failure from aborting variant insert
+                try:
+                    genomic_locations = extract_genomic_locations(variant)
+                    # ✅ FIX: Filter out non-dict locations (strings, etc.)
+                    genomic_locations = [loc for loc in genomic_locations if isinstance(loc, dict)]
+                    self.logger.debug(f"   DEBUG: Found {len(genomic_locations)} valid genomic locations for {variant_id}")
+                    for loc in genomic_locations:
+                        try:
+                            self._insert_genomic_location(cursor, variant_id, loc)
+                        except Exception as e:
+                            # ✅ CRITICAL: Rollback to savepoint if transaction was aborted
+                            try:
+                                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                                self.logger.debug(f"   Rolled back to savepoint after genomic location error (non-fatal): {e}")
+                            except Exception:
+                                # If rollback fails, continue - outer handler will catch
+                                self.logger.debug(f"   Could not insert genomic location (non-fatal): {e}")
+                except Exception as e:
+                    # ✅ CRITICAL: Rollback to savepoint if transaction was aborted
+                    try:
+                        cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                        self.logger.debug(f"   Rolled back to savepoint after genomic locations extraction error (non-fatal): {e}")
+                    except Exception:
+                        self.logger.debug(f"   Could not extract genomic locations (non-fatal): {e}")
                 
                 # ✅ ALWAYS EXTRACT: Extract and insert UniProt data if available
-                uniprot_data = extract_uniprot_data(variant)
-                self.logger.debug(f"   DEBUG: UniProt data for {variant_id}: {bool(uniprot_data)} (keys: {list(uniprot_data.keys()) if uniprot_data else []})")
-                if uniprot_data:
-                    self._insert_uniprot_details(cursor, variant_id, uniprot_data)
+                try:
+                    uniprot_data = extract_uniprot_data(variant)
+                    self.logger.debug(f"   DEBUG: UniProt data for {variant_id}: {bool(uniprot_data)} (keys: {list(uniprot_data.keys()) if isinstance(uniprot_data, dict) else 'Not a dict'})")
+                    if uniprot_data and isinstance(uniprot_data, dict):
+                        self._insert_uniprot_details(cursor, variant_id, uniprot_data)
+                except Exception as e:
+                    # UniProt insert failure shouldn't abort variant insert
+                    self.logger.debug(f"   Could not insert UniProt details (non-fatal): {e}")
                 
                 # ✅ ALWAYS EXTRACT: Extract and insert xrefs
-                xrefs = extract_xrefs(variant)
-                self.logger.debug(f"   DEBUG: Found {len(xrefs)} xrefs for {variant_id}")
-                for xref in xrefs:
-                    if xref:  # Insert if xref exists
-                        self._insert_uniprot_xref(cursor, variant_id, xref)
+                try:
+                    xrefs = extract_xrefs(variant)
+                    # ✅ FIX: Filter out non-dict xrefs (strings, etc.)
+                    xrefs = [xref for xref in xrefs if isinstance(xref, dict)]
+                    self.logger.debug(f"   DEBUG: Found {len(xrefs)} valid xrefs for {variant_id}")
+                    for xref in xrefs:
+                        try:
+                            self._insert_uniprot_xref(cursor, variant_id, xref)
+                        except Exception as e:
+                            # ✅ CRITICAL: Rollback to savepoint if transaction was aborted
+                            try:
+                                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                                self.logger.debug(f"   Rolled back to savepoint after xref error (non-fatal): {e}")
+                            except Exception:
+                                # If rollback fails, continue - outer handler will catch
+                                self.logger.debug(f"   Could not insert xref (non-fatal): {e}")
+                except Exception as e:
+                    # ✅ CRITICAL: Rollback to savepoint if transaction was aborted
+                    try:
+                        cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                        self.logger.debug(f"   Rolled back to savepoint after xrefs extraction error (non-fatal): {e}")
+                    except Exception:
+                        self.logger.debug(f"   Could not extract xrefs (non-fatal): {e}")
                 
                 # Release savepoint on success
                 cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
@@ -480,8 +521,17 @@ class ReferenceDataLoader:
     def _insert_genomic_location(self, cursor, variant_id, location):
         """Insert variant genomic location"""
         try:
+            # ✅ FIX: Handle case where location might be a string instead of dict
+            if isinstance(location, str):
+                self.logger.debug(f"   DEBUG: Genomic location is a string, skipping: {location}")
+                return
+            
+            if not isinstance(location, dict):
+                self.logger.debug(f"   DEBUG: Genomic location is not a dict (type: {type(location)}), skipping")
+                return
+            
             # ✅ DEBUG: Log what we're inserting
-            self.logger.debug(f"   DEBUG: Inserting genomic location for {variant_id}: {list(location.keys()) if isinstance(location, dict) else 'Not a dict'}")
+            self.logger.debug(f"   DEBUG: Inserting genomic location for {variant_id}: {list(location.keys())}")
             
             # Extract all fields with fallbacks
             assembly = location.get("assembly") or location.get("Assembly") or "GRCh38"
@@ -524,7 +574,13 @@ class ReferenceDataLoader:
         """✅ IMPROVED: Insert UniProt variant details from extracted data"""
         try:
             # ✅ DEBUG: Log what we're inserting
-            self.logger.debug(f"   DEBUG: Inserting UniProt details for {variant_id}: {list(uniprot_data.keys())}")
+            self.logger.debug(f"   DEBUG: Inserting UniProt details for {variant_id}: {list(uniprot_data.keys()) if isinstance(uniprot_data, dict) else 'Not a dict'}")
+            
+            # ✅ FIX: Handle non-dict uniprot_data
+            if not isinstance(uniprot_data, dict):
+                self.logger.debug(f"   DEBUG: UniProt data is not a dict (type: {type(uniprot_data)}), skipping")
+                return
+            
             # Only insert if we have at least one meaningful field
             has_data = any([uniprot_data.get("alternativeSequence"), uniprot_data.get("begin"), 
                            uniprot_data.get("codon"), uniprot_data.get("molecularConsequence"),
@@ -532,6 +588,19 @@ class ReferenceDataLoader:
             if not has_data:
                 self.logger.debug(f"   DEBUG: Skipping UniProt details - no meaningful data")
                 return
+            
+            # ✅ FIX: Convert somatic_status to boolean (same fix as variants table)
+            somatic_status_raw = uniprot_data.get("somaticStatus") or uniprot_data.get("somatic_status")
+            if somatic_status_raw is not None:
+                if isinstance(somatic_status_raw, bool):
+                    somatic_status = somatic_status_raw
+                elif isinstance(somatic_status_raw, (int, str)):
+                    # Convert 0/1 or "0"/"1" or "true"/"false" to boolean
+                    somatic_status = bool(int(somatic_status_raw)) if str(somatic_status_raw).isdigit() else str(somatic_status_raw).lower() in ('true', '1', 'yes')
+                else:
+                    somatic_status = bool(somatic_status_raw)
+            else:
+                somatic_status = None
             
             cursor.execute("""
                 INSERT INTO uniprot_variant_details (
@@ -550,7 +619,7 @@ class ReferenceDataLoader:
                 uniprot_data.get("molecularConsequence"),
                 uniprot_data.get("wildType"),
                 uniprot_data.get("alternativeSequence"),  # mutated_type uses alternativeSequence
-                uniprot_data.get("somaticStatus"),
+                somatic_status,  # ✅ FIX: Use converted boolean
                 uniprot_data.get("sourceType")
             ))
             self.logger.debug(f"   ✅ Successfully inserted UniProt details for {variant_id}")
@@ -560,6 +629,11 @@ class ReferenceDataLoader:
     def _insert_uniprot_xref(self, cursor, variant_id, xref):
         """Insert UniProt cross-reference"""
         try:
+            # ✅ FIX: Handle case where xref might be a string or non-dict
+            if not isinstance(xref, dict):
+                self.logger.debug(f"   DEBUG: Xref is not a dict (type: {type(xref)}), skipping: {xref}")
+                return
+            
             # ✅ DEBUG: Log what we're inserting
             db_name = xref.get("name") or xref.get("database") or xref.get("db")
             db_id = xref.get("id") or xref.get("identifier")
@@ -577,7 +651,10 @@ class ReferenceDataLoader:
             """, (variant_id, db_name, db_id, url))
             self.logger.debug(f"   ✅ Successfully inserted xref for {variant_id}")
         except Exception as e:
-            self.logger.warning(f"❌ Could not insert UniProt xref for {variant_id}: {e}", exc_info=True)
+            # ✅ FIX: Use debug level for individual xref failures (non-critical)
+            # Transaction might already be aborted, so just log and continue
+            # Savepoint rollback will handle transaction state
+            self.logger.debug(f"Could not insert UniProt xref for {variant_id} (non-fatal): {e}")
     
     def insert_pharmgkb_annotations(self, cursor: psycopg.Cursor, profile: Dict) -> int:
         """✅ IMPROVED: Insert PharmGKB annotations using robust extraction"""
