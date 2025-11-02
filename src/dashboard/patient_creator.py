@@ -711,64 +711,70 @@ class PatientCreator:
                 }
             },
             "East Asian": {
-                "Male": {
-                    "first": [
-                        # Chinese names
-                        "Wei", "Wang", "Chen", "Li", "Zhang", "Liu", "Yang", "Huang",
-                        "Zhao", "Wu", "Zhou", "Xu", "Sun", "Ma", "Zhu", "Hu",
-                        "Guo", "He", "Gao", "Lin", "Zheng", "Liang", "Song", "Tang",
-                        "Han", "Feng", "Yu", "Dong", "Xiao", "Cheng", "Cao",
-                        # Japanese names
-                        "Hiroshi", "Takeshi", "Kenji", "Takashi", "Yuki", "Kazuo",
-                        "Akira", "Haruki", "Ryo", "Satoshi", "Masaki", "Yuto", "Daiki",
-                        "Koji", "Makoto", "Naoki", "Shota", "Takumi", "Yuuki",
-                        # Korean names
-                        "Min-jun", "Min-ho", "Seung", "Jin", "Joon", "Hwan", "Hyun",
-                        "Tae", "Sang", "Jun", "Woo", "Soo", "Dong", "Young", "Sung",
-                        "Ji-ho", "Seo-jun", "Ha-jun", "Do-yoon", "Si-woo", "Ye-jun"
-                    ],
-                    "last": [
-                        # Chinese surnames
-                        "Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao",
-                        "Wu", "Zhou", "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo", "He", "Gao",
-                        "Lin", "Zheng", "Liang", "Song", "Tang", "Han", "Feng", "Yu", "Dong",
-                        # Japanese surnames
-                        "Tanaka", "Suzuki", "Takahashi", "Watanabe", "Ito", "Yamamoto",
-                        "Nakamura", "Kobayashi", "Kato", "Yoshida", "Yamada", "Sasaki",
-                        "Yamaguchi", "Matsumoto", "Inoue", "Kimura", "Hayashi", "Shimizu",
-                        # Korean surnames
-                        "Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon",
-                        "Jang", "Lim", "Han", "Oh", "Seo", "Shin", "Kwon", "Hwang"
-                    ]
-                },
-                "Female": {
-                    "first": [
-                        # Chinese names
-                        "Mei", "Lin", "Ying", "Xiu", "Jing", "Hui", "Fang", "Min",
-                        "Yan", "Qing", "Xia", "Juan", "Ling", "Li", "Yue", "Rui",
-                        "Shu", "Xin", "Yu", "Na", "Hua", "Ping", "Lan", "Hong",
-                        # Japanese names
-                        "Yuki", "Sakura", "Hana", "Aiko", "Yui", "Haruka", "Kana",
-                        "Aya", "Mio", "Rina", "Saki", "Nana", "Miyu", "Ayaka",
-                        "Yuka", "Miyuki", "Akiko", "Keiko", "Emi", "Kaori", "Rei",
-                        # Korean names
-                        "Ji-woo", "Min-ji", "Seo-yeon", "Hye", "Yuna", "Su", "Eun",
-                        "Soo-jin", "Ji-hye", "Mi", "Young", "Sun", "Hee", "Jin",
-                        "Ha-eun", "Seo-hyun", "Ye-ji", "Chae-won", "Ji-yoo", "Soo-ah"
-                    ],
-                    "last": [
-                        # Chinese surnames
-                        "Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao",
-                        "Wu", "Zhou", "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo", "He", "Gao",
-                        "Lin", "Zheng", "Liang", "Song", "Tang", "Han", "Feng", "Yu", "Dong",
-                        # Japanese surnames
-                        "Tanaka", "Suzuki", "Takahashi", "Watanabe", "Ito", "Yamamoto",
-                        "Nakamura", "Kobayashi", "Kato", "Yoshida", "Yamada", "Sasaki",
-                        "Yamaguchi", "Matsumoto", "Inoue", "Kimura", "Hayashi", "Shimizu",
-                        # Korean surnames
-                        "Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon",
-                        "Jang", "Lim", "Han", "Oh", "Seo", "Shin", "Kwon", "Hwang"
-                    ]
+                "regions": {
+                    "Chinese": {
+                        "countries": ["China", "Taiwan", "Hong Kong"],
+                        "Male": {
+                            "first": ["Wei", "Wang", "Chen", "Li", "Zhang", "Liu", "Yang", "Huang", "Zhao", "Wu",
+                                      "Zhou", "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo", "He", "Gao", "Lin",
+                                      "Zheng", "Liang", "Song", "Tang", "Han", "Feng", "Yu", "Dong", "Xiao", "Cheng",
+                                      "Cao", "Peng", "Luo", "Yuan", "Jiang", "Gu", "Cui", "Lu", "Shi", "Tian"],
+                            "last": ["Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao", "Wu", "Zhou",
+                                     "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo", "He", "Gao", "Lin", "Zheng",
+                                     "Liang", "Song", "Tang", "Han", "Feng", "Yu", "Dong", "Cao", "Peng", "Yuan"]
+                        },
+                        "Female": {
+                            "first": ["Mei", "Lin", "Ying", "Xiu", "Jing", "Hui", "Fang", "Min", "Yan", "Qing",
+                                      "Xia", "Juan", "Ling", "Li", "Yue", "Rui", "Shu", "Xin", "Yu", "Na",
+                                      "Hua", "Ping", "Lan", "Hong", "Jie", "Wen", "Xue", "Rou", "Shan", "Zhen",
+                                      "Qian", "Fen", "Cui", "Dan", "Fei", "Gui", "He", "Ju", "Kun", "Man"],
+                            "last": ["Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao", "Wu", "Zhou",
+                                     "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo", "He", "Gao", "Lin", "Zheng",
+                                     "Liang", "Song", "Tang", "Han", "Feng", "Yu", "Dong", "Cao", "Peng", "Yuan"]
+                        }
+                    },
+                    "Japanese": {
+                        "countries": ["Japan"],
+                        "Male": {
+                            "first": ["Hiroshi", "Takeshi", "Kenji", "Takashi", "Yuki", "Kazuo", "Akira", "Haruki", "Ryo", "Satoshi",
+                                      "Masaki", "Yuto", "Daiki", "Koji", "Makoto", "Naoki", "Shota", "Takumi", "Yuuki", "Kaito",
+                                      "Sho", "Ren", "Hayato", "Kenta", "Taro", "Ichiro", "Jiro", "Kenji", "Minoru", "Osamu",
+                                      "Shigeru", "Tatsuya", "Tomoya", "Yasuo", "Yoshio", "Katsuo", "Masao", "Noboru", "Shiro", "Toshio"],
+                            "last": ["Tanaka", "Suzuki", "Takahashi", "Watanabe", "Ito", "Yamamoto", "Nakamura", "Kobayashi", "Kato", "Yoshida",
+                                     "Yamada", "Sasaki", "Yamaguchi", "Matsumoto", "Inoue", "Kimura", "Hayashi", "Shimizu", "Saito", "Endo",
+                                     "Fujita", "Okada", "Goto", "Hasegawa", "Murakami", "Kondo", "Ishikawa", "Maeda", "Fujii", "Ogawa"]
+                        },
+                        "Female": {
+                            "first": ["Yuki", "Sakura", "Hana", "Aiko", "Yui", "Haruka", "Kana", "Aya", "Mio", "Rina",
+                                      "Saki", "Nana", "Miyu", "Ayaka", "Yuka", "Miyuki", "Akiko", "Keiko", "Emi", "Kaori",
+                                      "Rei", "Chika", "Fumiko", "Hanako", "Junko", "Kumiko", "Mariko", "Noriko", "Reiko", "Sachiko",
+                                      "Tomoko", "Yoko", "Ayumi", "Chihiro", "Eriko", "Hitomi", "Kiyomi", "Mayumi", "Natsuko", "Satomi"],
+                            "last": ["Tanaka", "Suzuki", "Takahashi", "Watanabe", "Ito", "Yamamoto", "Nakamura", "Kobayashi", "Kato", "Yoshida",
+                                     "Yamada", "Sasaki", "Yamaguchi", "Matsumoto", "Inoue", "Kimura", "Hayashi", "Shimizu", "Saito", "Endo",
+                                     "Fujita", "Okada", "Goto", "Hasegawa", "Murakami", "Kondo", "Ishikawa", "Maeda", "Fujii", "Ogawa"]
+                        }
+                    },
+                    "Korean": {
+                        "countries": ["South Korea"],
+                        "Male": {
+                            "first": ["Min-jun", "Min-ho", "Seung", "Jin", "Joon", "Hwan", "Hyun", "Tae", "Sang", "Jun",
+                                      "Woo", "Soo", "Dong", "Young", "Sung", "Ji-ho", "Seo-jun", "Ha-jun", "Do-yoon", "Si-woo",
+                                      "Ye-jun", "Jae", "Kyung", "Ho", "Chul", "Hyung", "Myung", "Byung", "Chang", "Dae",
+                                      "Gyu", "Ik", "Jong", "Ki", "Nam", "Pil", "Sang", "Tae", "Won", "Yong"],
+                            "last": ["Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon", "Jang", "Lim",
+                                     "Han", "Oh", "Seo", "Shin", "Kwon", "Hwang", "Ahn", "Song", "Hong", "Baek",
+                                     "Nam", "Moon", "Yang", "Ko", "Kwak", "Jeon", "Son", "Yoo", "Ryu", "Noh"]
+                        },
+                        "Female": {
+                            "first": ["Ji-woo", "Min-ji", "Seo-yeon", "Hye", "Yuna", "Su", "Eun", "Soo-jin", "Ji-hye", "Mi",
+                                      "Young", "Sun", "Hee", "Jin", "Ha-eun", "Seo-hyun", "Ye-ji", "Chae-won", "Ji-yoo", "Soo-ah",
+                                      "Kyung", "Bo", "Ae", "Ok", "Soon", "Ja", "Sook", "Jung", "Hwa", "Myung",
+                                      "Yeon", "Hyun", "Seon", "Hyo", "Na", "Da", "Ra", "Sa", "A", "Bi"],
+                            "last": ["Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon", "Jang", "Lim",
+                                     "Han", "Oh", "Seo", "Shin", "Kwon", "Hwang", "Ahn", "Song", "Hong", "Baek",
+                                     "Nam", "Moon", "Yang", "Ko", "Kwak", "Jeon", "Son", "Yoo", "Ryu", "Noh"]
+                        }
+                    }
                 }
             },
             "Southeast Asian": {
