@@ -20,7 +20,7 @@ qrcode>=7.4.0
 google-genai>=0.7.0
 
 # Database dependencies
-google-cloud-sql-python-connector
+cloud-sql-python-connector
 psycopg
 
 # Utilities
