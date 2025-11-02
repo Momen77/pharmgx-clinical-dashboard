@@ -222,7 +222,7 @@ def render_d3_visualization(hierarchy_data):
           // Genes container - bright blue
           if (n === "genes") return "#00BFFF";
           // Gene symbols - blue
-          if (n.match(/^(slco1b1|g6pd|cyp\d+|tpmt|dpyd|ugt1a1|nudt15|cfp|cbc|dpy-?d|dihydroxy|udp-glucur|thiopurine|nucleoside|no variants)$/i)) return "#1e90ff";
+          if (n.match(/^(slco1b1|g6pd|cyp\\d+|tpmt|dpyd|ugt1a1|nudt15|cfp|cbc|dpy-?d|dihydroxy|udp-glucur|thiopurine|nucleoside|no variants)$/i)) return "#1e90ff";
           // Demographics container - cyan
           if (n === "demographics") return "#17becf";
           // Demographics items - light cyan
@@ -236,7 +236,7 @@ def render_d3_visualization(hierarchy_data):
           // Medication items - light green
           if (n.includes("medication") && !n.includes("medications")) return "#90EE90";
           // Variants (rs IDs) - orange
-          if (n.match(/^rs\d+/) || (n.includes("variant") && !n.includes("variants"))) return "#FF7F50";
+          if (n.match(/^rs\\d+/) || (n.includes("variant") && !n.includes("variants"))) return "#FF7F50";
           // Drugs - light green
           if (n.includes("drug") || n.includes(" - ")) return "#90EE90";
           // Default - gray

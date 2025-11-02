@@ -62,6 +62,7 @@ class Config:
     def get(self, key: str, default: Any = None) -> Any:
         """
         Get configuration value by dot-notation key
+        Falls back to Streamlit secrets if config value is empty
         
         Args:
             key: Configuration key (e.g., 'api.ncbi_email')
@@ -77,9 +78,98 @@ class Config:
             if isinstance(value, dict) and k in value:
                 value = value[k]
             else:
-                return default
+                value = None
+                break
         
-        return value
+        # If value is empty/None, try Streamlit secrets as fallback
+        if not value or value == "":
+            value = self._get_from_secrets(key)
+        
+        return value if value else default
+    
+    def _get_from_secrets(self, key: str) -> Any:
+        """
+        Try to get value from Streamlit secrets or secrets.toml
+        
+        Args:
+            key: Configuration key (e.g., 'api.bioportal_api_key')
+            
+        Returns:
+            Value from secrets or None
+        """
+        # Try Streamlit secrets first (when running in Streamlit)
+        try:
+            import streamlit as st
+            # For nested keys like 'api.ncbi_email', try both:
+            # 1. secrets['api']['ncbi_email']
+            # 2. secrets['ncbi_email'] (flattened)
+            keys = key.split('.')
+            
+            # Try nested access
+            try:
+                value = st.secrets
+                for k in keys:
+                    value = value[k]
+                if value:
+                    return value
+            except (KeyError, TypeError):
+                pass
+            
+            # Try flattened key (e.g., 'bioportal_api_key' directly)
+            if len(keys) > 1:
+                flat_key = keys[-1]  # Get last part
+                try:
+                    value = st.secrets.get(flat_key)
+                    if value:
+                        return value
+                except (KeyError, AttributeError):
+                    pass
+        except ImportError:
+            # Not in Streamlit context, try loading secrets.toml manually
+            try:
+                import toml
+                secrets_path = self._find_secrets_toml()
+                if secrets_path and secrets_path.exists():
+                    with open(secrets_path, 'r') as f:
+                        secrets = toml.load(f)
+                    
+                    # Try nested access
+                    keys = key.split('.')
+                    value = secrets
+                    try:
+                        for k in keys:
+                            value = value[k]
+                        if value:
+                            return value
+                    except (KeyError, TypeError):
+                        pass
+                    
+                    # Try flattened key
+                    if len(keys) > 1:
+                        flat_key = keys[-1]
+                        value = secrets.get(flat_key)
+                        if value:
+                            return value
+            except:
+                pass
+        
+        return None
+    
+    def _find_secrets_toml(self) -> Path:
+        """Find secrets.toml file"""
+        # Try common locations relative to config.yaml
+        base_dir = self.config_path.parent
+        candidates = [
+            base_dir / ".streamlit" / "secrets.toml",
+            base_dir / "src" / "pharmgx-clinical-dashboard" / ".streamlit" / "secrets.toml",
+            base_dir.parent / ".streamlit" / "secrets.toml",
+        ]
+        
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        
+        return None
     
     @property
     def ncbi_email(self) -> str:
