@@ -1,6 +1,7 @@
 """
-Patient Clinical Data Loader - SCHEMA ALIGNED
+Patient Clinical Data Loader - SCHEMA ALIGNED v2.1
 Handles: current_conditions, current_medications, organ_function_labs, lifestyle_factors
+FIXED: Removed snomed_url from lifestyle_factors INSERT (does not exist in schema)
 """
 
 import json
@@ -261,19 +262,34 @@ class PatientClinicalLoader:
         return count
     
     def insert_lifestyle_factors(self, cursor: psycopg.Cursor, profile: Dict) -> int:
-        """✅ SCHEMA-ALIGNED: Insert lifestyle factors (mostly correct already)"""
+        """
+        ✅ SCHEMA-ALIGNED v2.1: Insert lifestyle factors
+        CRITICAL FIX: lifestyle_factors table does NOT have snomed_url column
+        Only inserts: patient_id, factor_type, snomed_code, rdfs_label, status, frequency, note
+        """
         count = 0
         patient_id = profile.get("patient_id")
         lifestyle_factors = profile.get("clinical_information", {}).get("lifestyle_factors", [])
         
+        # Check transaction state before starting
+        try:
+            test_cursor = cursor.connection.cursor()
+            test_cursor.execute("SELECT 1")
+            test_cursor.close()
+        except Exception as tx_check:
+            if "transaction is aborted" in str(tx_check).lower():
+                self.logger.error("❌ Transaction already aborted before lifestyle_factors insert")
+                raise  # Re-raise to let main_loader handle transaction restart
+        
         for idx, factor in enumerate(lifestyle_factors):
-            savepoint_name = f"lifestyle_{idx}"
+            savepoint_name = f"lifestyle_sp_{idx}"
             try:
                 # CRITICAL: Create savepoint BEFORE any operation to protect transaction
                 cursor.execute(f"SAVEPOINT {savepoint_name}")
                 
-                # SCHEMA-FIXED: lifestyle_factors table does NOT have snomed_url column
-                # Insert with only the columns that exist: patient_id, factor_type, snomed_code, rdfs_label, status, frequency, note
+                # CRITICAL FIX v2.1: lifestyle_factors table does NOT have snomed_url column
+                # Schema columns are: patient_id, factor_type, snomed_code, rdfs_label, status, frequency, note
+                # DO NOT INCLUDE snomed_url - it does not exist in the database schema
                 cursor.execute("""
                     INSERT INTO lifestyle_factors (
                         patient_id, factor_type, snomed_code, rdfs_label,
@@ -294,33 +310,24 @@ class PatientClinicalLoader:
                 cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
             except Exception as e:
                 error_msg = str(e)
-                self.logger.warning(f"Could not insert lifestyle factor: {error_msg}")
+                self.logger.warning(f"⚠️ Could not insert lifestyle factor {idx}: {error_msg}")
                 
-                # CRITICAL: Rollback to savepoint IMMEDIATELY to prevent transaction abort
+                # CRITICAL: Immediately rollback to savepoint to prevent transaction abort
                 try:
-                    # Check if transaction is already aborted
-                    if "transaction is aborted" in error_msg.lower():
-                        # Transaction already aborted - can't use savepoints anymore
-                        # Need to rollback entire transaction and restart
-                        cursor.connection.rollback()
-                        # Restart transaction
-                        cursor.execute("BEGIN")
-                        self.logger.warning("Transaction rolled back and restarted due to abort")
-                        # Skip this factor and continue
-                    else:
-                        # Normal error - rollback to savepoint and continue
-                        cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                    # Always try to rollback to savepoint first (works if transaction not aborted)
+                    cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                    self.logger.debug(f"✓ Rolled back to savepoint {savepoint_name}")
                 except Exception as rollback_error:
-                    # If rollback fails, transaction is definitely aborted
-                    self.logger.error(f"Failed to recover from error - transaction aborted: {rollback_error}")
-                    # Rollback entire transaction
-                    try:
-                        cursor.connection.rollback()
-                        cursor.execute("BEGIN")
-                        self.logger.warning("Full transaction rollback and restart")
-                    except:
-                        pass
-                    # Don't re-raise - skip this factor and continue
+                    rollback_msg = str(rollback_error)
+                    # If rollback fails, transaction is aborted
+                    if "transaction is aborted" in rollback_msg.lower() or "current transaction is aborted" in rollback_msg.lower():
+                        self.logger.error(f"❌ Transaction aborted - cannot use savepoint. Error: {error_msg}")
+                        # Re-raise to let main_loader.py handle full transaction restart
+                        raise RuntimeError(f"Transaction aborted in lifestyle_factors insert: {error_msg}") from e
+                    else:
+                        self.logger.error(f"❌ Savepoint rollback failed: {rollback_error}")
+                        # Re-raise original error
+                        raise
         
         self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} lifestyle factors")
         return count

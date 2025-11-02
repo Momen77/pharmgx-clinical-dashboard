@@ -123,24 +123,42 @@ class DatabaseLoader:
             
             # ✅ PHASE 3: Load Patient Clinical Data
             self.logger.info("🏥 PHASE 3: Loading patient clinical data...")
-            try:
-                total_records += self.patient_clinical_loader.load_all(cursor, profile)
-            except Exception as phase3_error:
-                error_msg = str(phase3_error)
-                # Check if transaction aborted
-                if "transaction is aborted" in error_msg.lower():
-                    self.logger.warning("🔄 Transaction aborted in Phase 3 - attempting recovery")
-                    try:
-                        cursor.connection.rollback()
-                        cursor.execute("BEGIN")
-                        self.logger.info("✅ Transaction restarted - retrying Phase 3")
-                        # Retry Phase 3 (will skip problematic inserts via savepoints)
-                        total_records += self.patient_clinical_loader.load_all(cursor, profile)
-                    except Exception as retry_error:
-                        self.logger.error(f"❌ Phase 3 retry failed: {retry_error}")
-                        # Continue anyway - partial data is better than none
-                else:
-                    raise  # Re-raise non-abort errors
+            phase3_attempts = 0
+            max_phase3_attempts = 2
+            while phase3_attempts < max_phase3_attempts:
+                try:
+                    phase3_attempts += 1
+                    phase3_records = self.patient_clinical_loader.load_all(cursor, profile)
+                    total_records += phase3_records
+                    self.logger.info(f"✅ Phase 3 completed: {phase3_records} records")
+                    break  # Success - exit retry loop
+                except Exception as phase3_error:
+                    error_msg = str(phase3_error)
+                    self.logger.warning(f"⚠️ Phase 3 attempt {phase3_attempts} failed: {error_msg}")
+                    
+                    # Check if transaction aborted or error mentions transaction
+                    if "transaction is aborted" in error_msg.lower() or "current transaction is aborted" in error_msg.lower():
+                        if phase3_attempts < max_phase3_attempts:
+                            self.logger.warning("🔄 Transaction aborted in Phase 3 - attempting recovery")
+                            try:
+                                # Rollback and restart transaction
+                                connection.rollback()
+                                cursor.execute("BEGIN")
+                                self.logger.info(f"✅ Transaction restarted (attempt {phase3_attempts + 1}/{max_phase3_attempts})")
+                                # Continue to retry
+                            except Exception as recovery_error:
+                                self.logger.error(f"❌ Failed to recover transaction: {recovery_error}")
+                                # If we can't recover, break and continue with other phases
+                                break
+                        else:
+                            self.logger.error("❌ Phase 3 failed after max attempts - continuing with other phases")
+                            # Don't raise - allow other phases to continue
+                            break
+                    else:
+                        # Non-transaction error - log and continue
+                        self.logger.error(f"❌ Phase 3 non-transaction error: {error_msg}")
+                        # Don't retry non-transaction errors
+                        break
             
             # ✅ PHASE 4: Load Patient Variants
             self.logger.info("🧬 PHASE 4: Loading patient variants...")
