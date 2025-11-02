@@ -486,9 +486,27 @@ elif page == "🔬 Run Test":
     
     if st.session_state.get('patient_created') and st.session_state.get('selected_genes'):
 
-        # Check if test is running - either button was clicked OR test results exist but not complete
-        # We need to check button state first before defining it
-        button_clicked = st.session_state.get('_test_started', False)
+        # Check current test state first (before rendering button)
+        already_running = st.session_state.get('_test_started', False) or (st.session_state.get('test_results') and not st.session_state.get('test_complete', False))
+        
+        # Render button only if test is not running
+        run_test_button = False
+        if not already_running:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                run_test_button = st.button(
+                    "🧬 Run Pharmacogenetic Test",
+                    type="primary",
+                    width='stretch',
+                    key="run_test_main_button"
+                )
+        
+        # If button was clicked, mark test as started immediately (before checking test_is_running)
+        if run_test_button:
+            st.session_state['_test_started'] = True
+        
+        # Check if test is running - either button was clicked (this run) OR test already started OR test results exist but not complete
+        button_clicked = run_test_button or st.session_state.get('_test_started', False)
         test_is_running = button_clicked or (st.session_state.get('test_results') and not st.session_state.get('test_complete', False))
         
         # Only show info banner, test summary and patient info BEFORE the test runs
@@ -526,24 +544,8 @@ elif page == "🔬 Run Test":
 
             st.divider()
 
-        # Add a button to start the test (always visible when not running)
-        if not test_is_running:
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                run_test_button = st.button(
-                    "🧬 Run Pharmacogenetic Test",
-                    type="primary",
-                    width='stretch',
-                    key="run_test_main_button"
-                )
-        else:
-            # Test is running, button not visible, but we still need the variable
-            run_test_button = False
-
-        # Only run pipeline if button is clicked
+        # Only run pipeline if button was clicked (after rerun)
         if run_test_button:
-            # Mark test as started so summary section gets hidden
-            st.session_state['_test_started'] = True
             if PGxPipeline is None:
                 st.error("PGxPipeline not available - check imports")
                 if _import_errors:
