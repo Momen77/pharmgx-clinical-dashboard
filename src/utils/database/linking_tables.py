@@ -1,8 +1,12 @@
 """
-Linking Tables Loader - SCHEMA ALIGNED
+Linking Tables Loader - SCHEMA ALIGNED v2.0
 Handles: medication_to_variant_links, pgx_conflicts, conflict_variants, 
          ethnicity_medication_adjustments, population_frequencies
+FIXED: medication_to_variant_links - use medication_id (not drug_name), timestamp (not link_timestamp)
 """
+
+# VERSION: v2.0.20251102 - Force module reload
+_MODULE_VERSION = "2.0.20251102"
 
 import json
 import logging
@@ -10,6 +14,10 @@ from datetime import datetime
 from typing import Dict
 import psycopg
 from .utils import parse_date
+
+# Log module version on import
+_logger_init = logging.getLogger(__name__)
+_logger_init.info(f"📦 Loading LinkingTablesLoader module v{_MODULE_VERSION}")
 
 
 class LinkingTablesLoader:
@@ -31,12 +39,23 @@ class LinkingTablesLoader:
     
     def insert_medication_to_variant_links(self, cursor: psycopg.Cursor, profile: Dict) -> int:
         """
-        ✅ SCHEMA-ALIGNED: Insert medication_to_variant_links
-        CRITICAL FIX: Added pharmgkb_annotation_id (was missing!)
+        ✅ SCHEMA-ALIGNED v2.0: Insert medication_to_variant_links
+        CRITICAL FIX: Schema uses medication_id (not drug_name), timestamp (not link_timestamp),
+                      clinical_annotation_types JSONB (not clinical_annotation_type)
         """
         count = 0
         patient_id = profile.get("patient_id")
         variants = profile.get("variants", [])
+        
+        # Build medication name to ID mapping from patient's current medications
+        # This allows us to link variants to medications the patient actually takes
+        patient_medications = profile.get("clinical_information", {}).get("current_medications", [])
+        med_name_to_id = {}
+        for med in patient_medications:
+            if "_medication_id" in med:
+                med_name = med.get("schema:name") or med.get("rdfs:label") or med.get("drug_name")
+                if med_name:
+                    med_name_to_id[med_name.lower()] = med["_medication_id"]
         
         for variant in variants:
             gene_symbol = variant.get("gene")
@@ -48,6 +67,11 @@ class LinkingTablesLoader:
             
             for drug_entry in drugs:
                 drug_name = drug_entry.get("name")
+                if not drug_name:
+                    continue
+                
+                # Look up medication_id if this drug is in patient's medications
+                medication_id = med_name_to_id.get(drug_name.lower())
                 
                 # Get the corresponding PharmGKB annotation ID
                 pharmgkb_annotation_id = None
@@ -64,34 +88,56 @@ class LinkingTablesLoader:
                     if pharmgkb_annotation_id:
                         break
                 
+                # Convert clinical_annotation_type to JSONB array format
+                clinical_annotation_type = drug_entry.get("clinical_annotation_type")
+                if clinical_annotation_type:
+                    clinical_annotation_types = json.dumps([clinical_annotation_type]) if isinstance(clinical_annotation_type, str) else json.dumps(clinical_annotation_type) if isinstance(clinical_annotation_type, list) else None
+                else:
+                    clinical_annotation_types = None
+                
+                # Use savepoint to prevent transaction abort
+                savepoint_name = f"med_variant_link_{count}"
                 try:
-                    # SCHEMA-ALIGNED INSERT with pharmgkb_annotation_id
-                    cursor.execute("""
+                    cursor.execute(f"SAVEPOINT {savepoint_name}")
+                    
+                    # SCHEMA-FIXED: Use medication_id (not drug_name), timestamp (not link_timestamp),
+                    #              clinical_annotation_types JSONB (not clinical_annotation_type)
+                    insert_sql = """
                         INSERT INTO medication_to_variant_links (
-                            patient_id, gene_symbol, variant_id, rsid, drug_name,
+                            patient_id, medication_id, gene_symbol, variant_id, rsid,
                             recommendation, evidence_level,
                             pharmgkb_annotation_id,
-                            clinical_annotation_type, link_timestamp
+                            clinical_annotation_types, timestamp
                         )
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
+                    """
+                    
+                    cursor.execute(insert_sql, (
                         patient_id,
+                        medication_id,  # Can be NULL if drug not in patient's medications
                         gene_symbol,
                         variant_id,
                         rsid,
-                        drug_name,
                         drug_entry.get("recommendation"),
                         drug_entry.get("evidence_level"),
-                        # FIXED: Critical foreign key added!
-                        pharmgkb_annotation_id,  # pharmgkb_annotation_id
-                        drug_entry.get("clinical_annotation_type"),
-                        datetime.now()
+                        pharmgkb_annotation_id,
+                        clinical_annotation_types,  # JSONB array
+                        datetime.now()  # timestamp column
                     ))
                     count += 1
+                    cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
                 except Exception as e:
-                    self.logger.warning(f"Could not insert medication-variant link for {drug_name}: {e}")
+                    error_msg = str(e)
+                    self.logger.warning(f"Could not insert medication-variant link for {drug_name}: {error_msg}")
+                    try:
+                        cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                    except Exception as rollback_error:
+                        if "transaction is aborted" in str(rollback_error).lower():
+                            self.logger.error(f"Transaction aborted - cannot use savepoint. Original error: {error_msg}")
+                            # Re-raise to trigger transaction restart in main_loader
+                            raise RuntimeError(f"Transaction aborted in medication_to_variant_links: {error_msg}") from e
         
-        self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} medication-variant links (with pharmgkb_annotation_id)")
+        self.logger.info(f"✓ SCHEMA-ALIGNED: Inserted {count} medication-variant links")
         return count
     
     def insert_pgx_conflicts(self, cursor: psycopg.Cursor, profile: Dict) -> int:

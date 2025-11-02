@@ -1,14 +1,22 @@
 """
-Patient Clinical Data Loader - SCHEMA ALIGNED v2.1
+Patient Clinical Data Loader - SCHEMA ALIGNED v2.2
 Handles: current_conditions, current_medications, organ_function_labs, lifestyle_factors
 FIXED: Removed snomed_url from lifestyle_factors INSERT (does not exist in schema)
+CACHE-BUST v2.2: Changed version to force Streamlit Cloud to reload module
 """
+
+# VERSION: v2.2.20251102 - Force module reload
+_MODULE_VERSION = "2.2.20251102"
 
 import json
 import logging
 from typing import Dict
 import psycopg
 from .utils import parse_date
+
+# Log module version on import to verify correct version is loaded
+_logger_init = logging.getLogger(__name__)
+_logger_init.info(f"📦 Loading PatientClinicalLoader module v{_MODULE_VERSION} - CACHE-BUST VERSION")
 
 
 class PatientClinicalLoader:
@@ -263,9 +271,10 @@ class PatientClinicalLoader:
     
     def insert_lifestyle_factors(self, cursor: psycopg.Cursor, profile: Dict) -> int:
         """
-        ✅ SCHEMA-ALIGNED v2.1: Insert lifestyle factors
+        ✅ SCHEMA-ALIGNED v2.2: Insert lifestyle factors
         CRITICAL FIX: lifestyle_factors table does NOT have snomed_url column
         Only inserts: patient_id, factor_type, snomed_code, rdfs_label, status, frequency, note
+        Module version: v2.2.20251102 (cache-bust to force Streamlit Cloud reload)
         """
         count = 0
         patient_id = profile.get("patient_id")
@@ -287,16 +296,22 @@ class PatientClinicalLoader:
                 # CRITICAL: Create savepoint BEFORE any operation to protect transaction
                 cursor.execute(f"SAVEPOINT {savepoint_name}")
                 
-                # CRITICAL FIX v2.1: lifestyle_factors table does NOT have snomed_url column
-                # Schema columns are: patient_id, factor_type, snomed_code, rdfs_label, status, frequency, note
+                # CRITICAL FIX v2.2: lifestyle_factors table does NOT have snomed_url column
+                # Schema columns are ONLY: patient_id, factor_type, snomed_code, rdfs_label, status, frequency, note
                 # DO NOT INCLUDE snomed_url - it does not exist in the database schema
-                cursor.execute("""
+                # This SQL statement has been verified - no snomed_url column
+                insert_sql = """
                     INSERT INTO lifestyle_factors (
                         patient_id, factor_type, snomed_code, rdfs_label,
                         status, frequency, note
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (
+                """
+                # DEFENSIVE: Double-check SQL doesn't contain snomed_url
+                if "snomed_url" in insert_sql.lower():
+                    raise RuntimeError(f"CRITICAL: SQL statement contains snomed_url! This should not happen. SQL: {insert_sql}")
+                
+                cursor.execute(insert_sql, (
                     patient_id,
                     factor.get("factor_type"),
                     factor.get("snomed:code") or factor.get("snomed_code"),

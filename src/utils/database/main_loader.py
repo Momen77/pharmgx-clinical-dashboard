@@ -166,9 +166,44 @@ class DatabaseLoader:
             
             # ✅ PHASE 5: Load Linking Tables & Summaries
             self.logger.info("🔗 PHASE 5: Loading linking tables and summaries...")
-            total_records += self.linking_loader.load_all(cursor, profile)
-            total_records += self.literature_loader.load_all(cursor, profile)
-            total_records += self.summaries_loader.load_all(cursor, profile)
+            phase5_attempts = 0
+            max_phase5_attempts = 2
+            while phase5_attempts < max_phase5_attempts:
+                try:
+                    phase5_attempts += 1
+                    phase5_records = self.linking_loader.load_all(cursor, profile)
+                    phase5_records += self.literature_loader.load_all(cursor, profile)
+                    phase5_records += self.summaries_loader.load_all(cursor, profile)
+                    total_records += phase5_records
+                    self.logger.info(f"✅ Phase 5 completed: {phase5_records} records")
+                    break  # Success - exit retry loop
+                except Exception as phase5_error:
+                    error_msg = str(phase5_error)
+                    self.logger.warning(f"⚠️ Phase 5 attempt {phase5_attempts} failed: {error_msg}")
+                    
+                    # Check if transaction aborted
+                    if "transaction is aborted" in error_msg.lower() or "current transaction is aborted" in error_msg.lower():
+                        if phase5_attempts < max_phase5_attempts:
+                            self.logger.warning("🔄 Transaction aborted in Phase 5 - attempting recovery")
+                            try:
+                                # Rollback and restart transaction
+                                connection.rollback()
+                                cursor.execute("BEGIN")
+                                self.logger.info(f"✅ Transaction restarted (attempt {phase5_attempts + 1}/{max_phase5_attempts})")
+                                # Continue to retry
+                            except Exception as recovery_error:
+                                self.logger.error(f"❌ Failed to recover transaction: {recovery_error}")
+                                # If we can't recover, break and continue to commit
+                                break
+                        else:
+                            self.logger.error("❌ Phase 5 failed after max attempts - continuing to commit")
+                            # Don't raise - allow commit to proceed with partial data
+                            break
+                    else:
+                        # Non-transaction error - log and continue
+                        self.logger.error(f"❌ Phase 5 non-transaction error: {error_msg}")
+                        # Don't retry non-transaction errors
+                        break
             
             # Get patient_id for verification
             patient_id = profile.get('patient_id', '')
@@ -176,15 +211,32 @@ class DatabaseLoader:
             # Commit transaction - CRITICAL: Use connection.commit() NOT cursor.execute("COMMIT")
             self.logger.info("🔄 Committing transaction...")
             
+            # CRITICAL: Check if transaction is already aborted before attempting commit
+            try:
+                test_cursor = connection.cursor()
+                test_cursor.execute("SELECT 1")
+                test_cursor.fetchone()
+                test_cursor.close()
+            except Exception as tx_check:
+                if "transaction is aborted" in str(tx_check).lower() or "current transaction is aborted" in str(tx_check).lower():
+                    self.logger.error("❌ Transaction is already aborted before commit - cannot commit")
+                    raise RuntimeError("Transaction aborted - data cannot be committed") from tx_check
+            
             # CRITICAL: Ensure autocommit is False before committing
             if hasattr(connection, 'autocommit') and connection.autocommit:
                 self.logger.warning("⚠️ Autocommit was True - disabling it")
                 connection.autocommit = False
             
             # Get transaction status before commit
-            cursor.execute("SELECT txid_current(), pg_backend_pid(), current_setting('transaction_isolation', true)")
-            tx_before = cursor.fetchone()
-            self.logger.info(f"🔍 Transaction ID before commit: {tx_before[0]}, PID: {tx_before[1]}, Isolation: {tx_before[2]}")
+            try:
+                cursor.execute("SELECT txid_current(), pg_backend_pid(), current_setting('transaction_isolation', true)")
+                tx_before = cursor.fetchone()
+                self.logger.info(f"🔍 Transaction ID before commit: {tx_before[0]}, PID: {tx_before[1]}, Isolation: {tx_before[2]}")
+            except Exception as tx_query_error:
+                if "transaction is aborted" in str(tx_query_error).lower():
+                    self.logger.error("❌ Transaction aborted - cannot query transaction status")
+                    raise RuntimeError("Transaction aborted - cannot commit") from tx_query_error
+                raise
             
             # CRITICAL: In psycopg3, we MUST use connection.commit(), not cursor.execute("COMMIT")
             # cursor.execute("COMMIT") doesn't work properly in psycopg3
