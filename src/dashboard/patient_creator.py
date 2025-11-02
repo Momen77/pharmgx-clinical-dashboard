@@ -520,6 +520,7 @@ class PatientCreator:
             "African": {
                 "regions": {
                     "Nigerian_Igbo": {
+                        "countries": ["Nigeria"],
                         "Male": {
                             "first": ["Chike", "Chidi", "Chinonso", "Chibueze", "Emeka", "Ikenna", "Obinna", "Nnamdi", "Okechukwu", "Uchenna",
                                       "Chinedu", "Chijioke", "Obafemi", "Enyinnaya", "Ifeanyi", "Kelechi", "Nkem", "Obi", "Oge", "Ugo",
@@ -536,6 +537,7 @@ class PatientCreator:
                         }
                     },
                     "Nigerian_Yoruba": {
+                        "countries": ["Nigeria"],
                         "Male": {
                             "first": ["Ade", "Adebayo", "Adewale", "Ademola", "Oluwaseun", "Olumide", "Babatunde", "Ayodele", "Akinwale", "Olusegun",
                                       "Adeyemi", "Adekunle", "Adeniyi", "Akintunde", "Bolaji", "Damilola", "Kayode", "Olalekan", "Olaniyan", "Oluwatobi",
@@ -552,6 +554,7 @@ class PatientCreator:
                         }
                     },
                     "Ghanaian_Akan": {
+                        "countries": ["Ghana"],
                         "Male": {
                             "first": ["Kwame", "Kofi", "Kwesi", "Kwaku", "Yaw", "Kojo", "Kobina", "Kwadwo", "Kwabena", "Koffi",
                                       "Agyeman", "Akwasi", "Ato", "Kwamena", "Nana", "Opoku", "Yeboah", "Akosua", "Boateng", "Osei",
@@ -568,6 +571,7 @@ class PatientCreator:
                         }
                     },
                     "Kenyan_Kikuyu": {
+                        "countries": ["Kenya"],
                         "Male": {
                             "first": ["Kamau", "Mwangi", "Njoroge", "Kariuki", "Waweru", "Githinji", "Kimani", "Mugo", "Maina", "Ndungu",
                                       "Gachanja", "Gathii", "Karanja", "Kihara", "Macharia", "Mbugua", "Munyua", "Ng'ang'a", "Wachira", "Waititu",
@@ -584,6 +588,7 @@ class PatientCreator:
                         }
                     },
                     "Senegalese_Wolof": {
+                        "countries": ["Senegal"],
                         "Male": {
                             "first": ["Amadou", "Ibrahima", "Mamadou", "Moussa", "Oumar", "Abdoulaye", "Aliou", "Babacar", "Cheikh", "Demba",
                                       "Fallou", "Lamine", "Mbacke", "Modou", "Omar", "Pape", "Samba", "Serigne", "Souleymane", "Youssou",
@@ -600,6 +605,7 @@ class PatientCreator:
                         }
                     },
                     "South_African_Zulu": {
+                        "countries": ["South Africa"],
                         "Male": {
                             "first": ["Themba", "Thabo", "Sipho", "Mandla", "Jabu", "Sizwe", "Bongani", "Mthunzi", "Sbu", "Vusi",
                                       "Bheki", "Dumisani", "Jabulani", "Khulekani", "Lungile", "Mlungisi", "Musa", "Nkosinathi", "Sandile", "Thulani",
