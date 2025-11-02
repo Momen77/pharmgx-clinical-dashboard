@@ -1,16 +1,29 @@
+# Core dependencies
 requests>=2.31.0
 rdflib>=7.0.0
 pandas>=2.0.0
 Jinja2>=3.1.2
 pyyaml>=6.0
+
+# Testing and development
 pytest>=7.4.0
 notebook>=7.0.0
+
+# Dashboard dependencies
 streamlit>=1.28.0
 reportlab>=4.0.0
 Pillow>=10.0.0
 plotly>=5.17.0
 qrcode>=7.4.0
+
+# AI and API dependencies
 google-genai>=0.7.0
-google-cloud-sql-connector[pg8000]<0.11.0
+
+# Database dependencies
+# Note: google-cloud-sql-connector is optional and may not be available for all Python versions
+# The app will work without it, but Cloud SQL connections will be disabled
+google-cloud-sql-connector<0.11.0
 psycopg>=3.0.0
+
+# Utilities
 python-dateutil>=2.8.0
