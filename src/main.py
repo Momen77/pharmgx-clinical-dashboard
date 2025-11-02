@@ -1097,22 +1097,11 @@ class PGxPipeline:
         
         # Ethnicity-aware name and demographic generation
         # Important: Different ethnic groups have different pharmacogenetic variant frequencies
+        # Weights adjusted to balance global population trends with testing diversity
         ethnicity_profiles = [
             {
-                "ethnicity": ["Caucasian/European"],
-                "weight": 0.45,  # 45% probability
-                "first_names": ["Emma", "James", "Sophia", "William", "Olivia", "Michael", "Isabella", "David"],
-                "last_names": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson"],
-                "cities": [
-                    {"id": "2800866", "name": "Brussels", "alt": "Bruxelles", "country": "Belgium"},
-                    {"id": "2950159", "name": "Berlin", "alt": "Berlin", "country": "Germany"},
-                    {"id": "2988507", "name": "Paris", "alt": "Paris", "country": "France"},
-                    {"id": "2643743", "name": "London", "alt": "London", "country": "United Kingdom"}
-                ]
-            },
-            {
                 "ethnicity": ["Asian"],
-                "weight": 0.20,
+                "weight": 0.35,  # 35% probability (reflects ~59% global population, reduced for more diversity)
                 "first_names": ["Wei", "Yuki", "Min-ho", "Sakura", "Chen", "Hana", "Raj", "Priya"],
                 "last_names": ["Wang", "Kim", "Chen", "Tanaka", "Zhang", "Lee", "Patel", "Kumar"],
                 "cities": [
@@ -1123,8 +1112,20 @@ class PGxPipeline:
                 ]
             },
             {
+                "ethnicity": ["Caucasian/European"],
+                "weight": 0.20,  # 20% probability (reduced from 45%, reflects ~16% global population)
+                "first_names": ["Emma", "James", "Sophia", "William", "Olivia", "Michael", "Isabella", "David"],
+                "last_names": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson"],
+                "cities": [
+                    {"id": "2800866", "name": "Brussels", "alt": "Bruxelles", "country": "Belgium"},
+                    {"id": "2950159", "name": "Berlin", "alt": "Berlin", "country": "Germany"},
+                    {"id": "2988507", "name": "Paris", "alt": "Paris", "country": "France"},
+                    {"id": "2643743", "name": "London", "alt": "London", "country": "United Kingdom"}
+                ]
+            },
+            {
                 "ethnicity": ["African"],
-                "weight": 0.15,
+                "weight": 0.17,  # 17% probability (matches ~17% global population)
                 "first_names": ["Amara", "Kwame", "Zara", "Kofi", "Nia", "Jabari", "Aisha", "Malik"],
                 "last_names": ["Okafor", "Mensah", "Diallo", "Nkosi", "Kamau", "Adeyemi", "Mwangi", "Banda"],
                 "cities": [
@@ -1135,7 +1136,7 @@ class PGxPipeline:
             },
             {
                 "ethnicity": ["Hispanic/Latino"],
-                "weight": 0.12,
+                "weight": 0.13,  # 13% probability (reflects ~8% global population)
                 "first_names": ["Sofia", "Diego", "Maria", "Carlos", "Isabella", "Miguel", "Valentina", "Javier"],
                 "last_names": ["Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez", "Sanchez"],
                 "cities": [
@@ -1146,7 +1147,7 @@ class PGxPipeline:
             },
             {
                 "ethnicity": ["Middle Eastern"],
-                "weight": 0.05,
+                "weight": 0.07,  # 7% probability (reflects ~5% global population)
                 "first_names": ["Fatima", "Omar", "Layla", "Ahmed", "Zainab", "Hassan", "Amina", "Ali"],
                 "last_names": ["Al-Rashid", "Ibrahim", "Hassan", "Mansour", "Khalil", "Rahman", "Aziz", "Mahmoud"],
                 "cities": [
@@ -1157,13 +1158,35 @@ class PGxPipeline:
             },
             {
                 "ethnicity": ["Mixed"],
-                "weight": 0.03,
+                "weight": 0.05,  # 5% probability (ensures diverse mixed-ethnicity representation)
                 "first_names": ["Alex", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Skyler", "Avery"],
                 "last_names": ["Santos", "Silva", "Costa", "Morales", "Nguyen", "Patel", "Anderson", "Williams"],
                 "cities": [
                     {"id": "3448439", "name": "São Paulo", "alt": "São Paulo", "country": "Brazil"},
                     {"id": "5128581", "name": "New York", "alt": "New York", "country": "USA"},
                     {"id": "6167865", "name": "Toronto", "alt": "Toronto", "country": "Canada"}
+                ]
+            },
+            {
+                "ethnicity": ["Native American"],
+                "weight": 0.02,  # 2% probability (reflects <1% global population, increased for PGx diversity)
+                "first_names": ["Aiyana", "Kai", "Takoda", "Kaya", "Chenoa", "Micco", "Aponi", "Elan"],
+                "last_names": ["Redfeather", "Blackhawk", "Running Bear", "White Eagle", "Swift Fox", "Falling Star", "Thunder Cloud", "Moon Shadow"],
+                "cities": [
+                    {"id": "5128581", "name": "New York", "alt": "New York", "country": "USA"},
+                    {"id": "5391959", "name": "Phoenix", "alt": "Phoenix", "country": "USA"},
+                    {"id": "5419384", "name": "Denver", "alt": "Denver", "country": "USA"}
+                ]
+            },
+            {
+                "ethnicity": ["Pacific Islander"],
+                "weight": 0.01,  # 1% probability (reflects <0.5% global population, increased for PGx diversity)
+                "first_names": ["Keanu", "Leilani", "Moana", "Kai", "Hina", "Makoa", "Kalani", "Nani"],
+                "last_names": ["Kealoha", "Kamaka", "Palakiko", "Akana", "Mahoe", "Nakai", "Pomaika'i", "Kahale"],
+                "cities": [
+                    {"id": "5856195", "name": "Honolulu", "alt": "Honolulu", "country": "USA"},
+                    {"id": "2147714", "name": "Sydney", "alt": "Sydney", "country": "Australia"},
+                    {"id": "2179537", "name": "Auckland", "alt": "Auckland", "country": "New Zealand"}
                 ]
             }
         ]
