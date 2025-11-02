@@ -501,9 +501,11 @@ elif page == "🔬 Run Test":
                     key="run_test_main_button"
                 )
         
-        # If button was clicked, mark test as started immediately (before checking test_is_running)
+        # If button was clicked, mark test as started and rerun to hide all UI immediately
         if run_test_button:
             st.session_state['_test_started'] = True
+            st.session_state['_pipeline_start_requested'] = True  # Flag to run pipeline on next rerun
+            st.rerun()  # Immediate rerun to hide button and all UI elements
         
         # Check if test is running - either button was clicked (this run) OR test already started OR test results exist but not complete
         button_clicked = run_test_button or st.session_state.get('_test_started', False)
@@ -544,8 +546,10 @@ elif page == "🔬 Run Test":
 
             st.divider()
 
-        # Only run pipeline if button was clicked (after rerun)
-        if run_test_button:
+        # Only run pipeline if pipeline was requested (button clicked and rerun completed)
+        if st.session_state.get('_pipeline_start_requested', False):
+            # Clear the flag to prevent rerunning on every script execution
+            st.session_state['_pipeline_start_requested'] = False
             if PGxPipeline is None:
                 st.error("PGxPipeline not available - check imports")
                 if _import_errors:
