@@ -117,13 +117,16 @@ def extract_from_jsonb(
 
 
 def extract_variant_gene(variant: Dict) -> Optional[str]:
-    """Extract gene symbol from variant with multiple fallbacks."""
-    # Direct keys
+    """Extract gene symbol from variant - PRIORITIZES raw_data where available."""
+    # ✅ STEP 1: Check direct key (variant_info has "gene" at top level)
     gene = extract_field(
         variant, "gene",
         fallback_keys=["gene_symbol", "geneSymbol", "hasGene"],
         obj_name="variant"
     )
+    
+    if gene and isinstance(gene, str):
+        return gene
     
     # Handle nested structure
     if isinstance(gene, dict):
@@ -132,16 +135,24 @@ def extract_variant_gene(variant: Dict) -> Optional[str]:
             fallback_keys=["symbol", "name", "@id"],
             obj_name="gene_object"
         )
-        # Extract from @id if needed (e.g., "uniprot:P10635" -> extract ID)
-        if isinstance(gene, str) and gene.startswith("uniprot:"):
-            # Try to get gene symbol from protein_id lookup
-            pass
+        if gene and isinstance(gene, str):
+            return gene
     
-    # Extract from raw data
+    # ✅ STEP 2: Check raw_data (where original variant data exists)
+    if variant.get("raw_data"):
+        raw_variant = variant["raw_data"]
+        raw_gene = raw_variant.get("gene")
+        if raw_gene and isinstance(raw_gene, str):
+            logger.debug(f"Found gene in raw_data: {raw_gene}")
+            return raw_gene
+    
+    # ✅ STEP 3: Extract from JSONB (for patient_variants table)
     if not gene:
         gene = extract_from_jsonb(variant, "raw_uniprot_data", "gene")
+        if gene and isinstance(gene, str):
+            return gene
     
-    return gene if isinstance(gene, str) else None
+    return None
 
 
 def extract_variant_field(
@@ -216,7 +227,23 @@ def extract_variant_field(
 
 
 def extract_genomic_locations(variant: Dict) -> List[Dict]:
-    """Extract genomic locations with multiple fallbacks - checks raw_data for full variant."""
+    """Extract genomic locations - PRIORITIZES raw_data (where it actually exists in pipeline)"""
+    # ✅ STEP 1: CRITICAL - Check raw_data FIRST (this is where genomic locations actually exist!)
+    if variant.get("raw_data"):
+        raw_variant = variant["raw_data"]
+        raw_locations = extract_field(
+            raw_variant, "genomicLocation",
+            fallback_keys=["genomicLocations", "locations"],
+            default=None
+        )
+        if raw_locations:
+            logger.debug(f"Found genomic locations in raw_data for variant {variant.get('variant_id')}")
+            if isinstance(raw_locations, dict):
+                return [raw_locations]
+            if isinstance(raw_locations, list):
+                return raw_locations
+    
+    # ✅ STEP 2: Check direct key (fallback)
     locations = extract_field(
         variant, "genomicLocation",
         fallback_keys=["genomicLocations", "genomic_location", "location", "hasLocation"],
@@ -232,20 +259,6 @@ def extract_genomic_locations(variant: Dict) -> List[Dict]:
     if isinstance(locations, list) and locations:
         return locations
     
-    # ✅ CRITICAL: Check raw_data (full original variant from pipeline)
-    if variant.get("raw_data"):
-        raw_variant = variant["raw_data"]
-        raw_locations = extract_field(
-            raw_variant, "genomicLocation",
-            fallback_keys=["genomicLocations", "locations"],
-            default=None
-        )
-        if raw_locations:
-            if isinstance(raw_locations, dict):
-                return [raw_locations]
-            if isinstance(raw_locations, list):
-                return raw_locations
-    
     # Try nested
     nested = extract_nested_field(variant, ["hasLocation"])
     if nested:
@@ -260,8 +273,32 @@ def extract_genomic_locations(variant: Dict) -> List[Dict]:
 
 
 def extract_uniprot_data(variant: Dict) -> Dict:
-    """Extract UniProt-related data with fallbacks - checks raw_data for full variant."""
-    # ✅ STEP 1: Check direct keys in variant_info
+    """Extract UniProt-related data - PRIORITIZES raw_data (where it actually exists in pipeline)"""
+    # ✅ STEP 1: CRITICAL - Check raw_data FIRST (this is where UniProt data actually exists!)
+    if variant.get("raw_data"):
+        raw_variant = variant["raw_data"]
+        raw_has_data = (
+            raw_variant.get("alternativeSequence") or
+            raw_variant.get("codon") or
+            raw_variant.get("molecularConsequence") or
+            raw_variant.get("wildType") or
+            raw_variant.get("begin") or
+            raw_variant.get("end")
+        )
+        if raw_has_data:
+            logger.debug(f"Found UniProt data in raw_data for variant {variant.get('variant_id')}")
+            return {
+                "alternativeSequence": raw_variant.get("alternativeSequence"),
+                "begin": raw_variant.get("begin") or raw_variant.get("beginPosition"),
+                "end": raw_variant.get("end") or raw_variant.get("endPosition"),
+                "codon": raw_variant.get("codon"),
+                "molecularConsequence": raw_variant.get("molecularConsequence") or raw_variant.get("consequence_type"),
+                "wildType": raw_variant.get("wildType") or raw_variant.get("wild_type"),
+                "somaticStatus": raw_variant.get("somaticStatus") or raw_variant.get("somatic_status"),
+                "sourceType": raw_variant.get("sourceType") or raw_variant.get("source_type")
+            }
+    
+    # ✅ STEP 2: Check direct keys in variant_info (fallback)
     has_uniprot_data = (
         variant.get("alternativeSequence") or
         variant.get("codon") or
@@ -281,27 +318,6 @@ def extract_uniprot_data(variant: Dict) -> Dict:
             "sourceType": variant.get("sourceType") or variant.get("source_type")
         }
     
-    # ✅ STEP 2: CRITICAL - Check raw_data (full original variant from pipeline)
-    if variant.get("raw_data"):
-        raw_variant = variant["raw_data"]
-        raw_has_data = (
-            raw_variant.get("alternativeSequence") or
-            raw_variant.get("codon") or
-            raw_variant.get("molecularConsequence") or
-            raw_variant.get("wildType")
-        )
-        if raw_has_data:
-            return {
-                "alternativeSequence": raw_variant.get("alternativeSequence"),
-                "begin": raw_variant.get("begin") or raw_variant.get("beginPosition"),
-                "end": raw_variant.get("end") or raw_variant.get("endPosition"),
-                "codon": raw_variant.get("codon"),
-                "molecularConsequence": raw_variant.get("molecularConsequence") or raw_variant.get("consequence_type"),
-                "wildType": raw_variant.get("wildType") or raw_variant.get("wild_type"),
-                "somaticStatus": raw_variant.get("somaticStatus") or raw_variant.get("somatic_status"),
-                "sourceType": raw_variant.get("sourceType") or raw_variant.get("source_type")
-            }
-    
     # ✅ STEP 3: Try from raw_uniprot_data JSONB (for patient_variants table)
     raw_data = variant.get("raw_uniprot_data")
     if isinstance(raw_data, str):
@@ -317,7 +333,19 @@ def extract_uniprot_data(variant: Dict) -> Dict:
 
 
 def extract_xrefs(variant: Dict) -> List[Dict]:
-    """Extract cross-references with fallbacks - checks raw_data for full variant."""
+    """Extract cross-references - PRIORITIZES raw_data (where it actually exists in pipeline)"""
+    # ✅ STEP 1: CRITICAL - Check raw_data FIRST (this is where xrefs actually exist!)
+    if variant.get("raw_data"):
+        raw_variant = variant["raw_data"]
+        raw_xrefs = raw_variant.get("xrefs")
+        if raw_xrefs:
+            logger.debug(f"Found xrefs in raw_data for variant {variant.get('variant_id')}: {len(raw_xrefs) if isinstance(raw_xrefs, list) else 1}")
+            if isinstance(raw_xrefs, list) and raw_xrefs:
+                return raw_xrefs
+            if isinstance(raw_xrefs, dict):
+                return [raw_xrefs]
+    
+    # ✅ STEP 2: Check direct key (fallback)
     xrefs = extract_field(
         variant, "xrefs",
         fallback_keys=["cross_references", "references", "hasReference"],
@@ -331,15 +359,6 @@ def extract_xrefs(variant: Dict) -> List[Dict]:
     if isinstance(xrefs, dict):
         # Convert dict to list
         return [xrefs]
-    
-    # ✅ CRITICAL: Check raw_data (full original variant from pipeline)
-    if variant.get("raw_data"):
-        raw_variant = variant["raw_data"]
-        raw_xrefs = raw_variant.get("xrefs")
-        if isinstance(raw_xrefs, list) and raw_xrefs:
-            return raw_xrefs
-        if isinstance(raw_xrefs, dict):
-            return [raw_xrefs]
     
     # Try from JSONB (for patient_variants table)
     raw_xrefs = extract_from_jsonb(variant, "raw_uniprot_data", "xrefs")
@@ -385,7 +404,27 @@ def extract_predictions(variant: Dict) -> List[Dict]:
 
 
 def extract_clinvar_data(variant: Dict) -> List[Dict]:
-    """Extract ClinVar data with fallbacks."""
+    """Extract ClinVar data - PRIORITIZES raw_data (where it actually exists in pipeline)"""
+    # ✅ STEP 1: CRITICAL - Check raw_data FIRST (this is where ClinVar data actually exists!)
+    if variant.get("raw_data"):
+        raw_variant = variant["raw_data"]
+        raw_clinvar = raw_variant.get("clinvar")
+        if raw_clinvar:
+            logger.debug(f"Found ClinVar data in raw_data for variant {variant.get('variant_id')}")
+            # Handle list
+            if isinstance(raw_clinvar, list):
+                return raw_clinvar
+            # Handle dict
+            if isinstance(raw_clinvar, dict):
+                # Check for submissions key
+                if raw_clinvar.get("submissions"):
+                    subs = raw_clinvar["submissions"]
+                    return subs if isinstance(subs, list) else [subs]
+                # Single submission as dict
+                if raw_clinvar.get("clinvar_id") or raw_clinvar.get("id"):
+                    return [raw_clinvar]
+    
+    # ✅ STEP 2: Check direct key (fallback)
     clinvar = extract_field(
         variant, "clinvar",
         fallback_keys=["clinvar_data", "clinvar_submissions", "clinicalVariants"],
@@ -415,8 +454,17 @@ def extract_clinvar_data(variant: Dict) -> List[Dict]:
 
 
 def extract_pharmgkb_data(variant: Dict) -> Dict:
-    """Extract PharmGKB data with fallbacks - checks raw_data for full variant."""
-    # ✅ STEP 1: Check direct key in variant_info
+    """Extract PharmGKB data - PRIORITIZES raw_data (where it actually exists in pipeline)"""
+    # ✅ STEP 1: CRITICAL - Check raw_data FIRST (this is where PharmGKB data actually exists!)
+    # Pipeline stores full variant in variant["raw_data"] with ALL PharmGKB data
+    if variant.get("raw_data"):
+        raw_variant = variant["raw_data"]
+        raw_pharmgkb = raw_variant.get("pharmgkb")
+        if isinstance(raw_pharmgkb, dict) and raw_pharmgkb:
+            logger.debug(f"Found PharmGKB data in raw_data for variant {variant.get('variant_id')}")
+            return raw_pharmgkb
+    
+    # ✅ STEP 2: Check direct key in variant_info (might exist in some cases)
     pharmgkb = extract_field(
         variant, "pharmgkb",
         fallback_keys=["pharmgkb_data", "annotations", "pharmgkb_annotations"],
@@ -426,13 +474,6 @@ def extract_pharmgkb_data(variant: Dict) -> Dict:
     
     if isinstance(pharmgkb, dict) and pharmgkb:
         return pharmgkb
-    
-    # ✅ STEP 2: CRITICAL - Check raw_data (full original variant from pipeline)
-    if variant.get("raw_data"):
-        raw_variant = variant["raw_data"]
-        raw_pharmgkb = raw_variant.get("pharmgkb")
-        if isinstance(raw_pharmgkb, dict) and raw_pharmgkb:
-            return raw_pharmgkb
     
     # ✅ STEP 3: Try from raw_pharmgkb_data JSONB (for patient_variants table)
     raw_pharmgkb = variant.get("raw_pharmgkb_data")

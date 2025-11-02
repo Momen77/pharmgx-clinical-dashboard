@@ -82,6 +82,16 @@ class DatabaseLoader:
         if not self.db_connection.db_enabled:
             return {'success': False, 'error': 'Database loading is disabled in config'}
         
+        # ✅ DEBUG: Log profile structure
+        from .debug_extraction import log_profile_structure, log_variant_structure
+        self.logger.setLevel(logging.DEBUG)  # Enable debug logging
+        log_profile_structure(profile)
+        
+        # Log first few variants
+        variants = profile.get("variants", [])
+        for i, variant in enumerate(variants[:3]):  # Log first 3 variants
+            log_variant_structure(variant, i)
+        
         start_time = datetime.now()
         connection = None
         total_records = 0

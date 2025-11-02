@@ -278,6 +278,12 @@ class ReferenceDataLoader:
         variants = profile.get("variants", [])
         expected_count = len(variants)
         
+        # ✅ DEBUG: Log what we're working with
+        self.logger.info(f"🔍 DEBUG: Processing {len(variants)} variants for variants table")
+        if variants:
+            from .debug_extraction import log_variant_structure
+            log_variant_structure(variants[0], 0)
+        
         for variant in variants:
             from .utils import generate_variant_key
             variant_key = generate_variant_key(variant)
@@ -384,7 +390,22 @@ class ReferenceDataLoader:
                 default=None
             )
             
+            # ✅ DEBUG: Log extracted values
+            self.logger.debug(f"   DEBUG VARIANT {variant_id}:")
+            self.logger.debug(f"      gene_symbol: {gene_symbol}")
+            self.logger.debug(f"      rsid: {rsid}")
+            self.logger.debug(f"      clinical_significance: {clinical_significance}")
+            self.logger.debug(f"      consequence_type: {consequence_type}")
+            self.logger.debug(f"      wild_type: {wild_type}")
+            self.logger.debug(f"      alternative_sequence: {alternative_sequence}")
+            self.logger.debug(f"      begin_position: {begin_position}")
+            self.logger.debug(f"      end_position: {end_position}")
+            
+            # ✅ CRITICAL: Use savepoint to prevent transaction abort on single variant failure
+            savepoint_name = f"variant_{count}"
             try:
+                cursor.execute(f"SAVEPOINT {savepoint_name}")
+                
                 cursor.execute("""
                     INSERT INTO variants (
                         variant_key, gene_symbol, variant_id, rsid, clinical_significance,
@@ -405,23 +426,41 @@ class ReferenceDataLoader:
                 
                 # ✅ ALWAYS EXTRACT: Try to insert related tables even with partial data
                 genomic_locations = extract_genomic_locations(variant)
+                self.logger.debug(f"   DEBUG: Found {len(genomic_locations)} genomic locations for {variant_id}")
                 for loc in genomic_locations:
                     if loc:  # Insert even if incomplete
                         self._insert_genomic_location(cursor, variant_id, loc)
                 
                 # ✅ ALWAYS EXTRACT: Extract and insert UniProt data if available
                 uniprot_data = extract_uniprot_data(variant)
+                self.logger.debug(f"   DEBUG: UniProt data for {variant_id}: {bool(uniprot_data)} (keys: {list(uniprot_data.keys()) if uniprot_data else []})")
                 if uniprot_data:
                     self._insert_uniprot_details(cursor, variant_id, uniprot_data)
                 
                 # ✅ ALWAYS EXTRACT: Extract and insert xrefs
                 xrefs = extract_xrefs(variant)
+                self.logger.debug(f"   DEBUG: Found {len(xrefs)} xrefs for {variant_id}")
                 for xref in xrefs:
                     if xref:  # Insert if xref exists
                         self._insert_uniprot_xref(cursor, variant_id, xref)
                 
+                # Release savepoint on success
+                cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+                
             except Exception as e:
-                self.logger.warning(f"Could not insert variant {variant_key}: {e}")
+                # ✅ CRITICAL: Rollback to savepoint to prevent transaction abort
+                try:
+                    cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                except Exception as rollback_error:
+                    # If rollback fails, transaction is already aborted
+                    self.logger.error(f"❌ CRITICAL: Could not rollback to savepoint {savepoint_name}: {rollback_error}")
+                    self.logger.error(f"   Original error: {e}")
+                    # Re-raise to trigger transaction restart in main_loader
+                    raise RuntimeError(f"Transaction aborted in variant insertion: {e}") from e
+                
+                # Log the actual error with full details
+                self.logger.error(f"❌ Could not insert variant {variant_key}: {e}", exc_info=True)
+                self.logger.error(f"   Variant details: gene={gene_symbol}, variant_id={variant_id}, rsid={rsid}")
         
         log_extraction_stats(count, expected_count, "variants")
         self.logger.info(f"✓ Inserted {count} variants")
@@ -430,29 +469,59 @@ class ReferenceDataLoader:
     def _insert_genomic_location(self, cursor, variant_id, location):
         """Insert variant genomic location"""
         try:
+            # ✅ DEBUG: Log what we're inserting
+            self.logger.debug(f"   DEBUG: Inserting genomic location for {variant_id}: {list(location.keys()) if isinstance(location, dict) else 'Not a dict'}")
+            
+            # Extract all fields with fallbacks
+            assembly = location.get("assembly") or location.get("Assembly") or "GRCh38"
+            chromosome = location.get("chromosome") or location.get("chr") or location.get("Chromosome")
+            start_pos = location.get("start") or location.get("start_position") or location.get("Start")
+            end_pos = location.get("end") or location.get("end_position") or location.get("End")
+            ref_allele = location.get("referenceSequence") or location.get("reference_allele") or location.get("reference")
+            alt_allele = location.get("alternativeSequence") or location.get("alternate_allele") or location.get("alternative")
+            strand = location.get("strand") or location.get("Strand")
+            seq_version = location.get("sequenceVersion") or location.get("sequence_version") or location.get("version")
+            
+            # Only insert if we have at least chromosome and start position
+            if not chromosome or start_pos is None:
+                self.logger.debug(f"   DEBUG: Skipping genomic location - missing required fields (chromosome: {chromosome}, start: {start_pos})")
+                return
+            
             cursor.execute("""
                 INSERT INTO variant_genomic_locations (
                     variant_id, assembly, chromosome, start_position, end_position,
                     reference_allele, alternate_allele, strand, sequence_version
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
             """, (
                 variant_id,
-                location.get("assembly"),
-                location.get("chromosome") or location.get("chr"),
-                location.get("start") or location.get("start_position"),
-                location.get("end") or location.get("end_position"),
-                location.get("referenceSequence") or location.get("reference_allele"),
-                location.get("alternativeSequence") or location.get("alternate_allele"),
-                location.get("strand"),
-                location.get("sequenceVersion") or location.get("sequence_version")
+                assembly,
+                chromosome,
+                start_pos,
+                end_pos,
+                ref_allele,
+                alt_allele,
+                strand,
+                seq_version
             ))
+            self.logger.debug(f"   ✅ Successfully inserted genomic location for {variant_id}")
         except Exception as e:
-            self.logger.debug(f"Could not insert genomic location for {variant_id}: {e}")
+            self.logger.warning(f"❌ Could not insert genomic location for {variant_id}: {e}", exc_info=True)
     
-    def _insert_uniprot_details(self, cursor, variant_id, variant):
-        """Insert UniProt variant details"""
+    def _insert_uniprot_details(self, cursor, variant_id, uniprot_data):
+        """✅ IMPROVED: Insert UniProt variant details from extracted data"""
         try:
+            # ✅ DEBUG: Log what we're inserting
+            self.logger.debug(f"   DEBUG: Inserting UniProt details for {variant_id}: {list(uniprot_data.keys())}")
+            # Only insert if we have at least one meaningful field
+            has_data = any([uniprot_data.get("alternativeSequence"), uniprot_data.get("begin"), 
+                           uniprot_data.get("codon"), uniprot_data.get("molecularConsequence"),
+                           uniprot_data.get("wildType")])
+            if not has_data:
+                self.logger.debug(f"   DEBUG: Skipping UniProt details - no meaningful data")
+                return
+            
             cursor.execute("""
                 INSERT INTO uniprot_variant_details (
                     variant_id, alternative_sequence, begin_position, end_position,
@@ -460,30 +529,44 @@ class ReferenceDataLoader:
                     somatic_status, source_type
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
             """, (
                 variant_id,
-                variant.get("alternativeSequence"),
-                variant.get("begin") or variant.get("beginPosition"),
-                variant.get("end") or variant.get("endPosition"),
-                variant.get("codon"),
-                variant.get("molecularConsequence") or variant.get("consequence_type"),
-                variant.get("wildType"),
-                variant.get("alternativeSequence"),
-                variant.get("somaticStatus"),
-                variant.get("sourceType")
+                uniprot_data.get("alternativeSequence"),
+                uniprot_data.get("begin"),
+                uniprot_data.get("end"),
+                uniprot_data.get("codon"),
+                uniprot_data.get("molecularConsequence"),
+                uniprot_data.get("wildType"),
+                uniprot_data.get("alternativeSequence"),  # mutated_type uses alternativeSequence
+                uniprot_data.get("somaticStatus"),
+                uniprot_data.get("sourceType")
             ))
+            self.logger.debug(f"   ✅ Successfully inserted UniProt details for {variant_id}")
         except Exception as e:
-            self.logger.debug(f"Could not insert UniProt details for {variant_id}: {e}")
+            self.logger.warning(f"❌ Could not insert UniProt details for {variant_id}: {e}", exc_info=True)
     
     def _insert_uniprot_xref(self, cursor, variant_id, xref):
         """Insert UniProt cross-reference"""
         try:
+            # ✅ DEBUG: Log what we're inserting
+            db_name = xref.get("name") or xref.get("database") or xref.get("db")
+            db_id = xref.get("id") or xref.get("identifier")
+            url = xref.get("url") or xref.get("uri")
+            
+            if not db_name or not db_id:
+                self.logger.debug(f"   DEBUG: Skipping xref - missing required fields (name: {db_name}, id: {db_id})")
+                return
+            
+            self.logger.debug(f"   DEBUG: Inserting xref for {variant_id}: {db_name} ({db_id})")
             cursor.execute("""
                 INSERT INTO uniprot_xrefs (variant_id, database_name, database_id, url)
                 VALUES (%s, %s, %s, %s)
-            """, (variant_id, xref.get("name"), xref.get("id"), xref.get("url")))
+                ON CONFLICT DO NOTHING
+            """, (variant_id, db_name, db_id, url))
+            self.logger.debug(f"   ✅ Successfully inserted xref for {variant_id}")
         except Exception as e:
-            self.logger.debug(f"Could not insert UniProt xref for {variant_id}: {e}")
+            self.logger.warning(f"❌ Could not insert UniProt xref for {variant_id}: {e}", exc_info=True)
     
     def insert_pharmgkb_annotations(self, cursor: psycopg.Cursor, profile: Dict) -> int:
         """✅ IMPROVED: Insert PharmGKB annotations using robust extraction"""
@@ -529,7 +612,11 @@ class ReferenceDataLoader:
                     if len(history) > 0:
                         last_updated = parse_date(history[-1].get("date"))
                 
+                # ✅ CRITICAL: Use savepoint for each annotation
+                savepoint_name = f"pharmgkb_annotation_{annotation_id}"
                 try:
+                    cursor.execute(f"SAVEPOINT {savepoint_name}")
+                    
                     cursor.execute("""
                         INSERT INTO pharmgkb_annotations (
                             annotation_id, accession_id, variant_id, gene_symbol, annotation_name,
@@ -549,7 +636,6 @@ class ReferenceDataLoader:
                         json.dumps(annotation)
                     ))
                     self.inserted_pharmgkb_annotations[annotation_id] = annotation
-                    count += 1
                     
                     # Insert allele phenotypes (will also insert genotypes)
                     for ap in annotation.get("allelePhenotypes", []):
@@ -593,8 +679,24 @@ class ReferenceDataLoader:
                         for variation in related_variations:
                             self._insert_pharmgkb_variation_and_link(cursor, annotation_id, variation)
                     
+                    # Release savepoint on success
+                    cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+                    count += 1
+                    
                 except Exception as e:
-                    self.logger.warning(f"Could not insert PharmGKB annotation {annotation_id}: {e}")
+                    # ✅ CRITICAL: Rollback to savepoint to prevent transaction abort
+                    try:
+                        cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                    except Exception as rollback_error:
+                        # If rollback fails, transaction is already aborted
+                        self.logger.error(f"❌ CRITICAL: Could not rollback to savepoint {savepoint_name}: {rollback_error}")
+                        self.logger.error(f"   Original error: {e}")
+                        # Re-raise to trigger transaction restart in main_loader
+                        raise RuntimeError(f"Transaction aborted in PharmGKB annotation insertion: {e}") from e
+                    
+                    # Log the actual error with full details
+                    self.logger.error(f"❌ Could not insert PharmGKB annotation {annotation_id}: {e}", exc_info=True)
+                    self.logger.error(f"   Annotation details: variant_id={variant_id}, gene={gene_symbol}, accession={accession_id}")
         
         self.logger.info(f"✓ Inserted {count} PharmGKB annotations")
         return count
@@ -889,9 +991,14 @@ class ReferenceDataLoader:
         variants = profile.get("variants", [])
         expected_total = 0
         
+        self.logger.info(f"🔍 DEBUG: Processing {len(variants)} variants for clinvar_submissions")
+        
         for variant in variants:
             variant_id = extract_variant_field(variant, "variant_id", fallback_keys=["id", "@id"], default="")
             submissions = extract_clinvar_data(variant)
+            self.logger.debug(f"   DEBUG: ClinVar submissions for {variant_id}: {len(submissions) if submissions else 0}")
+            if submissions:
+                self.logger.debug(f"      Sample submission keys: {list(submissions[0].keys()) if isinstance(submissions[0], dict) else 'Not a dict'}")
             expected_total += len(submissions) if submissions else 0
             
             for submission in submissions:

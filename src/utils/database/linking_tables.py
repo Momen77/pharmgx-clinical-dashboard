@@ -201,11 +201,16 @@ class LinkingTablesLoader:
         
         # ✅ FIXED: Extract conflicts from variant_linking.conflicts (correct location)
         variant_linking = profile.get("variant_linking", {})
-        conflicts = variant_linking.get("conflicts", [])
+        self.logger.info(f"🔍 DEBUG: variant_linking exists: {variant_linking is not None}")
+        if variant_linking:
+            self.logger.info(f"   variant_linking keys: {list(variant_linking.keys())}")
+        conflicts = variant_linking.get("conflicts", []) if variant_linking else []
+        self.logger.info(f"   conflicts from variant_linking.conflicts: {len(conflicts)}")
         
         # Also check direct conflicts key (fallback for compatibility)
         if not conflicts:
             conflicts = profile.get("conflicts", [])
+            self.logger.info(f"   conflicts from profile.conflicts: {len(conflicts)}")
         
         # Get medication IDs from profile (stored during medication insert)
         medications = profile.get("clinical_information", {}).get("current_medications", [])
@@ -376,16 +381,24 @@ class LinkingTablesLoader:
         
         # ✅ ROBUST EXTRACTION: Get adjustments from multiple locations
         ethnicity_adjustments = extract_ethnicity_adjustments(profile)
+        self.logger.info(f"🔍 DEBUG: Extracted {len(ethnicity_adjustments)} ethnicity adjustments from extract_ethnicity_adjustments()")
+        
+        if ethnicity_adjustments and len(ethnicity_adjustments) > 0:
+            self.logger.info(f"   Sample adjustment keys: {list(ethnicity_adjustments[0].keys()) if isinstance(ethnicity_adjustments[0], dict) else 'Not a dict'}")
         
         # Also check variants for variant-specific adjustments
         variants = profile.get("variants", [])
+        variant_adjustments_count = 0
         for variant in variants:
             variant_adjustments = variant.get("ethnicity_adjustments", [])
             if variant_adjustments:
+                variant_adjustments_count += len(variant_adjustments) if isinstance(variant_adjustments, list) else 1
                 if isinstance(variant_adjustments, list):
                     ethnicity_adjustments.extend(variant_adjustments)
                 else:
                     ethnicity_adjustments.append(variant_adjustments)
+        self.logger.info(f"   Found {variant_adjustments_count} additional adjustments in variants")
+        self.logger.info(f"   Total adjustments: {len(ethnicity_adjustments)}")
         
         for adjustment in ethnicity_adjustments:
             savepoint_name = f"ethnicity_adj_{count}"
