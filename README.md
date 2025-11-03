@@ -41,6 +41,16 @@ streamlit run app.py
 
 For deeper details, see folder READMEs in their respective directories.
 
+## Database
+
+Optional PostgreSQL database for patient PGx data:
+- **Schema**: `Pharmacogenomics_Clinical_db.sql` (60+ tables)
+- **Documentation**: See `DATABASE_INFO.md`
+- **Loader**: `src/utils/database/` (5-phase loading)
+- **Config**: Enable via `config.yaml` → `database.enabled: true`
+
+The database is **optional** and **non-blocking** - works without it.
+
 ## Data Sources (examples)
 - ClinVar, PharmGKB, ChEMBL
 - NCBI/EMBL‑EBI, RxNorm/RxNav
