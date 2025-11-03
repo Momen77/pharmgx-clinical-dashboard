@@ -1,142 +1,87 @@
-# UGent Pharmacogenomics Clinical Dashboard
+## UGent Pharmacogenomics Clinical Dashboard
 
-Clinical pharmacogenomics dashboard for interactive PGx testing and reporting. Integrates variant discovery, clinical validation, and drug interaction analysis with a Streamlit-based interface for healthcare providers.
+Interactive clinical pharmacogenomics dashboard for PGx testing and reporting. The app guides you from patient profile creation to multi-gene analysis, then builds and visualizes a knowledge graph with exportable outputs.
 
-## Deployment on Streamlit Cloud
+## Quick Start
 
-This app uses `requirements.txt` for dependency management to avoid conda TOS issues.
-
-### Quick Deploy
-
-1. Push this repository to GitHub
-2. Go to https://share.streamlit.io
-3. Connect your repository
-4. Deploy!
-
-### Local Development
-
-#### Option 1: Using pip (recommended for Streamlit Cloud)
+### Local
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-#### Option 2: Using conda (for local development)
-```bash
-conda env create -f environment.yml
-conda activate pgx-clinical-dashboard
-streamlit run app.py
-```
+### Streamlit Cloud
+1. Push to GitHub
+2. Open `https://share.streamlit.io`
+3. Connect the repository
+4. Set Secrets (see Configuration) and deploy
 
-### Configuration
+## What You Can Do
+- Create a patient profile (manual form or auto-generate)
+- Select PGx gene panels or custom genes
+- Run analysis with real-time progress storyboard
+- View an interactive knowledge graph of results
+- Export outputs (JSON-LD, RDF/TTL, HTML report, optional PDF)
 
-#### Local Development
-Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and add your API keys.
+## Workflow
+1. Create Patient → 2. Select Genes → 3. Run Test → 4. View Results → 5. Export
 
-#### Streamlit Cloud
-Add your API keys in Streamlit Cloud secrets (Settings → Secrets):
+### Pipeline Phases (behind the scenes)
+- Phase 1: Variant Discovery (e.g., EMBL‑EBI Proteins)
+- Phase 2: Clinical Validation (ClinVar, PharmGKB)
+- Phase 3: Drug & Disease Context (ChEMBL, BioPortal, Europe PMC, OpenFDA)
+- Phase 4: RDF Knowledge Graph Assembly (RDFlib)
+- Phase 5: Export & Visualization (JSON‑LD, HTML, RDF/TTL)
 
+## Architecture (high level)
+- UI: `src/dashboard/app.py` (Streamlit pages and storyboard)
+- Pipeline: `src/main.py` (`PGxPipeline` orchestration, multi‑gene support, events)
+- Phases: `src/phase1_discovery` … `src/phase5_export`
+- Utilities: `src/utils` (APIs, database loader, profile generator, event bus)
+
+For deeper details, see folder READMEs in their respective directories.
+
+## Data Sources (examples)
+- ClinVar, PharmGKB, ChEMBL
+- NCBI/EMBL‑EBI, RxNorm/RxNav
+- BioPortal (SNOMED CT), Europe PMC, OpenFDA
+
+## Configuration
+- File: `config.yaml` controls API keys, rate limits, caching, and optional database loading
+- Secrets (Streamlit Cloud → Settings → Secrets):
 ```toml
 [api]
 ncbi_email = "your-email@example.com"
 ncbi_api_key = "your-ncbi-key"
 bioportal_api_key = "your-bioportal-key"
-GOOGLE_API_KEY = "your-google-key"  # Optional: for AI photo generation
+GOOGLE_API_KEY = "your-google-key"  # optional for AI photos
 ```
 
-## Features
+## Outputs
+- App shows generated file paths after a run
+- Typical formats: JSON‑LD (comprehensive), RDF/TTL, HTML report, optional PDF
+- Export page provides download buttons if files exist on disk
 
-### Core Functionality
+## Troubleshooting (quick)
+- Missing API keys → add to `config.yaml` or Cloud Secrets
+- Rate limits/timeouts → reduce genes, enable cache, check `rate_limits` in `config.yaml`
+- “Visualization file not found” → ensure JSON‑LD is present in outputs and on disk
 
-1. **Home Dashboard**
-   - Overview metrics (patients tested, genes analyzed, drug interactions)
-   - Navigation to all workflow steps
+## Minimal Repo Structure
+```
+pharmgx-clinical-dashboard/
+  app.py               # streamlit entrypoint
+  config.yaml          # config and feature toggles
+  src/
+    dashboard/         # UI and visualization
+    phase1_discovery/  # variants
+    phase2_clinical/   # clinical validation
+    phase3_context/    # drugs & literature
+    phase4_rdf/        # graph assembly
+    phase5_export/     # exporters
+    utils/             # shared helpers, db loader, event bus
+```
 
-2. **Patient Profile Creation**
-   - Comprehensive demographics form (age, weight, height, gender, etc.)
-   - Photo upload support (including AI-generated patient photos)
-   - Auto-generation mode for virtual patients
-   - Dynamic clinical data generation with age and lifestyle factors
-
-3. **Gene Panel Selection**
-   - Pre-defined PGx gene panels (Core Metabolizers, Chemotherapy, Transporters, etc.)
-   - Custom gene selection
-   - Panel-based drug interaction insights
-
-4. **Interactive Test Workflow**
-   - Real-time progress tracking with animated workflow stages
-   - Multi-threaded pipeline execution
-   - Simulation of laboratory workflows (DNA extraction, sequencing, variant calling)
-   - Progress visualization with detailed sub-steps
-
-5. **Clinical Report Generation**
-   - Detailed analysis results with color-coded alerts (based on CPIC guidelines)
-   - Interactive D3.js knowledge graph visualization
-   - Click-to-explore node details in the graph
-   - Summary metrics and statistics
-
-6. **Data Export**
-   - Download PDF reports
-   - Export raw data (JSON-LD, CSV, RDF)
-   - Multiple output format support
-
-## Data Sources and APIs
-
-The dashboard integrates with 9+ external databases and APIs:
-
-### Primary Data Sources
-- **UniProt**: Gene and protein information
-- **EMBL-EBI Proteins API**: Genetic variants discovery
-- **ClinVar**: Clinical significance of genetic variants
-
-### Pharmacogenomics Databases
-- **PharmGKB**: Drug-gene interactions and CPIC pharmacogenomic guidelines
-- **ChEMBL**: Drug-indication relationships (primary drug API)
-- **RxNorm/RxNav**: Drug identifier standardization
-- **OpenFDA**: FDA drug labels and safety information
-
-### Clinical & Ontology Databases
-- **BioPortal**: SNOMED CT terminology mapping
-- **Europe PMC**: Literature evidence and PubMed citations
-
-### Additional Features
-- Built-in caching system for API responses
-- Rate limiting to respect API constraints
-- Robust error handling and fallback logic
-
-## Workflow
-
-The dashboard guides users through a complete pharmacogenomics testing workflow:
-
-1. **Create Patient Profile** (manual form or auto-generate)
-2. **Select Genes** to test from available panels
-3. **Run Test** with real-time progress tracking
-4. **View Results** with interactive knowledge graph
-5. **Export Data** in multiple formats
-
-### Pipeline Phases
-
-Behind the scenes, the test execution runs a 5-phase pipeline:
-
-- **Phase 1: Variant Discovery** - Finds clinically significant variants from EMBL-EBI Proteins API
-- **Phase 2: Clinical Validation** - Enriches with ClinVar and PharmGKB annotations
-- **Phase 3: Drug & Disease Context** - Links to drug databases and literature
-- **Phase 4: RDF Knowledge Graph Assembly** - Builds semantic web knowledge graphs
-- **Phase 5: Export & Visualization** - Creates multiple output formats
-
-## Technical Implementation
-
-Built with:
-- **Python 3.11** with Anaconda
-- **Streamlit** for the web dashboard
-- **RDFlib** for knowledge graph generation
-- **D3.js** for interactive visualizations
-- **Threading** for background pipeline execution
-- **Caching** for API response optimization
-
-All code is modular and follows a clean architecture with separate modules for each component.
-
-## Requirements
-
-- Python 3.11+
-- See `requirements.txt` for all dependencies
+## License & Acknowledgments
+- University assets in `assets/` belong to their respective owners
+- External APIs and databases acknowledged above
