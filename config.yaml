@@ -1,7 +1,33 @@
 api:
-  ncbi_email: ""  # Required by NCBI
-  ncbi_api_key: ""  # Optional, for faster rate limits (get from https://www.ncbi.nlm.nih.gov/account/)
-  bioportal_api_key: ""  # Replace with your BioPortal API key
+  # ===== REQUIRED =====
+  # Your email address (required by NCBI terms of use)
+  ncbi_email: ""  # Example: "researcher@university.edu"
+  
+  # ===== RECOMMENDED =====
+  # NCBI API key for higher rate limits (10 req/s vs 3 req/s without)
+  # Get from: https://www.ncbi.nlm.nih.gov/account/ (free registration)
+  ncbi_api_key: ""  # Leave empty if you don't have one
+  
+  # ===== OPTIONAL =====
+  # BioPortal API key for SNOMED CT ontology (free for research)
+  # Get from: https://bioportal.bioontology.org/
+  # App uses fallback services if not provided
+  bioportal_api_key: ""
+  
+  # ===== GOOGLE API KEY (for AI-generated patient photos) =====
+  # This is NOT configured in this file - set as environment variable instead:
+  #
+  # Windows (PowerShell):
+  #   $env:GOOGLE_API_KEY="your-google-key-here"
+  #
+  # Windows (Command Prompt):
+  #   set GOOGLE_API_KEY=your-google-key-here
+  #
+  # Linux/Mac:
+  #   export GOOGLE_API_KEY="your-google-key-here"
+  #
+  # Get your key from: https://aistudio.google.com/app/apikey
+  # If not set, app will use placeholder avatars (works fine without it)
   
 rate_limits:
   ncbi: 10  # requests per second (10 with API key)
@@ -12,7 +38,7 @@ rate_limits:
   
 cache:
   enabled: true
-  ttl_days: 30  # Cache API responses for 30 days
+  ttl_days: 7  # Cache API responses for 7 days (reduced from 30 to keep cache smaller)
   
 output:
   max_variants_per_gene: 50  # Limit for performance
@@ -20,6 +46,7 @@ output:
 features:
   enable_openfda: false  # Set to false to skip OpenFDA queries (reduces 404 errors)
   enable_europepmc: true  # Set to false to skip literature searches
+  enable_chembl: true  # Set to false to skip ChEMBL bioactivity queries (speeds up pipeline significantly)
   
 namespaces:
   pgx: "http://pgx-kg.org/"

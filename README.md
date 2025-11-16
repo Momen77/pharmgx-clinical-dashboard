@@ -7,6 +7,11 @@ Interactive clinical pharmacogenomics dashboard for PGx testing and reporting. T
 ### Local
 ```bash
 pip install -r requirements.txt
+
+# Edit config.yaml and add your email (required)
+# api:
+#   ncbi_email: "your-email@example.com"
+
 streamlit run app.py
 ```
 
@@ -57,14 +62,38 @@ The database is **optional** and **non-blocking** - works without it.
 - BioPortal (SNOMED CT), Europe PMC, OpenFDA
 
 ## Configuration
-- File: `config.yaml` controls API keys, rate limits, caching, and optional database loading
-- Secrets (Streamlit Cloud → Settings → Secrets):
+
+### API Keys
+Edit `config.yaml` and add your keys (see comments in file for where to get them):
+
+```yaml
+api:
+  ncbi_email: "your-email@example.com"  # ✅ Required
+  ncbi_api_key: ""  # ⭐ Recommended (get from https://www.ncbi.nlm.nih.gov/account/)
+  bioportal_api_key: ""  # Optional (get from https://bioportal.bioontology.org/)
+```
+
+**For AI-generated patient photos (optional):**  
+Set as environment variable (get key from https://aistudio.google.com/app/apikey):
+```bash
+# Windows (PowerShell)
+$env:GOOGLE_API_KEY="your-key-here"
+
+# Windows (Command Prompt)
+set GOOGLE_API_KEY=your-key-here
+
+# Linux/Mac
+export GOOGLE_API_KEY="your-key-here"
+```
+Then run `streamlit run app.py` in the same terminal.
+
+### Streamlit Cloud Secrets
 ```toml
 [api]
 ncbi_email = "your-email@example.com"
 ncbi_api_key = "your-ncbi-key"
 bioportal_api_key = "your-bioportal-key"
-GOOGLE_API_KEY = "your-google-key"  # optional for AI photos
+GOOGLE_API_KEY = "your-google-key"
 ```
 
 ## Outputs

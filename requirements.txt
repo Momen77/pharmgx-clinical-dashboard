@@ -10,7 +10,7 @@ pytest>=7.4.0
 notebook>=7.0.0
 
 # Dashboard dependencies
-streamlit>=1.28.0
+streamlit>=1.40.0  # Required for width parameter (replaces deprecated use_container_width)
 reportlab>=4.0.0
 Pillow>=10.0.0
 plotly>=5.17.0

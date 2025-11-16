@@ -233,7 +233,7 @@ class PatientCreator:
                 pass
 
             # Submit button
-            submitted = st.form_submit_button("✅ Create Patient Profile", type="primary", width='stretch')
+            submitted = st.form_submit_button("✅ Create Patient Profile", type="primary")
             
             if submitted:
                 if not first_name or not last_name:

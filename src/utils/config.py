@@ -34,14 +34,18 @@ class Config:
         if path.exists():
             return path
         
-        # Try common locations relative to current file
-        # From: src/pharmgx-clinical-dashboard/src/utils/config.py
-        # To project root: go up 5 levels (utils -> src -> pharmgx-clinical-dashboard -> src -> root)
-        base_dir = Path(__file__).parent.parent.parent.parent.parent
+        # Try common locations
+        # From: pharmgx-clinical-dashboard/src/utils/config.py
+        current_file = Path(__file__).resolve()
         candidates = [
-            base_dir / config_path,  # Project root
-            base_dir / "src" / "pharmgx-clinical-dashboard" / config_path,  # Dashboard dir
-            base_dir.parent / config_path,  # One level up
+            # Current directory
+            Path.cwd() / config_path,
+            # Dashboard root (go up from src/utils/)
+            current_file.parent.parent.parent / config_path,
+            # One more level up
+            current_file.parent.parent.parent.parent / config_path,
+            # Project root (in case we're deep in src/)
+            current_file.parent.parent.parent.parent.parent / config_path,
         ]
         
         for candidate in candidates:
@@ -100,6 +104,13 @@ class Config:
         # Try Streamlit secrets first (when running in Streamlit)
         try:
             import streamlit as st
+            # Import the exception class if available
+            try:
+                from streamlit.errors import StreamlitSecretNotFoundError
+            except ImportError:
+                # Fallback for older Streamlit versions
+                StreamlitSecretNotFoundError = type('StreamlitSecretNotFoundError', (Exception,), {})
+            
             # For nested keys like 'api.ncbi_email', try both:
             # 1. secrets['api']['ncbi_email']
             # 2. secrets['ncbi_email'] (flattened)
@@ -112,7 +123,7 @@ class Config:
                     value = value[k]
                 if value:
                     return value
-            except (KeyError, TypeError):
+            except (KeyError, TypeError, StreamlitSecretNotFoundError):
                 pass
             
             # Try flattened key (e.g., 'bioportal_api_key' directly)
@@ -122,7 +133,7 @@ class Config:
                     value = st.secrets.get(flat_key)
                     if value:
                         return value
-                except (KeyError, AttributeError):
+                except (KeyError, AttributeError, StreamlitSecretNotFoundError):
                     pass
         except ImportError:
             # Not in Streamlit context, try loading secrets.toml manually

@@ -259,7 +259,18 @@ class DrugDiseaseLinker:
         
         # Load configuration to check feature flags
         from utils.config import Config
-        config = Config()
+        # Try to find config.yaml in common locations
+        config_path = None
+        for path in [
+            Path(__file__).parent.parent.parent / "config.yaml",  # Project root
+            Path("config.yaml"),  # Current directory
+            Path(__file__).parent.parent / "config.yaml",  # src directory
+        ]:
+            if path.exists():
+                config_path = str(path)
+                break
+        
+        config = Config(config_path=config_path) if config_path else Config()
         
         # Enrich with ChEMBL bioactivity data (if enabled)
         if config.config.get("features", {}).get("enable_chembl", True):

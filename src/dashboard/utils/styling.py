@@ -20,7 +20,11 @@ def get_ugent_css():
     """Returns CSS stylesheet for Ghent University branding"""
     return f"""
     <style>
-        /* Main styling */
+        /* Main styling - Scale down everything */
+        html {{
+            font-size: 13px !important;  /* Default is 16px, this scales everything down */
+        }}
+        
         .stApp {{
             background-color: {UGENT_COLORS['background']};
         }}

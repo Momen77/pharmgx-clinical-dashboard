@@ -328,12 +328,6 @@ with st.sidebar:
         index=0,
         label_visibility="collapsed"
     )
-    
-    st.divider()
-    st.markdown("### Progress")
-    for step_name, completed in steps[1:]:  # Skip Home
-        icon = "✅" if completed else "⏹️"
-        st.caption(f"{icon} {step_name}")
 
 # =========================
 # Pages
@@ -397,7 +391,7 @@ elif page == "👤 Create Patient":
 
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                if st.button("🎲 Generate Random Patient Profile", type="primary", use_container_width=True):
+                if st.button("🎲 Generate Random Patient Profile", type="primary"):
                     profile = creator.generate_random_profile(generate_ai_photo=True)
                     if profile:
                         st.session_state['patient_profile'] = profile
@@ -497,7 +491,7 @@ elif page == "🔬 Run Test":
                 run_test_button = st.button(
                     "🧬 Run Pharmacogenetic Test",
                     type="primary",
-                    width='stretch',
+                    width="stretch",
                     key="run_test_main_button"
                 )
         
